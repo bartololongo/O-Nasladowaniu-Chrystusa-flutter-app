@@ -28,9 +28,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
   void _loadChapterByReference(String reference) {
     setState(() {
       _currentChapterRef = reference;
-      _chapterFuture = _bookRepository
-          .getChapterByReference(reference)
-          .then((chapter) {
+      _chapterFuture =
+          _bookRepository.getChapterByReference(reference).then((chapter) {
         if (chapter == null) {
           throw Exception('Nie znaleziono rozdziału $reference');
         }
@@ -97,8 +96,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
                           width: 40,
                           height: 4,
                           decoration: BoxDecoration(
-                            color:
-                                colorScheme.onSurface.withOpacity(0.3),
+                            color: colorScheme.onSurface.withOpacity(0.3),
                             borderRadius: BorderRadius.circular(2),
                           ),
                         ),
@@ -120,8 +118,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
                         Expanded(
                           child: ListView(
                             controller: scrollController,
-                            padding: const EdgeInsets.fromLTRB(
-                                16, 0, 16, 16),
+                            padding:
+                                const EdgeInsets.fromLTRB(16, 0, 16, 16),
                             children: [
                               for (final book in collection.books) ...[
                                 Padding(
@@ -147,14 +145,14 @@ class _ReaderScreenState extends State<ReaderScreen> {
                                     subtitle: Text(
                                       'Rozdział ${chapter.number} • ${chapter.reference}',
                                     ),
-                                    trailing: _currentChapterRef ==
-                                            chapter.reference
-                                        ? Icon(
-                                            Icons.check,
-                                            color:
-                                                colorScheme.primary,
-                                          )
-                                        : null,
+                                    trailing:
+                                        _currentChapterRef ==
+                                                chapter.reference
+                                            ? Icon(
+                                                Icons.check,
+                                                color: colorScheme.primary,
+                                              )
+                                            : null,
                                     onTap: () {
                                       Navigator.of(context).pop();
                                       _loadChapterByReference(
@@ -175,6 +173,60 @@ class _ReaderScreenState extends State<ReaderScreen> {
         );
       },
     );
+  }
+
+  Future<void> _goToNextChapter() async {
+    try {
+      final next =
+          await _bookRepository.getNextChapter(_currentChapterRef);
+      if (!mounted) return;
+      if (next == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('To jest ostatni rozdział.'),
+          ),
+        );
+        return;
+      }
+      setState(() {
+        _currentChapterRef = next.reference;
+        _chapterFuture = Future.value(next);
+      });
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Nie udało się przejść do następnego rozdziału: $e'),
+        ),
+      );
+    }
+  }
+
+  Future<void> _goToPreviousChapter() async {
+    try {
+      final previous =
+          await _bookRepository.getPreviousChapter(_currentChapterRef);
+      if (!mounted) return;
+      if (previous == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('To jest pierwszy rozdział.'),
+          ),
+        );
+        return;
+      }
+      setState(() {
+        _currentChapterRef = previous.reference;
+        _chapterFuture = Future.value(previous);
+      });
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Nie udało się przejść do poprzedniego rozdziału: $e'),
+        ),
+      );
+    }
   }
 
   @override
@@ -198,7 +250,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
             child: FutureBuilder<BookChapter>(
               future: _chapterFuture,
               builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
+                if (snapshot.connectionState ==
+                    ConnectionState.waiting) {
                   return const Center(
                     child: CircularProgressIndicator(),
                   );
@@ -222,6 +275,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     _buildTitle(chapter),
+                    _buildChapterNavigation(chapter),
                     const SizedBox(height: 8),
                     _buildReader(chapter),
                   ],
@@ -311,6 +365,35 @@ class _ReaderScreenState extends State<ReaderScreen> {
             style: TextStyle(
               fontSize: 12,
               color: colorScheme.onSurface.withOpacity(0.7),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildChapterNavigation(BookChapter chapter) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          TextButton.icon(
+            onPressed: _goToPreviousChapter,
+            icon: const Icon(Icons.chevron_left),
+            label: const Text('Poprzedni'),
+            style: TextButton.styleFrom(
+              foregroundColor: colorScheme.primary,
+            ),
+          ),
+          TextButton.icon(
+            onPressed: _goToNextChapter,
+            icon: const Icon(Icons.chevron_right),
+            label: const Text('Następny'),
+            style: TextButton.styleFrom(
+              foregroundColor: colorScheme.primary,
             ),
           ),
         ],

@@ -59,4 +59,38 @@ class BookRepository {
 
     return paragraph;
   }
+
+  /// Znajdź następny rozdział po podanym (w kolejności księga → rozdziały).
+  Future<BookChapter?> getNextChapter(String reference) async {
+    final collection = await _loadCollection();
+    bool foundCurrent = false;
+
+    for (final book in collection.books) {
+      for (final chapter in book.chapters) {
+        if (foundCurrent) {
+          return chapter; // pierwszy po aktualnym
+        }
+        if (chapter.reference == reference) {
+          foundCurrent = true;
+        }
+      }
+    }
+    return null; // brak następnego (ostatni rozdział)
+  }
+
+  /// Znajdź poprzedni rozdział przed podanym.
+  Future<BookChapter?> getPreviousChapter(String reference) async {
+    final collection = await _loadCollection();
+    BookChapter? previous;
+
+    for (final book in collection.books) {
+      for (final chapter in book.chapters) {
+        if (chapter.reference == reference) {
+          return previous; // może być null, jeśli to pierwszy rozdział
+        }
+        previous = chapter;
+      }
+    }
+    return null;
+  }
 }
