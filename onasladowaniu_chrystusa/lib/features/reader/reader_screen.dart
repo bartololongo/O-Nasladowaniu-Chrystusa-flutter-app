@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import '../../shared/models/book_models.dart';
 import '../../shared/services/book_repository.dart';
 import '../../shared/services/preferences_service.dart';
+import '../../shared/services/bookmarks_service.dart';
+import '../../shared/services/favorites_service.dart';
 
 class ReaderScreen extends StatefulWidget {
   const ReaderScreen({super.key});
@@ -13,6 +15,8 @@ class ReaderScreen extends StatefulWidget {
 class _ReaderScreenState extends State<ReaderScreen> {
   final BookRepository _bookRepository = BookRepository();
   final PreferencesService _prefs = PreferencesService();
+  final BookmarksService _bookmarksService = BookmarksService();
+  final FavoritesService _favoritesService = FavoritesService();
 
   late final ScrollController _scrollController;
 
@@ -21,9 +25,10 @@ class _ReaderScreenState extends State<ReaderScreen> {
   bool _isJustified = true;
 
   late Future<BookChapter> _chapterFuture;
-  String _currentChapterRef = 'I-1'; // fallback, jeśli nic nie ma w prefs
+  String _currentChapterRef = 'I-1'; // fallback
 
-  double? _pendingScrollOffset; // do przywrócenia po załadowaniu rozdziału
+  double? _pendingScrollOffset;
+  bool _isCurrentBookmarked = false;
 
   @override
   void initState() {
@@ -32,20 +37,19 @@ class _ReaderScreenState extends State<ReaderScreen> {
     _scrollController = ScrollController();
     _scrollController.addListener(_onScrollChanged);
 
-    // 1) Na start ładujemy pierwszy rozdział (żeby coś było od razu).
+    // 1) Start od pierwszego rozdziału
     _chapterFuture = _bookRepository.getFirstChapter().then((chapter) {
       _currentChapterRef = chapter.reference;
-      // Zapisz go jako ostatnio czytany, jeśli nic nie było.
       _prefs.saveLastChapterRef(_currentChapterRef);
-      // Spróbuj przywrócić scroll dla tego rozdziału.
       _loadScrollOffsetForChapter(_currentChapterRef);
+      _refreshBookmarkStatus();
       return chapter;
     });
 
-    // 2) Równolegle próbujemy podmienić na "ostatnio czytany", jeśli jest.
+    // 2) Podmiana na ostatnio czytany (jeśli jest)
     _initFromLastRead();
 
-    // 3) Wczytaj zapisany rozmiar czcionki.
+    // 3) Wczytanie rozmiaru czcionki
     _loadReaderFontSize();
   }
 
@@ -81,8 +85,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
         savedRef != _currentChapterRef) {
       _loadChapterByReference(savedRef, saveAsLast: false);
     } else if (savedRef != null && savedRef.isNotEmpty) {
-      // Jeżeli ref jest taki sam jak aktualny, to i tak spróbuj załadować scroll.
       _loadScrollOffsetForChapter(savedRef);
+      _refreshBookmarkStatus();
     }
   }
 
@@ -91,6 +95,15 @@ class _ReaderScreenState extends State<ReaderScreen> {
     if (!mounted) return;
     setState(() {
       _pendingScrollOffset = offset;
+    });
+  }
+
+  Future<void> _refreshBookmarkStatus() async {
+    final isBookmarked =
+        await _bookmarksService.isChapterBookmarked(_currentChapterRef);
+    if (!mounted) return;
+    setState(() {
+      _isCurrentBookmarked = isBookmarked;
     });
   }
 
@@ -104,15 +117,15 @@ class _ReaderScreenState extends State<ReaderScreen> {
         }
         return chapter;
       });
-      _pendingScrollOffset = null; // nowy rozdział → nowy scroll (załaduje się z prefs)
+      _pendingScrollOffset = null;
     });
 
     if (saveAsLast) {
       _prefs.saveLastChapterRef(reference);
     }
 
-    // Załaduj zapisany scroll dla tego rozdziału (jeśli jest).
     _loadScrollOffsetForChapter(reference);
+    _refreshBookmarkStatus();
   }
 
   void _showChapterPicker() {
@@ -173,7 +186,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
                           width: 40,
                           height: 4,
                           decoration: BoxDecoration(
-                            color: colorScheme.onSurface.withOpacity(0.3),
+                            color:
+                                colorScheme.onSurface.withOpacity(0.3),
                             borderRadius: BorderRadius.circular(2),
                           ),
                         ),
@@ -303,12 +317,119 @@ class _ReaderScreenState extends State<ReaderScreen> {
     }
   }
 
+  Future<void> _toggleBookmarkForCurrentChapter() async {
+    try {
+      if (_isCurrentBookmarked) {
+        await _bookmarksService
+            .removeBookmarkForChapterRef(_currentChapterRef);
+        if (!mounted) return;
+        setState(() {
+          _isCurrentBookmarked = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Zakładka usunięta.')),
+        );
+      } else {
+        await _bookmarksService
+            .addBookmarkForChapterRef(_currentChapterRef);
+        if (!mounted) return;
+        setState(() {
+          _isCurrentBookmarked = true;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Zakładka dodana.')),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Nie udało się zaktualizować zakładki: $e'),
+        ),
+      );
+    }
+  }
+
+  Future<void> _onParagraphLongPress(BookParagraph paragraph) async {
+    final controller = TextEditingController();
+
+    await showDialog(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          title: const Text('Dodaj do ulubionych'),
+          content: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  paragraph.text,
+                  style: const TextStyle(fontSize: 14),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Notatka (opcjonalnie):',
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 4),
+                TextField(
+                  controller: controller,
+                  maxLines: 3,
+                  decoration: const InputDecoration(
+                    border: OutlineInputBorder(),
+                    hintText: 'Twoje myśli, skojarzenia, modlitwa...',
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Anuluj'),
+            ),
+            TextButton(
+              onPressed: () async {
+                final note = controller.text.trim().isEmpty
+                    ? null
+                    : controller.text.trim();
+                await _favoritesService.addOrUpdateFavoriteForParagraph(
+                  paragraph,
+                  note: note,
+                );
+                if (!mounted) return;
+                Navigator.of(ctx).pop();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Dodano do ulubionych cytatów.'),
+                  ),
+                );
+              },
+              child: const Text('Zapisz'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Czytanie'),
         actions: [
+          IconButton(
+            icon: Icon(
+              _isCurrentBookmarked
+                  ? Icons.bookmark
+                  : Icons.bookmark_border,
+            ),
+            tooltip:
+                _isCurrentBookmarked ? 'Usuń zakładkę' : 'Dodaj zakładkę',
+            onPressed: _toggleBookmarkForCurrentChapter,
+          ),
           IconButton(
             icon: const Icon(Icons.menu_book_outlined),
             tooltip: 'Wybierz księgę i rozdział',
@@ -346,7 +467,6 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
                 final chapter = snapshot.data!;
 
-                // Przywrócenie scrolla po załadowaniu rozdziału
                 if (_pendingScrollOffset != null) {
                   WidgetsBinding.instance.addPostFrameCallback((_) {
                     if (!_scrollController.hasClients) return;
@@ -440,12 +560,11 @@ class _ReaderScreenState extends State<ReaderScreen> {
   Widget _buildTitle(BookChapter chapter) {
     final colorScheme = Theme.of(context).colorScheme;
 
-    // "I-1" → Księga I, rozdział 1
     String subtitle;
     final parts = chapter.reference.split('-');
     if (parts.length == 2) {
-      final bookCode = parts[0]; // np. "I"
-      final chapterNumber = parts[1]; // np. "1"
+      final bookCode = parts[0];
+      final chapterNumber = parts[1];
       subtitle = 'Księga $bookCode, rozdział $chapterNumber';
     } else {
       subtitle = 'Rozdział ${chapter.reference}';
@@ -514,13 +633,16 @@ class _ReaderScreenState extends State<ReaderScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             for (final paragraph in chapter.paragraphs) ...[
-              Text(
-                paragraph.text,
-                textAlign:
-                    _isJustified ? TextAlign.justify : TextAlign.left,
-                style: TextStyle(
-                  fontSize: _fontSize,
-                  height: _lineHeight,
+              GestureDetector(
+                onLongPress: () => _onParagraphLongPress(paragraph),
+                child: Text(
+                  paragraph.text,
+                  textAlign:
+                      _isJustified ? TextAlign.justify : TextAlign.left,
+                  style: TextStyle(
+                    fontSize: _fontSize,
+                    height: _lineHeight,
+                  ),
                 ),
               ),
               const SizedBox(height: 12),
