@@ -1,3 +1,5 @@
+/// Kolekcja książki „O naśladowaniu Chrystusa”
+/// (jedna książka, ale struktura pozwala na łatwe rozszerzenie w przyszłości).
 class BookCollection {
   final String id;
   final String title;
@@ -27,11 +29,23 @@ class BookCollection {
           .toList(),
     );
   }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'title': title,
+      'originalTitle': originalTitle,
+      'author': author,
+      'translator': translator,
+      'books': books.map((b) => b.toJson()).toList(),
+    };
+  }
 }
 
+/// „Księga” – np. I, II, III, IV.
 class BookVolume {
-  final int number;
-  final String code; // np. "I"
+  final int number; // kolejność: 1, 2, 3...
+  final String code; // np. "I", "II"
   final String title;
   final List<BookChapter> chapters;
 
@@ -52,8 +66,18 @@ class BookVolume {
           .toList(),
     );
   }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'number': number,
+      'code': code,
+      'title': title,
+      'chapters': chapters.map((c) => c.toJson()).toList(),
+    };
+  }
 }
 
+/// Rozdział w księdze – np. „I-1”.
 class BookChapter {
   final int number;
   final String reference; // np. "I-1"
@@ -77,8 +101,19 @@ class BookChapter {
           .toList(),
     );
   }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'number': number,
+      'reference': reference,
+      'title': title,
+      'paragraphs': paragraphs.map((p) => p.toJson()).toList(),
+    };
+  }
 }
 
+/// Akapit – najmniejsza jednostka, do której będziemy
+/// przypinać zakładki, ulubione, notatki itp.
 class BookParagraph {
   final int number;
   final String reference; // np. "I-1-1"
@@ -96,5 +131,13 @@ class BookParagraph {
       reference: json['reference'] as String,
       text: json['text'] as String,
     );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'number': number,
+      'reference': reference,
+      'text': text,
+    };
   }
 }
