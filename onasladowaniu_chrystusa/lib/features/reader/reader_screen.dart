@@ -347,6 +347,18 @@ class _ReaderScreenState extends State<ReaderScreen> {
   Widget _buildTitle(BookChapter chapter) {
     final colorScheme = Theme.of(context).colorScheme;
 
+    // Spróbujemy rozdzielić "I-1" na księgę i rozdział
+    String subtitle;
+    final parts = chapter.reference.split('-');
+    if (parts.length == 2) {
+      final bookCode = parts[0]; // np. "I"
+      final chapterNumber = parts[1]; // np. "1"
+      subtitle = 'Księga $bookCode, rozdział $chapterNumber';
+    } else {
+      // fallback, gdyby format był inny
+      subtitle = 'Rozdział ${chapter.reference}';
+    }
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
       child: Column(
@@ -361,7 +373,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
           ),
           const SizedBox(height: 4),
           Text(
-            'Rozdział ${chapter.reference}',
+            subtitle,
             style: TextStyle(
               fontSize: 12,
               color: colorScheme.onSurface.withOpacity(0.7),
@@ -371,6 +383,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
       ),
     );
   }
+
 
   Widget _buildChapterNavigation(BookChapter chapter) {
     final colorScheme = Theme.of(context).colorScheme;
