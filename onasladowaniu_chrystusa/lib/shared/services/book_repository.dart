@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math';
 
 import 'package:flutter/services.dart' show rootBundle;
 import '../models/book_models.dart';
@@ -27,7 +28,7 @@ class BookRepository {
     return firstChapter;
   }
 
-  /// W przyszłości: pobieranie po referencji, np. "I-1"
+  /// Pobierz rozdział po referencji, np. "I-1".
   Future<BookChapter?> getChapterByReference(String reference) async {
     final collection = await _loadCollection();
     for (final book in collection.books) {
@@ -38,5 +39,17 @@ class BookRepository {
       }
     }
     return null;
+  }
+
+  /// Wylosuj dowolny akapit z całej książki.
+  Future<BookParagraph> getRandomParagraph() async {
+    final collection = await _loadCollection();
+    final random = Random();
+
+    final book = collection.books[random.nextInt(collection.books.length)];
+    final chapter = book.chapters[random.nextInt(book.chapters.length)];
+    final paragraph = chapter.paragraphs[random.nextInt(chapter.paragraphs.length)];
+
+    return paragraph;
   }
 }

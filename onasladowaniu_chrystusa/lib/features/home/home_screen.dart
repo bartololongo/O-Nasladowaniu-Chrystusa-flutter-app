@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../../shared/services/book_repository.dart';
+import '../../shared/models/book_models.dart';
 
 class HomeScreen extends StatelessWidget {
   final void Function(int tabIndex)? onNavigateToTab;
@@ -23,6 +25,8 @@ class HomeScreen extends StatelessWidget {
             _buildContinueReadingCard(context),
             const SizedBox(height: 12),
             _buildChallengeCard(context),
+            const SizedBox(height: 12),
+            _buildRandomQuoteCard(context),
           ],
         ),
       ),
@@ -64,6 +68,47 @@ class HomeScreen extends StatelessWidget {
             content: Text('Wyzwanie będzie dostępne w jednej z kolejnych wersji.'),
           ),
         );
+      },
+    );
+  }
+
+  Widget _buildRandomQuoteCard(BuildContext context) {
+    return _HomeCard(
+      icon: Icons.auto_awesome,
+      title: 'Losuj cytat',
+      subtitle: 'Wyświetl losowy fragment z książki.',
+      onTap: () async {
+        final repo = BookRepository();
+
+        try {
+          final BookParagraph paragraph = await repo.getRandomParagraph();
+
+          // Dialog z wylosowanym cytatem
+          // (na razie sam tekst; później możemy dodać referencję typu I-1-3).
+          // ignore: use_build_context_synchronously
+          showDialog(
+            context: context,
+            builder: (context) {
+              return AlertDialog(
+                title: const Text('Wylosowany cytat'),
+                content: Text(paragraph.text),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: const Text('Zamknij'),
+                  ),
+                ],
+              );
+            },
+          );
+        } catch (e) {
+          // ignore: use_build_context_synchronously
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Nie udało się wylosować cytatu: $e'),
+            ),
+          );
+        }
       },
     );
   }
