@@ -1,34 +1,29 @@
 {
-  "id": "o_nasladowaniu_chrystusa_mock",
-  "title": "O naśladowaniu Chrystusa (mock)",
-  "originalTitle": "De imitatione Christi",
-  "author": "Tomasz à Kempis",
-  "translator": "placeholder",
+  "id": "imitation_pl_kamienksa",
+  "title": "O naśladowaniu Chrystusa",
+  "language": "pl",
+  "translator": "Anna Kamieńska",
+  "source": "TU_DANE_O_WYDANIU_LICENCJI",
+  "version": 1,
   "books": [
     {
-      "number": 1,
       "code": "I",
-      "title": "Księga I (mock)",
+      "title": "Księga pierwsza",
       "chapters": [
         {
           "number": 1,
           "reference": "I-1",
-          "title": "Rozdział 1 (mock)",
+          "title": "Tytuł rozdziału 1 (do uzupełnienia)",
           "paragraphs": [
             {
-              "number": 1,
+              "index": 1,
               "reference": "I-1-1",
-              "text": "To jest przykładowy akapit numer 1. Służy tylko do testowania przewijania, czcionki i formatowania w czytniku."
+              "text": "TU TEKST PIERWSZEGO AKAPITU…"
             },
             {
-              "number": 2,
+              "index": 2,
               "reference": "I-1-2",
-              "text": "To jest przykładowy akapit numer 2. W docelowej wersji w tym miejscu pojawi się tekst książki podzielony na logiczne fragmenty."
-            },
-            {
-              "number": 3,
-              "reference": "I-1-3",
-              "text": "To jest przykładowy akapit numer 3. Można go wykorzystać do sprawdzenia, jak zachowuje się ekran przy dłuższym czytaniu, przewijaniu oraz przy zmianie ustawień czcionki."
+              "text": "TU TEKST DRUGIEGO AKAPITU…"
             }
           ]
         }

@@ -1,31 +1,32 @@
-/// Kolekcja książki „O naśladowaniu Chrystusa”
-/// (jedna książka, ale struktura pozwala na łatwe rozszerzenie w przyszłości).
 class BookCollection {
   final String id;
   final String title;
-  final String? originalTitle;
-  final String? author;
-  final String? translator;
-  final List<BookVolume> books;
+  final String language;
+  final String translator;
+  final String? source;
+  final int version;
+  final List<Book> books;
 
   BookCollection({
     required this.id,
     required this.title,
-    this.originalTitle,
-    this.author,
-    this.translator,
+    required this.language,
+    required this.translator,
+    required this.version,
     required this.books,
+    this.source,
   });
 
   factory BookCollection.fromJson(Map<String, dynamic> json) {
     return BookCollection(
       id: json['id'] as String,
       title: json['title'] as String,
-      originalTitle: json['originalTitle'] as String?,
-      author: json['author'] as String?,
-      translator: json['translator'] as String?,
+      language: json['language'] as String,
+      translator: json['translator'] as String,
+      source: json['source'] as String?,
+      version: (json['version'] as num).toInt(),
       books: (json['books'] as List<dynamic>)
-          .map((e) => BookVolume.fromJson(e as Map<String, dynamic>))
+          .map((b) => Book.fromJson(b as Map<String, dynamic>))
           .toList(),
     );
   }
@@ -34,42 +35,38 @@ class BookCollection {
     return {
       'id': id,
       'title': title,
-      'originalTitle': originalTitle,
-      'author': author,
+      'language': language,
       'translator': translator,
+      'source': source,
+      'version': version,
       'books': books.map((b) => b.toJson()).toList(),
     };
   }
 }
 
-/// „Księga” – np. I, II, III, IV.
-class BookVolume {
-  final int number; // kolejność: 1, 2, 3...
-  final String code; // np. "I", "II"
+class Book {
+  final String code; // "I", "II", ...
   final String title;
   final List<BookChapter> chapters;
 
-  BookVolume({
-    required this.number,
+  Book({
     required this.code,
     required this.title,
     required this.chapters,
   });
 
-  factory BookVolume.fromJson(Map<String, dynamic> json) {
-    return BookVolume(
-      number: json['number'] as int,
+  factory Book.fromJson(Map<String, dynamic> json) {
+    return Book(
       code: json['code'] as String,
       title: json['title'] as String,
       chapters: (json['chapters'] as List<dynamic>)
-          .map((e) => BookChapter.fromJson(e as Map<String, dynamic>))
+          .map((c) => BookChapter.fromJson(c as Map<String, dynamic>))
           .toList(),
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
-      'number': number,
       'code': code,
       'title': title,
       'chapters': chapters.map((c) => c.toJson()).toList(),
@@ -77,10 +74,9 @@ class BookVolume {
   }
 }
 
-/// Rozdział w księdze – np. „I-1”.
 class BookChapter {
   final int number;
-  final String reference; // np. "I-1"
+  final String reference; // "I-1"
   final String title;
   final List<BookParagraph> paragraphs;
 
@@ -93,11 +89,11 @@ class BookChapter {
 
   factory BookChapter.fromJson(Map<String, dynamic> json) {
     return BookChapter(
-      number: json['number'] as int,
+      number: (json['number'] as num).toInt(),
       reference: json['reference'] as String,
       title: json['title'] as String,
       paragraphs: (json['paragraphs'] as List<dynamic>)
-          .map((e) => BookParagraph.fromJson(e as Map<String, dynamic>))
+          .map((p) => BookParagraph.fromJson(p as Map<String, dynamic>))
           .toList(),
     );
   }
@@ -112,22 +108,20 @@ class BookChapter {
   }
 }
 
-/// Akapit – najmniejsza jednostka, do której będziemy
-/// przypinać zakładki, ulubione, notatki itp.
 class BookParagraph {
-  final int number;
-  final String reference; // np. "I-1-1"
+  final int index;
+  final String reference; // "I-1-1"
   final String text;
 
   BookParagraph({
-    required this.number,
+    required this.index,
     required this.reference,
     required this.text,
   });
 
   factory BookParagraph.fromJson(Map<String, dynamic> json) {
     return BookParagraph(
-      number: json['number'] as int,
+      index: (json['index'] as num).toInt(),
       reference: json['reference'] as String,
       text: json['text'] as String,
     );
@@ -135,7 +129,7 @@ class BookParagraph {
 
   Map<String, dynamic> toJson() {
     return {
-      'number': number,
+      'index': index,
       'reference': reference,
       'text': text,
     };
