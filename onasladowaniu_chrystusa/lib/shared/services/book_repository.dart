@@ -15,9 +15,15 @@ class BookRepository {
     }
 
     final raw = await rootBundle.loadString(_assetPath);
-    final Map<String, dynamic> jsonMap = json.decode(raw) as Map<String, dynamic>;
+    final Map<String, dynamic> jsonMap =
+        json.decode(raw) as Map<String, dynamic>;
     _cachedCollection = BookCollection.fromJson(jsonMap);
     return _cachedCollection!;
+  }
+
+  /// Publiczny dostęp do całej kolekcji
+  Future<BookCollection> getCollection() async {
+    return _loadCollection();
   }
 
   /// Na start: po prostu pierwszy rozdział pierwszej księgi.
@@ -48,7 +54,8 @@ class BookRepository {
 
     final book = collection.books[random.nextInt(collection.books.length)];
     final chapter = book.chapters[random.nextInt(book.chapters.length)];
-    final paragraph = chapter.paragraphs[random.nextInt(chapter.paragraphs.length)];
+    final paragraph =
+        chapter.paragraphs[random.nextInt(chapter.paragraphs.length)];
 
     return paragraph;
   }
