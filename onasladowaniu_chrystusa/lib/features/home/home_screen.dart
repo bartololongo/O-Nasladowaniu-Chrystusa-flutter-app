@@ -1,14 +1,54 @@
 import 'package:flutter/material.dart';
 import '../../shared/services/book_repository.dart';
 import '../../shared/models/book_models.dart';
+import '../../shared/services/preferences_service.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   final void Function(int tabIndex)? onNavigateToTab;
 
   const HomeScreen({
     super.key,
     this.onNavigateToTab,
   });
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  final PreferencesService _prefs = PreferencesService();
+
+  String? _lastChapterRef;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadLastChapterRef();
+  }
+
+  Future<void> _loadLastChapterRef() async {
+    final ref = await _prefs.getLastChapterRef();
+    if (!mounted) return;
+    setState(() {
+      _lastChapterRef = ref;
+    });
+  }
+
+  String get _continueReadingSubtitle {
+    if (_lastChapterRef == null || _lastChapterRef!.isEmpty) {
+      return 'Wróć do ostatnio czytanego miejsca.';
+    }
+
+    final parts = _lastChapterRef!.split('-');
+    if (parts.length == 2) {
+      final bookCode = parts[0]; // np. "I"
+      final chapterNumber = parts[1]; // np. "3"
+      return 'Księga $bookCode, rozdział $chapterNumber';
+    }
+
+    // Fallback, gdyby format był inny
+    return 'Rozdział $_lastChapterRef';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -47,10 +87,10 @@ class HomeScreen extends StatelessWidget {
     return _HomeCard(
       icon: Icons.play_circle_fill,
       title: 'Kontynuuj czytanie',
-      subtitle: 'Wróć do ostatnio czytanego miejsca.',
+      subtitle: _continueReadingSubtitle,
       onTap: () {
         // Przełącz dolny pasek na zakładkę „Czytanie”
-        onNavigateToTab?.call(1);
+        widget.onNavigateToTab?.call(1);
       },
     );
   }
@@ -83,8 +123,6 @@ class HomeScreen extends StatelessWidget {
         try {
           final BookParagraph paragraph = await repo.getRandomParagraph();
 
-          // Dialog z wylosowanym cytatem
-          // (na razie sam tekst; później możemy dodać referencję typu I-1-3).
           // ignore: use_build_context_synchronously
           showDialog(
             context: context,

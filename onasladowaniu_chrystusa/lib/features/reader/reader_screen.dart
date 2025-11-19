@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../shared/models/book_models.dart';
 import '../../shared/services/book_repository.dart';
+import '../../shared/services/preferences_service.dart';
 
 class ReaderScreen extends StatefulWidget {
   const ReaderScreen({super.key});
@@ -11,21 +12,89 @@ class ReaderScreen extends StatefulWidget {
 
 class _ReaderScreenState extends State<ReaderScreen> {
   final BookRepository _bookRepository = BookRepository();
+  final PreferencesService _prefs = PreferencesService();
+
+  late final ScrollController _scrollController;
 
   double _fontSize = 18.0;
   double _lineHeight = 1.5;
   bool _isJustified = true;
 
   late Future<BookChapter> _chapterFuture;
-  String _currentChapterRef = 'I-1'; // domyślnie pierwszy rozdział
+  String _currentChapterRef = 'I-1'; // fallback, jeśli nic nie ma w prefs
+
+  double? _pendingScrollOffset; // do przywrócenia po załadowaniu rozdziału
 
   @override
   void initState() {
     super.initState();
-    _loadChapterByReference(_currentChapterRef);
+
+    _scrollController = ScrollController();
+    _scrollController.addListener(_onScrollChanged);
+
+    // 1) Na start ładujemy pierwszy rozdział (żeby coś było od razu).
+    _chapterFuture = _bookRepository.getFirstChapter().then((chapter) {
+      _currentChapterRef = chapter.reference;
+      // Zapisz go jako ostatnio czytany, jeśli nic nie było.
+      _prefs.saveLastChapterRef(_currentChapterRef);
+      // Spróbuj przywrócić scroll dla tego rozdziału.
+      _loadScrollOffsetForChapter(_currentChapterRef);
+      return chapter;
+    });
+
+    // 2) Równolegle próbujemy podmienić na "ostatnio czytany", jeśli jest.
+    _initFromLastRead();
+
+    // 3) Wczytaj zapisany rozmiar czcionki.
+    _loadReaderFontSize();
   }
 
-  void _loadChapterByReference(String reference) {
+  @override
+  void dispose() {
+    _scrollController.removeListener(_onScrollChanged);
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _onScrollChanged() {
+    if (!_scrollController.hasClients) return;
+    final offset = _scrollController.offset;
+    _prefs.saveScrollOffset(_currentChapterRef, offset);
+  }
+
+  Future<void> _loadReaderFontSize() async {
+    final stored = await _prefs.getReaderFontSize();
+    if (!mounted) return;
+    if (stored != null) {
+      setState(() {
+        _fontSize = stored;
+      });
+    }
+  }
+
+  Future<void> _initFromLastRead() async {
+    final savedRef = await _prefs.getLastChapterRef();
+    if (!mounted) return;
+
+    if (savedRef != null &&
+        savedRef.isNotEmpty &&
+        savedRef != _currentChapterRef) {
+      _loadChapterByReference(savedRef, saveAsLast: false);
+    } else if (savedRef != null && savedRef.isNotEmpty) {
+      // Jeżeli ref jest taki sam jak aktualny, to i tak spróbuj załadować scroll.
+      _loadScrollOffsetForChapter(savedRef);
+    }
+  }
+
+  Future<void> _loadScrollOffsetForChapter(String reference) async {
+    final offset = await _prefs.getScrollOffset(reference);
+    if (!mounted) return;
+    setState(() {
+      _pendingScrollOffset = offset;
+    });
+  }
+
+  void _loadChapterByReference(String reference, {bool saveAsLast = true}) {
     setState(() {
       _currentChapterRef = reference;
       _chapterFuture =
@@ -35,7 +104,15 @@ class _ReaderScreenState extends State<ReaderScreen> {
         }
         return chapter;
       });
+      _pendingScrollOffset = null; // nowy rozdział → nowy scroll (załaduje się z prefs)
     });
+
+    if (saveAsLast) {
+      _prefs.saveLastChapterRef(reference);
+    }
+
+    // Załaduj zapisany scroll dla tego rozdziału (jeśli jest).
+    _loadScrollOffsetForChapter(reference);
   }
 
   void _showChapterPicker() {
@@ -156,7 +233,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
                                     onTap: () {
                                       Navigator.of(context).pop();
                                       _loadChapterByReference(
-                                          chapter.reference);
+                                        chapter.reference,
+                                      );
                                     },
                                   ),
                               ],
@@ -188,15 +266,13 @@ class _ReaderScreenState extends State<ReaderScreen> {
         );
         return;
       }
-      setState(() {
-        _currentChapterRef = next.reference;
-        _chapterFuture = Future.value(next);
-      });
+      _loadChapterByReference(next.reference);
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Nie udało się przejść do następnego rozdziału: $e'),
+          content:
+              Text('Nie udało się przejść do następnego rozdziału: $e'),
         ),
       );
     }
@@ -215,15 +291,13 @@ class _ReaderScreenState extends State<ReaderScreen> {
         );
         return;
       }
-      setState(() {
-        _currentChapterRef = previous.reference;
-        _chapterFuture = Future.value(previous);
-      });
+      _loadChapterByReference(previous.reference);
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Nie udało się przejść do poprzedniego rozdziału: $e'),
+          content:
+              Text('Nie udało się przejść do poprzedniego rozdziału: $e'),
         ),
       );
     }
@@ -271,6 +345,22 @@ class _ReaderScreenState extends State<ReaderScreen> {
                 }
 
                 final chapter = snapshot.data!;
+
+                // Przywrócenie scrolla po załadowaniu rozdziału
+                if (_pendingScrollOffset != null) {
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (!_scrollController.hasClients) return;
+                    final max =
+                        _scrollController.position.maxScrollExtent;
+                    final target = _pendingScrollOffset!.clamp(
+                      0.0,
+                      max > 0 ? max : double.infinity,
+                    );
+                    _scrollController.jumpTo(target);
+                    _pendingScrollOffset = null;
+                  });
+                }
+
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
@@ -298,6 +388,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
               setState(() {
                 _fontSize = (_fontSize - 2).clamp(12.0, 30.0);
               });
+              _prefs.saveReaderFontSize(_fontSize);
             },
             icon: const Icon(Icons.remove),
             tooltip: 'Mniejsza czcionka',
@@ -312,6 +403,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
                 setState(() {
                   _fontSize = value;
                 });
+                _prefs.saveReaderFontSize(_fontSize);
               },
             ),
           ),
@@ -320,6 +412,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
               setState(() {
                 _fontSize = (_fontSize + 2).clamp(12.0, 30.0);
               });
+              _prefs.saveReaderFontSize(_fontSize);
             },
             icon: const Icon(Icons.add),
             tooltip: 'Większa czcionka',
@@ -347,7 +440,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
   Widget _buildTitle(BookChapter chapter) {
     final colorScheme = Theme.of(context).colorScheme;
 
-    // Spróbujemy rozdzielić "I-1" na księgę i rozdział
+    // "I-1" → Księga I, rozdział 1
     String subtitle;
     final parts = chapter.reference.split('-');
     if (parts.length == 2) {
@@ -355,7 +448,6 @@ class _ReaderScreenState extends State<ReaderScreen> {
       final chapterNumber = parts[1]; // np. "1"
       subtitle = 'Księga $bookCode, rozdział $chapterNumber';
     } else {
-      // fallback, gdyby format był inny
       subtitle = 'Rozdział ${chapter.reference}';
     }
 
@@ -383,7 +475,6 @@ class _ReaderScreenState extends State<ReaderScreen> {
       ),
     );
   }
-
 
   Widget _buildChapterNavigation(BookChapter chapter) {
     final colorScheme = Theme.of(context).colorScheme;
@@ -417,6 +508,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
   Widget _buildReader(BookChapter chapter) {
     return Expanded(
       child: SingleChildScrollView(
+        controller: _scrollController,
         padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
