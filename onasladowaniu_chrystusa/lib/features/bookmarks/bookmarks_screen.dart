@@ -50,7 +50,9 @@ class _BookmarksScreenState extends State<BookmarksScreen> {
   }
 
   Future<void> _openBookmark(Bookmark b) async {
-    await _prefs.saveLastChapterRef(b.chapterRef);
+    // Jednorazowy skok do rozdziału z zakładki (nie zmieniamy głównego lastChapterRef)
+    await _prefs.setJumpChapterRef(b.chapterRef);
+
     // przełącz na tab "Czytanie"
     widget.onNavigateToTab?.call(1);
   }

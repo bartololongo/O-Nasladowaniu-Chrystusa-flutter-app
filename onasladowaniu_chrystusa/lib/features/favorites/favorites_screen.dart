@@ -61,10 +61,19 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
       chapterRef = f.paragraphRef;
     }
 
-    await _prefs.saveLastChapterRef(chapterRef);
+    // Jednorazowy skok do rozdziału z ulubionego cytatu
+    await _prefs.setJumpChapterRef(chapterRef);
 
-    Navigator.of(context).pop(); // zamknij ekran ulubionych
-    widget.onNavigateToTab?.call(1); // przełącz na "Czytanie"
+    if (!mounted) return;
+
+    // Jeśli FavoritesScreen jest otwarty jako osobny route (np. z bottomsheet),
+    // to najpierw go zamykamy, żeby wrócić do widoku z dolnym paskiem.
+    if (Navigator.of(context).canPop()) {
+      Navigator.of(context).pop();
+    }
+
+    // przełącz na tab "Czytanie"
+    widget.onNavigateToTab?.call(1);
   }
 
   Future<void> _deleteFavorite(FavoriteQuote f) async {

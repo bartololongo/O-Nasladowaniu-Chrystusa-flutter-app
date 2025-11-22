@@ -2,6 +2,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class PreferencesService {
   static const String _keyLastChapterRef = 'last_chapter_ref';
+  static const String _keyJumpChapterRef = 'jump_chapter_ref';
   static const String _keyReaderFontSize = 'reader_font_size';
 
   String _scrollKeyForChapter(String ref) => 'scroll_offset_$ref';
@@ -12,11 +13,33 @@ class PreferencesService {
     await prefs.setString(_keyLastChapterRef, reference);
   }
 
+  /// Alias używany w niektórych miejscach kodu.
+  Future<void> setLastChapterRef(String reference) async {
+    await saveLastChapterRef(reference);
+  }
+
   /// Odczytaj referencję ostatnio czytanego rozdziału.
   /// Zwraca null, jeśli jeszcze nic nie zostało zapisane.
   Future<String?> getLastChapterRef() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString(_keyLastChapterRef);
+  }
+
+  /// Tymczasowy skok do rozdziału (np. z "Zobacz w książce" po losowym cytacie).
+  /// Reader przy starcie najpierw sprawdzi jump, a potem last.
+  Future<void> setJumpChapterRef(String reference) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keyJumpChapterRef, reference);
+  }
+
+  Future<String?> getJumpChapterRef() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_keyJumpChapterRef);
+  }
+
+  Future<void> clearJumpChapterRef() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_keyJumpChapterRef);
   }
 
   /// Zapisz rozmiar czcionki w czytniku.

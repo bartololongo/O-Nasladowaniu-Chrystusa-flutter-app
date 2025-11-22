@@ -30,6 +30,9 @@ class _ReaderScreenState extends State<ReaderScreen> {
   double? _pendingScrollOffset;
   bool _isCurrentBookmarked = false;
 
+  // flaga, żeby nie odpalać wielu równoległych sprawdzeń jumpa
+  bool _isCheckingJump = false;
+
   @override
   void initState() {
     super.initState();
@@ -37,19 +40,13 @@ class _ReaderScreenState extends State<ReaderScreen> {
     _scrollController = ScrollController();
     _scrollController.addListener(_onScrollChanged);
 
-    // 1) Start od pierwszego rozdziału
-    _chapterFuture = _bookRepository.getFirstChapter().then((chapter) {
-      _currentChapterRef = chapter.reference;
-      _prefs.saveLastChapterRef(_currentChapterRef);
-      _loadScrollOffsetForChapter(_currentChapterRef);
-      _refreshBookmarkStatus();
-      return chapter;
-    });
+    // Jedno źródło prawdy dla startowego rozdziału:
+    // 1) jumpChapterRef (Zobacz w książce / zakładki / ulubione)
+    // 2) lastChapterRef (główny postęp)
+    // 3) pierwszy rozdział
+    _chapterFuture = _initInitialChapter();
 
-    // 2) Podmiana na ostatnio czytany (jeśli jest)
-    _initFromLastRead();
-
-    // 3) Wczytanie rozmiaru czcionki
+    // Wczytanie rozmiaru czcionki
     _loadReaderFontSize();
   }
 
@@ -76,18 +73,55 @@ class _ReaderScreenState extends State<ReaderScreen> {
     }
   }
 
-  Future<void> _initFromLastRead() async {
-    final savedRef = await _prefs.getLastChapterRef();
-    if (!mounted) return;
+  /// Wyznacza startowy rozdział:
+  /// - jeśli jest jumpChapterRef → użyj go (jednorazowo),
+  /// - w przeciwnym razie lastChapterRef,
+  /// - jeśli brak → pierwszy rozdział.
+  Future<BookChapter> _initInitialChapter() async {
+    // 1. Najpierw spróbuj tymczasowego skoku
+    final jumpRef = await _prefs.getJumpChapterRef();
 
-    if (savedRef != null &&
-        savedRef.isNotEmpty &&
-        savedRef != _currentChapterRef) {
-      _loadChapterByReference(savedRef, saveAsLast: false);
-    } else if (savedRef != null && savedRef.isNotEmpty) {
-      _loadScrollOffsetForChapter(savedRef);
-      _refreshBookmarkStatus();
+    String? refToLoad;
+
+    if (jumpRef != null && jumpRef.isNotEmpty) {
+      refToLoad = jumpRef;
+      await _prefs.clearJumpChapterRef();
+    } else {
+      // 2. Jeśli brak jump – użyj ostatnio czytanego
+      final savedRef = await _prefs.getLastChapterRef();
+      if (savedRef != null && savedRef.isNotEmpty) {
+        refToLoad = savedRef;
+      }
     }
+
+    BookChapter? chapter;
+
+    if (refToLoad != null) {
+      chapter = await _bookRepository.getChapterByReference(refToLoad);
+    }
+
+    // 3. Jeśli nic nie ma / nie udało się wczytać – startuj od pierwszego
+    if (chapter == null) {
+      chapter = await _bookRepository.getFirstChapter();
+
+      // jeśli to pierwsze uruchomienie i nie mamy last, ustaw go na pierwszy rozdział
+      final currentLast = await _prefs.getLastChapterRef();
+      if (currentLast == null || currentLast.isEmpty) {
+        await _prefs.saveLastChapterRef(chapter.reference);
+      }
+    }
+
+    if (!mounted) {
+      return chapter!;
+    }
+
+    _currentChapterRef = chapter!.reference;
+
+    // przygotuj scroll i status zakładki dla bieżącego rozdziału
+    await _loadScrollOffsetForChapter(_currentChapterRef);
+    await _refreshBookmarkStatus();
+
+    return chapter;
   }
 
   Future<void> _loadScrollOffsetForChapter(String reference) async {
@@ -164,7 +198,32 @@ class _ReaderScreenState extends State<ReaderScreen> {
               }
 
               final collection = snapshot.data!;
+              final books = collection.books;
               final colorScheme = Theme.of(context).colorScheme;
+
+              if (books.isEmpty) {
+                return const SizedBox(
+                  height: 200,
+                  child: Center(
+                    child: Text('Brak ksiąg w kolekcji'),
+                  ),
+                );
+              }
+
+              // domyślnie wybierz księgę zawierającą bieżący rozdział
+              int initialSelectedIndex = 0;
+              for (int i = 0; i < books.length; i++) {
+                final book = books[i];
+                final hasCurrent = book.chapters.any(
+                  (ch) => ch.reference == _currentChapterRef,
+                );
+                if (hasCurrent) {
+                  initialSelectedIndex = i;
+                  break;
+                }
+              }
+
+              int selectedBookIndex = initialSelectedIndex;
 
               return DraggableScrollableSheet(
                 expand: false,
@@ -172,61 +231,89 @@ class _ReaderScreenState extends State<ReaderScreen> {
                 minChildSize: 0.4,
                 maxChildSize: 0.9,
                 builder: (context, scrollController) {
-                  return Container(
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).scaffoldBackgroundColor,
-                      borderRadius: const BorderRadius.vertical(
-                        top: Radius.circular(16),
-                      ),
-                    ),
-                    child: Column(
-                      children: [
-                        const SizedBox(height: 8),
-                        Container(
-                          width: 40,
-                          height: 4,
-                          decoration: BoxDecoration(
-                            color:
-                                colorScheme.onSurface.withOpacity(0.3),
-                            borderRadius: BorderRadius.circular(2),
+                  return StatefulBuilder(
+                    builder: (context, setModalState) {
+                      final selectedBook = books[selectedBookIndex];
+
+                      return Container(
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).scaffoldBackgroundColor,
+                          borderRadius: const BorderRadius.vertical(
+                            top: Radius.circular(16),
                           ),
                         ),
-                        const SizedBox(height: 12),
-                        const Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 16.0),
-                          child: Align(
-                            alignment: Alignment.centerLeft,
-                            child: Text(
-                              'Wybierz księgę i rozdział',
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.w600,
+                        child: Column(
+                          children: [
+                            const SizedBox(height: 8),
+                            Container(
+                              width: 40,
+                              height: 4,
+                              decoration: BoxDecoration(
+                                color: colorScheme.onSurface.withOpacity(0.3),
+                                borderRadius: BorderRadius.circular(2),
                               ),
                             ),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Expanded(
-                          child: ListView(
-                            controller: scrollController,
-                            padding:
-                                const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                            children: [
-                              for (final book in collection.books) ...[
-                                Padding(
-                                  padding:
-                                      const EdgeInsets.only(top: 12.0),
-                                  child: Text(
-                                    '${book.title} (Księga ${book.code})',
-                                    style: const TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.bold,
-                                    ),
+                            const SizedBox(height: 12),
+                            const Padding(
+                              padding: EdgeInsets.symmetric(horizontal: 16.0),
+                              child: Align(
+                                alignment: Alignment.centerLeft,
+                                child: Text(
+                                  'Wybierz księgę i rozdział',
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w600,
                                   ),
                                 ),
-                                const SizedBox(height: 4),
-                                for (final chapter in book.chapters)
-                                  ListTile(
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+
+                            // Pasek wyboru księgi (I, II, III, IV...)
+                            SizedBox(
+                              height: 48,
+                              child: ListView.separated(
+                                padding:
+                                    const EdgeInsets.symmetric(horizontal: 16),
+                                scrollDirection: Axis.horizontal,
+                                itemCount: books.length,
+                                separatorBuilder: (_, __) =>
+                                    const SizedBox(width: 8),
+                                itemBuilder: (context, index) {
+                                  final book = books[index];
+                                  final isSelected =
+                                      index == selectedBookIndex;
+
+                                  return ChoiceChip(
+                                    label: Text(
+                                      'Księga ${book.code}',
+                                      style: const TextStyle(fontSize: 14),
+                                    ),
+                                    selected: isSelected,
+                                    onSelected: (_) {
+                                      setModalState(() {
+                                        selectedBookIndex = index;
+                                      });
+                                    },
+                                  );
+                                },
+                              ),
+                            ),
+
+                            const SizedBox(height: 8),
+
+                            // Lista rozdziałów tylko z wybranej księgi
+                            Expanded(
+                              child: ListView.builder(
+                                controller: scrollController,
+                                padding: const EdgeInsets.fromLTRB(
+                                    16, 0, 16, 16),
+                                itemCount: selectedBook.chapters.length,
+                                itemBuilder: (context, index) {
+                                  final chapter =
+                                      selectedBook.chapters[index];
+
+                                  return ListTile(
                                     contentPadding:
                                         const EdgeInsets.symmetric(
                                       horizontal: 0,
@@ -250,13 +337,14 @@ class _ReaderScreenState extends State<ReaderScreen> {
                                         chapter.reference,
                                       );
                                     },
-                                  ),
-                              ],
-                            ],
-                          ),
+                                  );
+                                },
+                              ),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
+                      );
+                    },
                   );
                 },
               );
@@ -414,8 +502,33 @@ class _ReaderScreenState extends State<ReaderScreen> {
     );
   }
 
+  /// Sprawdza, czy z zewnątrz nie ustawiono nowego jumpChapterRef
+  /// (losowy cytat / zakładka / ulubione) i jeśli tak – ładuje odpowiedni rozdział
+  /// bez nadpisywania lastChapterRef.
+  void _maybeHandleExternalJump() {
+    if (_isCheckingJump) return;
+    _isCheckingJump = true;
+
+    Future.microtask(() async {
+      try {
+        final jumpRef = await _prefs.getJumpChapterRef();
+        if (jumpRef != null &&
+            jumpRef.isNotEmpty &&
+            jumpRef != _currentChapterRef) {
+          await _prefs.clearJumpChapterRef();
+          _loadChapterByReference(jumpRef, saveAsLast: false);
+        }
+      } finally {
+        _isCheckingJump = false;
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
+    // Przy każdym buildzie sprawdzamy, czy nie ma nowego "skoku" z zewnątrz
+    _maybeHandleExternalJump();
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Czytanie'),

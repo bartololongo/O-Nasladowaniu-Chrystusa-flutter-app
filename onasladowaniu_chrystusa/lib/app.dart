@@ -69,11 +69,14 @@ class _RootScreenState extends State<_RootScreen> {
                   Navigator.of(ctx).pop();
                   Navigator.of(context).push(
                     MaterialPageRoute(
-                      builder: (_) => const JournalScreen(),
+                      builder: (_) => JournalScreen(
+                        onNavigateToTab: _onTabSelected, // 👈 KLUCZOWA ZMIANA
+                      ),
                     ),
                   );
                 },
               ),
+
               ListTile(
                 leading: const Icon(Icons.format_quote),
                 title: const Text('Ulubione cytaty'),
