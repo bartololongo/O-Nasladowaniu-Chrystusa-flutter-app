@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-
+import '../../shared/services/reading_challenge_service.dart';
 import '../../shared/services/book_repository.dart';
 import '../../shared/models/book_models.dart';
 import '../../shared/services/preferences_service.dart';
@@ -22,13 +22,16 @@ class _HomeScreenState extends State<HomeScreen> {
   final PreferencesService _prefs = PreferencesService();
   final FavoritesService _favoritesService = FavoritesService();
   final JournalService _journalService = JournalService();
+  final ReadingChallengeService _challengeService = ReadingChallengeService();
 
   String? _lastChapterRef;
+  ReadingChallengeState? _challengeState;
 
   @override
   void initState() {
     super.initState();
     _loadLastChapterRef();
+    _loadChallengeState(); 
   }
 
   Future<void> _loadLastChapterRef() async {
@@ -38,6 +41,51 @@ class _HomeScreenState extends State<HomeScreen> {
       _lastChapterRef = ref;
     });
   }
+
+  Future<void> _loadChallengeState() async {
+    final state = await _challengeService.getState();
+    if (!mounted) return;
+    setState(() {
+      _challengeState = state;
+    });
+  }
+
+  String _formatDate(DateTime dt) {
+    final local = dt.toLocal();
+    String two(int v) => v.toString().padLeft(2, '0');
+    final y = local.year.toString().padLeft(4, '0');
+    final m = two(local.month);
+    final d = two(local.day);
+    return '$y-$m-$d';
+  }
+
+  String get _challengeSubtitle {
+    final state = _challengeState;
+
+    if (state == null) {
+      return 'Sprawdzanie statusu wyzwania...';
+    }
+
+    if (!state.isActive) {
+      return 'Rozpocznij wyzwanie i stopniowo przeczytaj całą książkę.';
+    }
+
+    final startedStr = _formatDate(state.startedAt!);
+
+    if (_lastChapterRef == null || _lastChapterRef!.isEmpty) {
+      return 'Wyzwanie aktywne od $startedStr. Zacznij od Księgi I, rozdziału 1.';
+    }
+
+    final parts = _lastChapterRef!.split('-');
+    if (parts.length == 2) {
+      final bookCode = parts[0];
+      final chapterNumber = parts[1];
+      return 'Wyzwanie od $startedStr. Obecnie: Księga $bookCode, rozdział $chapterNumber.';
+    }
+
+    return 'Wyzwanie od $startedStr. Obecnie: rozdział $_lastChapterRef.';
+  }
+
 
   String get _continueReadingSubtitle {
     if (_lastChapterRef == null || _lastChapterRef!.isEmpty) {
@@ -310,20 +358,42 @@ class _HomeScreenState extends State<HomeScreen> {
     return _HomeCard(
       icon: Icons.flag,
       title: 'Wyzwanie: Czytaj całość',
-      subtitle: 'Rozpocznij lub kontynuuj wyzwanie czytelnicze.',
-      onTap: () {
-        // Na razie brak oddzielnego ekranu wyzwania,
-        // w przyszłości przełączymy na osobny tab lub ekran.
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Wyzwanie będzie dostępne w jednej z kolejnych wersji.',
+      subtitle: _challengeSubtitle,
+      onTap: () async {
+        final state = _challengeState;
+
+        // Jeśli wyzwanie nie jest jeszcze aktywne – uruchom je
+        if (state == null || !state.isActive) {
+          // 1) start wyzwania (data)
+          await _challengeService.startChallenge();
+
+          // 2) oficjalny punkt startu: Księga I, rozdział 1
+          const startRef = 'I-1';
+          await _prefs.saveLastChapterRef(startRef);
+          await _prefs.setJumpChapterRef(startRef);
+
+          // 3) odśwież lokalny stan
+          final newState = await _challengeService.getState();
+          if (!mounted) return;
+          setState(() {
+            _challengeState = newState;
+            _lastChapterRef = startRef;
+          });
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Rozpoczęto wyzwanie: Czytaj całość od początku.'),
             ),
-          ),
-        );
+          );
+        }
+
+        // Zawsze przejdź do zakładki "Czytanie"
+        widget.onNavigateToTab?.call(1);
       },
     );
   }
+
+
 
   Widget _buildRandomQuoteCard(BuildContext context) {
     return _HomeCard(
