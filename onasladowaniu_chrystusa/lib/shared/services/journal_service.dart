@@ -81,4 +81,32 @@ class JournalService {
     final updated = entries.where((e) => e.id != id).toList();
     await _saveEntries(updated);
   }
+
+  /// Aktualizacja treści istniejącego wpisu (bez zmiany id, createdAt, cytatu).
+  Future<void> updateEntryContent({
+    required String id,
+    required String content,
+  }) async {
+    final entries = await getEntries();
+    bool changed = false;
+
+    for (var i = 0; i < entries.length; i++) {
+      final e = entries[i];
+      if (e.id == id) {
+        entries[i] = JournalEntry(
+          id: e.id,
+          createdAt: e.createdAt,
+          content: content,
+          quoteText: e.quoteText,
+          quoteRef: e.quoteRef,
+        );
+        changed = true;
+        break;
+      }
+    }
+
+    if (changed) {
+      await _saveEntries(entries);
+    }
+  }
 }

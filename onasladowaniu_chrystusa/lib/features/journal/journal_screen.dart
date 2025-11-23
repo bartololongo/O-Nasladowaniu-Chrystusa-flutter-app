@@ -96,6 +96,61 @@ class _JournalScreenState extends State<JournalScreen> {
     );
   }
 
+  /// Edycja istniejącego wpisu – prosty dialog z prewypełnionym tekstem.
+  Future<void> _editEntry(JournalEntry entry) async {
+    final controller = TextEditingController(text: entry.content);
+
+    await showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Edytuj wpis'),
+          content: TextField(
+            controller: controller,
+            maxLines: 6,
+            decoration: const InputDecoration(
+              border: OutlineInputBorder(),
+              hintText: 'Zaktualizuj treść swojego wpisu...',
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Anuluj'),
+            ),
+            TextButton(
+              onPressed: () async {
+                final text = controller.text.trim();
+
+                // Jeśli nic się nie zmieniło – po prostu zamknij
+                if (text.isEmpty || text == entry.content) {
+                  Navigator.of(dialogContext).pop();
+                  return;
+                }
+
+                // Aktualizacja istniejącego wpisu (bez zmiany id/createdAt/cytatu)
+                await _journalService.updateEntryContent(
+                  id: entry.id,
+                  content: text,
+                );
+
+                await _refresh();
+                if (!mounted) return;
+                Navigator.of(dialogContext).pop();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Wpis dziennika zaktualizowany.'),
+                  ),
+                );
+              },
+              child: const Text('Zapisz'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   Future<void> _goToBookFromEntry(
     JournalEntry entry,
     BuildContext sheetContext,
@@ -249,6 +304,8 @@ class _JournalScreenState extends State<JournalScreen> {
             );
           }
 
+          final colorScheme = Theme.of(context).colorScheme;
+
           return RefreshIndicator(
             onRefresh: _refresh,
             child: ListView.separated(
@@ -257,42 +314,81 @@ class _JournalScreenState extends State<JournalScreen> {
               separatorBuilder: (_, __) => const SizedBox(height: 8),
               itemBuilder: (context, index) {
                 final e = entries[index];
-                final colorScheme = Theme.of(context).colorScheme;
 
                 return Dismissible(
                   key: ValueKey(e.id),
-                  direction: DismissDirection.endToStart,
+                  direction: DismissDirection.horizontal,
+                  // Przeciągnięcie w prawo – EDYCJA
                   background: Container(
+                    alignment: Alignment.centerLeft,
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    color: colorScheme.primary.withOpacity(0.8),
+                    child: const Row(
+                      children: [
+                        Icon(Icons.edit, color: Colors.white),
+                        SizedBox(width: 8),
+                        Text(
+                          'Edytuj',
+                          style: TextStyle(color: Colors.white),
+                        ),
+                      ],
+                    ),
+                  ),
+                  // Przeciągnięcie w lewo – USUWANIE
+                  secondaryBackground: Container(
                     alignment: Alignment.centerRight,
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     color: Theme.of(context).colorScheme.error,
-                    child: const Icon(Icons.delete, color: Colors.white),
+                    child: const Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        Text(
+                          'Usuń',
+                          style: TextStyle(color: Colors.white),
+                        ),
+                        SizedBox(width: 8),
+                        Icon(Icons.delete, color: Colors.white),
+                      ],
+                    ),
                   ),
                   confirmDismiss: (direction) async {
-                    return await showDialog<bool>(
-                          context: context,
-                          builder: (ctx) => AlertDialog(
-                            title: const Text('Usuń wpis dziennika'),
-                            content: const Text(
-                              'Na pewno chcesz usunąć ten wpis?',
+                    if (direction == DismissDirection.startToEnd) {
+                      // EDYCJA
+                      await _editEntry(e);
+                      // Nie usuwamy elementu z listy via Dismissible
+                      return false;
+                    } else if (direction == DismissDirection.endToStart) {
+                      // USUWANIE – jak dotychczas
+                      return await showDialog<bool>(
+                            context: context,
+                            builder: (ctx) => AlertDialog(
+                              title: const Text('Usuń wpis dziennika'),
+                              content: const Text(
+                                'Na pewno chcesz usunąć ten wpis?',
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () =>
+                                      Navigator.of(ctx).pop(false),
+                                  child: const Text('Anuluj'),
+                                ),
+                                TextButton(
+                                  onPressed: () =>
+                                      Navigator.of(ctx).pop(true),
+                                  child: const Text('Usuń'),
+                                ),
+                              ],
                             ),
-                            actions: [
-                              TextButton(
-                                onPressed: () =>
-                                    Navigator.of(ctx).pop(false),
-                                child: const Text('Anuluj'),
-                              ),
-                              TextButton(
-                                onPressed: () =>
-                                    Navigator.of(ctx).pop(true),
-                                child: const Text('Usuń'),
-                              ),
-                            ],
-                          ),
-                        ) ??
-                        false;
+                          ) ??
+                          false;
+                    }
+                    return false;
                   },
-                  onDismissed: (_) => _deleteEntry(e),
+                  onDismissed: (direction) {
+                    if (direction == DismissDirection.endToStart) {
+                      _deleteEntry(e);
+                    }
+                  },
                   child: ListTile(
                     onTap: () => _openEntryDetails(e),
                     title: Text(
