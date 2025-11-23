@@ -5,6 +5,7 @@ import '../../shared/models/book_models.dart';
 import '../../shared/services/preferences_service.dart';
 import '../../shared/services/favorites_service.dart';
 import '../../shared/services/journal_service.dart';
+import '../challenge/reading_challenge_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   final void Function(int tabIndex)? onNavigateToTab;
@@ -23,15 +24,19 @@ class _HomeScreenState extends State<HomeScreen> {
   final FavoritesService _favoritesService = FavoritesService();
   final JournalService _journalService = JournalService();
   final ReadingChallengeService _challengeService = ReadingChallengeService();
+  final BookRepository _bookRepository = BookRepository();
 
   String? _lastChapterRef;
   ReadingChallengeState? _challengeState;
+
+  int? _totalChapters;
+  int? _furthestChapterIndex;
 
   @override
   void initState() {
     super.initState();
     _loadLastChapterRef();
-    _loadChallengeState(); 
+    _loadChallengeState();
   }
 
   Future<void> _loadLastChapterRef() async {
@@ -48,6 +53,66 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() {
       _challengeState = state;
     });
+    await _loadChallengeProgress(state);
+  }
+
+  Future<void> _loadChallengeProgress(ReadingChallengeState state) async {
+    // Jeśli wyzwanie nieaktywne albo brak info o najdalszym rozdziale – czyścimy postęp.
+    if (!state.isActive || state.furthestChapterRef == null) {
+      if (!mounted) return;
+      setState(() {
+        _totalChapters = null;
+        _furthestChapterIndex = null;
+      });
+      return;
+    }
+
+    try {
+      final collection = await _bookRepository.getCollection();
+      int total = 0;
+      int index = 0;
+      int? furthestIndex;
+
+      for (final book in collection.books) {
+        for (final chapter in book.chapters) {
+          index++;
+          total++;
+          if (chapter.reference == state.furthestChapterRef) {
+            furthestIndex = index;
+          }
+        }
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _totalChapters = total;
+        _furthestChapterIndex = furthestIndex;
+      });
+    } catch (_) {
+      // w razie błędu – nic nie psujemy, po prostu brak paska postępu
+    }
+  }
+
+  /// Otwiera ekran wyzwania i po powrocie odświeża stan kafelka.
+  Future<void> _openChallengeScreen() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ReadingChallengeScreen(
+          onNavigateToTab: widget.onNavigateToTab,
+        ),
+      ),
+    );
+
+    if (!mounted) return;
+
+    // po powrocie wczytujemy na nowo stan + postęp + ostatni rozdział
+    final state = await _challengeService.getState();
+    if (!mounted) return;
+    setState(() {
+      _challengeState = state;
+    });
+    await _loadChallengeProgress(state);
+    await _loadLastChapterRef();
   }
 
   String _formatDate(DateTime dt) {
@@ -86,7 +151,6 @@ class _HomeScreenState extends State<HomeScreen> {
     return 'Wyzwanie od $startedStr. Obecnie: rozdział $_lastChapterRef.';
   }
 
-
   String get _continueReadingSubtitle {
     if (_lastChapterRef == null || _lastChapterRef!.isEmpty) {
       return 'Wróć do ostatnio czytanego miejsca.';
@@ -101,6 +165,17 @@ class _HomeScreenState extends State<HomeScreen> {
 
     // Fallback, gdyby format był inny
     return 'Rozdział $_lastChapterRef';
+  }
+
+  double get _challengeProgressValue {
+    if (_totalChapters == null ||
+        _totalChapters == 0 ||
+        _furthestChapterIndex == null) {
+      return 0.0;
+    }
+    final value = _furthestChapterIndex! / _totalChapters!;
+    if (value.isNaN || value.isInfinite) return 0.0;
+    return value.clamp(0.0, 1.0);
   }
 
   Future<void> _showRandomQuoteBottomSheet() async {
@@ -342,92 +417,17 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  // --- KAFELKI ---
+
   Widget _buildContinueReadingCard(BuildContext context) {
-    return _HomeCard(
-      icon: Icons.play_circle_fill,
-      title: 'Kontynuuj czytanie',
-      subtitle: _continueReadingSubtitle,
-      onTap: () {
-        // Przełącz dolny pasek na zakładkę „Czytanie”
-        widget.onNavigateToTab?.call(1);
-      },
-    );
-  }
-
-  Widget _buildChallengeCard(BuildContext context) {
-    return _HomeCard(
-      icon: Icons.flag,
-      title: 'Wyzwanie: Czytaj całość',
-      subtitle: _challengeSubtitle,
-      onTap: () async {
-        final state = _challengeState;
-
-        // Jeśli wyzwanie nie jest jeszcze aktywne – uruchom je
-        if (state == null || !state.isActive) {
-          // 1) start wyzwania (data)
-          await _challengeService.startChallenge();
-
-          // 2) oficjalny punkt startu: Księga I, rozdział 1
-          const startRef = 'I-1';
-          await _prefs.saveLastChapterRef(startRef);
-          await _prefs.setJumpChapterRef(startRef);
-
-          // 3) odśwież lokalny stan
-          final newState = await _challengeService.getState();
-          if (!mounted) return;
-          setState(() {
-            _challengeState = newState;
-            _lastChapterRef = startRef;
-          });
-
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Rozpoczęto wyzwanie: Czytaj całość od początku.'),
-            ),
-          );
-        }
-
-        // Zawsze przejdź do zakładki "Czytanie"
-        widget.onNavigateToTab?.call(1);
-      },
-    );
-  }
-
-
-
-  Widget _buildRandomQuoteCard(BuildContext context) {
-    return _HomeCard(
-      icon: Icons.auto_awesome,
-      title: 'Losuj cytat',
-      subtitle: 'Wyświetl losowy fragment z książki.',
-      onTap: () {
-        _showRandomQuoteBottomSheet();
-      },
-    );
-  }
-}
-
-class _HomeCard extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final VoidCallback? onTap;
-
-  const _HomeCard({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
 
     return InkWell(
-      onTap: onTap,
       borderRadius: BorderRadius.circular(16),
-      child: Ink(
+      onTap: () {
+        widget.onNavigateToTab?.call(1);
+      },
+      child: Container(
         decoration: BoxDecoration(
           color: colorScheme.surface.withOpacity(0.1),
           borderRadius: BorderRadius.circular(16),
@@ -435,45 +435,224 @@ class _HomeCard extends StatelessWidget {
             color: colorScheme.primary.withOpacity(0.3),
           ),
         ),
-        child: SizedBox(
-          height: 80, // stała wysokość kafelka
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              const SizedBox(width: 16),
-              Icon(
-                icon,
-                size: 32,
-                color: colorScheme.primary,
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.play_circle_fill,
+              size: 32,
+              color: colorScheme.primary,
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Kontynuuj czytanie',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    _continueReadingSubtitle,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: colorScheme.onSurface.withOpacity(0.7),
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center, // pionowe centrum
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600,
+            ),
+            const Icon(Icons.chevron_right),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildChallengeCard(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final state = _challengeState;
+    final isActive = state?.isActive ?? false;
+
+    double progress = 0.0;
+    String progressLabel = '';
+
+    if (isActive) {
+      if (_totalChapters != null &&
+          _totalChapters! > 0 &&
+          _furthestChapterIndex != null) {
+        progress = _challengeProgressValue;
+        final percent = (progress * 100).round();
+        progressLabel =
+            'Postęp: $_furthestChapterIndex / $_totalChapters ($percent%)';
+      } else {
+        progressLabel = 'Obliczanie postępu...';
+      }
+    }
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(16),
+      onTap: () async {
+        final currentState = _challengeState;
+
+        if (currentState == null || !currentState.isActive) {
+          const startRef = 'I-1';
+
+          await _challengeService.startChallenge();
+          await _prefs.saveLastChapterRef(startRef);
+          await _prefs.setJumpChapterRef(startRef);
+          await _challengeService.updateFurthestChapter(startRef);
+
+          final newState = await _challengeService.getState();
+          if (!mounted) return;
+          setState(() {
+            _challengeState = newState;
+            _lastChapterRef = startRef;
+          });
+          await _loadChallengeProgress(newState);
+
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Rozpoczęto wyzwanie: Czytaj całość od początku.'),
+            ),
+          );
+        }
+
+        widget.onNavigateToTab?.call(1);
+      },
+      onLongPress: _openChallengeScreen, // 👈 DŁUGIE PRZYTRZYMANIE – szczegóły
+      child: Container(
+        decoration: BoxDecoration(
+          color: colorScheme.surface.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: colorScheme.primary.withOpacity(0.3),
+          ),
+        ),
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.flag,
+                  size: 32,
+                  color: colorScheme.primary,
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Wyzwanie: Czytaj całość',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      subtitle,
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: colorScheme.onSurface.withOpacity(0.7),
+                      const SizedBox(height: 4),
+                      Text(
+                        _challengeSubtitle,
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: colorScheme.onSurface.withOpacity(0.7),
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
+                ),
+                const Icon(Icons.chevron_right),
+              ],
+            ),
+            if (isActive) ...[
+              const SizedBox(height: 8),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(999),
+                child: LinearProgressIndicator(
+                  value: progress,
+                  minHeight: 4,
+                  backgroundColor:
+                      colorScheme.onSurface.withOpacity(0.15),
                 ),
               ),
-              const Icon(Icons.chevron_right),
-              const SizedBox(width: 16),
+              const SizedBox(height: 4),
+              Text(
+                progressLabel,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: colorScheme.onSurface.withOpacity(0.7),
+                ),
+              ),
             ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRandomQuoteCard(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(16),
+      onTap: () {
+        _showRandomQuoteBottomSheet();
+      },
+      child: Container(
+        decoration: BoxDecoration(
+          color: colorScheme.surface.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: colorScheme.primary.withOpacity(0.3),
           ),
+        ),
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.auto_awesome,
+              size: 32,
+              color: colorScheme.primary,
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: const [
+                  Text(
+                    'Losuj cytat',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  SizedBox(height: 4),
+                  Text(
+                    'Wyświetl losowy fragment z książki.',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.white70,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right),
+          ],
         ),
       ),
     );

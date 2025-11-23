@@ -3,7 +3,6 @@ import '../../shared/models/book_models.dart';
 import '../../shared/services/book_repository.dart';
 import '../../shared/services/preferences_service.dart';
 import '../../shared/services/bookmarks_service.dart';
-import '../../shared/services/favorites_service.dart';
 
 class ReaderScreen extends StatefulWidget {
   const ReaderScreen({super.key});
@@ -16,7 +15,6 @@ class _ReaderScreenState extends State<ReaderScreen> {
   final BookRepository _bookRepository = BookRepository();
   final PreferencesService _prefs = PreferencesService();
   final BookmarksService _bookmarksService = BookmarksService();
-  final FavoritesService _favoritesService = FavoritesService();
 
   late final ScrollController _scrollController;
 
@@ -438,70 +436,6 @@ class _ReaderScreenState extends State<ReaderScreen> {
     }
   }
 
-  Future<void> _onParagraphLongPress(BookParagraph paragraph) async {
-    final controller = TextEditingController();
-
-    await showDialog(
-      context: context,
-      builder: (ctx) {
-        return AlertDialog(
-          title: const Text('Dodaj do ulubionych'),
-          content: SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  paragraph.text,
-                  style: const TextStyle(fontSize: 14),
-                ),
-                const SizedBox(height: 16),
-                const Text(
-                  'Notatka (opcjonalnie):',
-                  style: TextStyle(fontWeight: FontWeight.w600),
-                ),
-                const SizedBox(height: 4),
-                TextField(
-                  controller: controller,
-                  maxLines: 3,
-                  decoration: const InputDecoration(
-                    border: OutlineInputBorder(),
-                    hintText: 'Twoje myśli, skojarzenia, modlitwa...',
-                  ),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text('Anuluj'),
-            ),
-            TextButton(
-              onPressed: () async {
-                final note = controller.text.trim().isEmpty
-                    ? null
-                    : controller.text.trim();
-                await _favoritesService.addOrUpdateFavoriteForParagraph(
-                  paragraph,
-                  note: note,
-                );
-                if (!mounted) return;
-                Navigator.of(ctx).pop();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Dodano do ulubionych cytatów.'),
-                  ),
-                );
-              },
-              child: const Text('Zapisz'),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
   /// Sprawdza, czy z zewnątrz nie ustawiono nowego jumpChapterRef
   /// (losowy cytat / zakładka / ulubione) i jeśli tak – ładuje odpowiedni rozdział
   /// bez nadpisywania lastChapterRef.
@@ -746,16 +680,13 @@ class _ReaderScreenState extends State<ReaderScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             for (final paragraph in chapter.paragraphs) ...[
-              GestureDetector(
-                onLongPress: () => _onParagraphLongPress(paragraph),
-                child: Text(
-                  paragraph.text,
-                  textAlign:
-                      _isJustified ? TextAlign.justify : TextAlign.left,
-                  style: TextStyle(
-                    fontSize: _fontSize,
-                    height: _lineHeight,
-                  ),
+              SelectableText(
+                paragraph.text,
+                textAlign:
+                    _isJustified ? TextAlign.justify : TextAlign.left,
+                style: TextStyle(
+                  fontSize: _fontSize,
+                  height: _lineHeight,
                 ),
               ),
               const SizedBox(height: 12),
