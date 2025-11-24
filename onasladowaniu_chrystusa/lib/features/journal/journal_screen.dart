@@ -161,6 +161,11 @@ class _JournalScreenState extends State<JournalScreen> {
       return;
     }
 
+    // jeśli mamy tekst cytatu – zapisz go do podświetlenia
+    if (entry.quoteText != null && entry.quoteText!.trim().isNotEmpty) {
+      await _prefs.setHighlightSearchText(entry.quoteText!);
+    }
+
     // quoteRef np. "I-3-2" -> chapterRef "I-3"
     final parts = quoteRef.split('-');
     String chapterRef;
@@ -178,14 +183,15 @@ class _JournalScreenState extends State<JournalScreen> {
     // 2) zamykamy bottomsheet ze szczegółami wpisu
     Navigator.of(sheetContext).pop();
 
-    // 3) przełączamy na tab "Czytanie" w rodzicu (jeśli callback został przekazany)
+    // 3) przełączamy na tab "Czytanie"
     widget.onNavigateToTab?.call(1);
 
-    // 4) zamykamy ekran dziennika (jeśli jest osobnym route’em na stosie)
+    // 4) zamykamy ekran dziennika (jeśli jest osobnym route’em)
     if (Navigator.of(context).canPop()) {
       Navigator.of(context).pop();
     }
   }
+
 
   Future<void> _openEntryDetails(JournalEntry entry) async {
     await showModalBottomSheet(

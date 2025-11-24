@@ -7,7 +7,6 @@ import 'features/journal/journal_screen.dart';
 import 'features/settings/settings_screen.dart';
 import 'features/favorites/favorites_screen.dart';
 
-
 class ImitationOfChristApp extends StatelessWidget {
   const ImitationOfChristApp({super.key});
 
@@ -42,6 +41,10 @@ class _RootScreen extends StatefulWidget {
 class _RootScreenState extends State<_RootScreen> {
   int _selectedIndex = 0;
 
+  // Klucz do aktualnego stanu ReaderScreen,
+  // żeby móc z zewnątrz zasygnalizować "obsłuż skok / highlight".
+  final GlobalKey _readerKey = GlobalKey();
+
   void _onTabSelected(int index) {
     // Ostatni przycisk ("Więcej") otwiera bottom sheet,
     // nie zmieniamy wtedy wybranego taba.
@@ -49,9 +52,23 @@ class _RootScreenState extends State<_RootScreen> {
       _showMoreSheet();
       return;
     }
+
     setState(() {
       _selectedIndex = index;
     });
+
+    // Jeśli przełączamy na zakładkę "Czytanie",
+    // po klatce prosimy Readera o obsłużenie ewentualnego
+    // jumpChapterRef + highlightSearchText.
+    if (index == 1) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final state = _readerKey.currentState;
+        if (state != null) {
+          // używamy dynamic, bo klasa stanu jest prywatna w innym pliku
+          (state as dynamic).handleExternalJump();
+        }
+      });
+    }
   }
 
   void _showMoreSheet() {
@@ -70,13 +87,12 @@ class _RootScreenState extends State<_RootScreen> {
                   Navigator.of(context).push(
                     MaterialPageRoute(
                       builder: (_) => JournalScreen(
-                        onNavigateToTab: _onTabSelected, // 👈 KLUCZOWA ZMIANA
+                        onNavigateToTab: _onTabSelected,
                       ),
                     ),
                   );
                 },
               ),
-
               ListTile(
                 leading: const Icon(Icons.format_quote),
                 title: const Text('Ulubione cytaty'),
@@ -90,7 +106,7 @@ class _RootScreenState extends State<_RootScreen> {
                     ),
                   );
                 },
-              ),              
+              ),
               ListTile(
                 leading: const Icon(Icons.settings),
                 title: const Text('Ustawienia'),
@@ -115,7 +131,8 @@ class _RootScreenState extends State<_RootScreen> {
       case 0:
         return HomeScreen(onNavigateToTab: _onTabSelected);
       case 1:
-        return const ReaderScreen();
+        // przekazujemy key, żeby móc dobrać się do stanu
+        return ReaderScreen(key: _readerKey);
       case 2:
         return BookmarksScreen(onNavigateToTab: _onTabSelected);
       default:

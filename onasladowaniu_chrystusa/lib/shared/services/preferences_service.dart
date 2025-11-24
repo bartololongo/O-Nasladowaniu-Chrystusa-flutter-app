@@ -4,6 +4,7 @@ class PreferencesService {
   static const String _keyLastChapterRef = 'last_chapter_ref';
   static const String _keyJumpChapterRef = 'jump_chapter_ref';
   static const String _keyReaderFontSize = 'reader_font_size';
+  static const _highlightSearchKey = 'reader_highlight_search_text';
 
   String _scrollKeyForChapter(String ref) => 'scroll_offset_$ref';
 
@@ -67,4 +68,23 @@ class PreferencesService {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getDouble(_scrollKeyForChapter(chapterRef));
   }
+
+// Zapisanie tekstu do podświetlenia (jednorazowe)
+Future<void> setHighlightSearchText(String text) async {
+  final prefs = await SharedPreferences.getInstance();
+  await prefs.setString(_highlightSearchKey, text);
+}
+
+// Odczyt tekstu do podświetlenia
+Future<String?> getHighlightSearchText() async {
+  final prefs = await SharedPreferences.getInstance();
+  return prefs.getString(_highlightSearchKey);
+}
+
+// Wyczyszczenie tekstu do podświetlenia
+Future<void> clearHighlightSearchText() async {
+  final prefs = await SharedPreferences.getInstance();
+  await prefs.remove(_highlightSearchKey);
+}
+
 }

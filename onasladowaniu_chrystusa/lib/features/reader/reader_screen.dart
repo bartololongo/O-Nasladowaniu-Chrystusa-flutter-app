@@ -1,8 +1,13 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+
 import '../../shared/models/book_models.dart';
 import '../../shared/services/book_repository.dart';
 import '../../shared/services/preferences_service.dart';
 import '../../shared/services/bookmarks_service.dart';
+import '../../shared/services/favorites_service.dart';
+import '../../shared/services/journal_service.dart';
 
 class ReaderScreen extends StatefulWidget {
   const ReaderScreen({super.key});
@@ -15,6 +20,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
   final BookRepository _bookRepository = BookRepository();
   final PreferencesService _prefs = PreferencesService();
   final BookmarksService _bookmarksService = BookmarksService();
+  final FavoritesService _favoritesService = FavoritesService();
+  final JournalService _journalService = JournalService();
 
   late final ScrollController _scrollController;
 
@@ -30,6 +37,12 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
   // flaga, żeby nie odpalać wielu równoległych sprawdzeń jumpa
   bool _isCheckingJump = false;
+
+  // aktualnie zaznaczony tekst (własne zaznaczenie w readerze)
+  String? _selectedText;
+
+  // tekst, który mamy podświetlić po "Zobacz w książce"
+  String? _highlightSearchText;
 
   @override
   void initState() {
@@ -78,6 +91,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
   Future<BookChapter> _initInitialChapter() async {
     // 1. Najpierw spróbuj tymczasowego skoku
     final jumpRef = await _prefs.getJumpChapterRef();
+    final highlight = await _prefs.getHighlightSearchText();
 
     String? refToLoad;
 
@@ -115,6 +129,16 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
     _currentChapterRef = chapter!.reference;
 
+    // przejmij ewentualny tekst do podświetlenia (z ulubionych / dziennika)
+    final trimmedHighlight = highlight?.trim();
+    if (trimmedHighlight != null && trimmedHighlight.isNotEmpty) {
+      setState(() {
+        _highlightSearchText = trimmedHighlight;
+        _selectedText = null; // highlight nie jest "systemowym" zaznaczeniem
+      });
+      await _prefs.clearHighlightSearchText();
+    }
+
     // przygotuj scroll i status zakładki dla bieżącego rozdziału
     await _loadScrollOffsetForChapter(_currentChapterRef);
     await _refreshBookmarkStatus();
@@ -139,7 +163,11 @@ class _ReaderScreenState extends State<ReaderScreen> {
     });
   }
 
-  void _loadChapterByReference(String reference, {bool saveAsLast = true}) {
+  void _loadChapterByReference(
+    String reference, {
+    bool saveAsLast = true,
+    bool keepHighlight = false,
+  }) {
     setState(() {
       _currentChapterRef = reference;
       _chapterFuture =
@@ -150,6 +178,10 @@ class _ReaderScreenState extends State<ReaderScreen> {
         return chapter;
       });
       _pendingScrollOffset = null;
+      _selectedText = null;
+      if (!keepHighlight) {
+        _highlightSearchText = null;
+      }
     });
 
     if (saveAsLast) {
@@ -436,6 +468,63 @@ class _ReaderScreenState extends State<ReaderScreen> {
     }
   }
 
+  /// Zakładka z paska zaznaczenia – zawsze "dodaj", bez usuwania.
+  Future<void> _addSelectionBookmark() async {
+    if (_isCurrentBookmarked) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Zakładka dla tego rozdziału już istnieje.'),
+        ),
+      );
+      return;
+    }
+
+    try {
+      await _bookmarksService.addBookmarkForChapterRef(_currentChapterRef);
+      if (!mounted) return;
+      setState(() {
+        _isCurrentBookmarked = true;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Dodano zakładkę dla bieżącego rozdziału.'),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Nie udało się dodać zakładki: $e'),
+        ),
+      );
+    }
+  }
+
+  /// Kopiowanie aktualnie zaznaczonego tekstu (_selectedText) do schowka.
+  Future<void> _copySelectionToClipboard() async {
+    final text = _selectedText?.trim();
+    if (text == null || text.isEmpty) return;
+
+    await Clipboard.setData(ClipboardData(text: text));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Skopiowano zaznaczony tekst.')),
+    );
+  }
+
+  /// Kopiowanie tekstu z highlightu (_highlightSearchText).
+  Future<void> _copyHighlightToClipboard() async {
+    final text = _highlightSearchText?.trim();
+    if (text == null || text.isEmpty) return;
+
+    await Clipboard.setData(ClipboardData(text: text));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Skopiowano fragment.')),
+    );
+  }
+
   /// Sprawdza, czy z zewnątrz nie ustawiono nowego jumpChapterRef
   /// (losowy cytat / zakładka / ulubione) i jeśli tak – ładuje odpowiedni rozdział
   /// bez nadpisywania lastChapterRef.
@@ -446,16 +535,40 @@ class _ReaderScreenState extends State<ReaderScreen> {
     Future.microtask(() async {
       try {
         final jumpRef = await _prefs.getJumpChapterRef();
+        final highlight = await _prefs.getHighlightSearchText();
+
+        final trimmedHighlight = highlight?.trim();
+        if (trimmedHighlight != null && trimmedHighlight.isNotEmpty) {
+          if (mounted) {
+            setState(() {
+              _highlightSearchText = trimmedHighlight;
+              _selectedText = null;
+            });
+          }
+          await _prefs.clearHighlightSearchText();
+        }
+
         if (jumpRef != null &&
             jumpRef.isNotEmpty &&
             jumpRef != _currentChapterRef) {
           await _prefs.clearJumpChapterRef();
-          _loadChapterByReference(jumpRef, saveAsLast: false);
+          _loadChapterByReference(
+            jumpRef,
+            saveAsLast: false,
+            keepHighlight: true,
+          );
         }
       } finally {
         _isCheckingJump = false;
       }
     });
+  }
+
+  /// Publiczne API dla zewnętrznego świata (RootScreen).
+  /// Wołane np. po "Zobacz w książce", żeby natychmiast
+  /// obsłużyć ewentualny jump / highlight zapisany w PreferencesService.
+  void handleExternalJump() {
+    _maybeHandleExternalJump();
   }
 
   @override
@@ -673,27 +786,488 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
   Widget _buildReader(BookChapter chapter) {
     return Expanded(
-      child: SingleChildScrollView(
-        controller: _scrollController,
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+      child: Stack(
+        children: [
+          SingleChildScrollView(
+            controller: _scrollController,
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                for (final paragraph in chapter.paragraphs) ...[
+                  _buildParagraphText(paragraph.text),
+                  const SizedBox(height: 12),
+                ],
+              ],
+            ),
+          ),
+          if (_selectedText != null)
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: _buildSelectionToolbar(chapter),
+            )
+          else if (_highlightSearchText != null &&
+              _highlightSearchText!.trim().isNotEmpty)
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: _buildHighlightToolbar(chapter),
+            ),
+        ],
+      ),
+    );
+  }
+
+  /// Rysuje akapit, a jeśli jest _highlightSearchText – podświetla w nim fragment.
+  /// Używamy SelectableText / SelectableText.rich zamiast SelectionArea.
+  Widget _buildParagraphText(String text) {
+    final query = _highlightSearchText?.trim();
+    final colorScheme = Theme.of(context).colorScheme;
+
+    void handleSelection(TextSelection selection, SelectionChangedCause? cause) {
+      final start = selection.start;
+      final end = selection.end;
+
+      // Brak realnego zaznaczenia
+      if (start == -1 || end == -1 || start == end) {
+        setState(() {
+          _selectedText = null;
+        });
+        return;
+      }
+
+      final lo = math.min(start, end);
+      final hi = math.max(start, end);
+
+      if (lo < 0 || hi > text.length) {
+        setState(() {
+          _selectedText = null;
+        });
+        return;
+      }
+
+      final selected = text.substring(lo, hi).trim();
+      setState(() {
+        _selectedText = selected.isNotEmpty ? selected : null;
+        if (_selectedText != null) {
+          // w momencie własnego zaznaczenia wyłącz highlight z "Zobacz w książce"
+          _highlightSearchText = null;
+        }
+      });
+    }
+
+    // Bez highlightu – zwykły SelectableText
+    if (query == null || query.isEmpty) {
+      return SelectableText(
+        text,
+        textAlign: _isJustified ? TextAlign.justify : TextAlign.left,
+        style: TextStyle(
+          fontSize: _fontSize,
+          height: _lineHeight,
+        ),
+        onSelectionChanged: handleSelection,
+      );
+    }
+
+    // Z highlightem – szukamy fragmentu w akapicie
+    final lowerText = text.toLowerCase();
+    final lowerQuery = query.toLowerCase();
+    final startIndex = lowerText.indexOf(lowerQuery);
+
+    // akapit nie zawiera szukanego fragmentu – zwykły SelectableText
+    if (startIndex < 0) {
+      return SelectableText(
+        text,
+        textAlign: _isJustified ? TextAlign.justify : TextAlign.left,
+        style: TextStyle(
+          fontSize: _fontSize,
+          height: _lineHeight,
+        ),
+        onSelectionChanged: handleSelection,
+      );
+    }
+
+    final endIndex = startIndex + query.length;
+    final before = text.substring(0, startIndex);
+    final match = text.substring(startIndex, endIndex);
+    final after = text.substring(endIndex);
+
+    return SelectableText.rich(
+      TextSpan(
+        style: TextStyle(
+          fontSize: _fontSize,
+          height: _lineHeight,
+          color: colorScheme.onSurface,
+        ),
+        children: [
+          if (before.isNotEmpty) TextSpan(text: before),
+          TextSpan(
+            text: match,
+            style: TextStyle(
+              backgroundColor: colorScheme.primary.withOpacity(0.35),
+            ),
+          ),
+          if (after.isNotEmpty) TextSpan(text: after),
+        ],
+      ),
+      textAlign: _isJustified ? TextAlign.justify : TextAlign.left,
+      onSelectionChanged: handleSelection,
+    );
+  }
+
+  Widget _buildSelectionToolbar(BookChapter chapter) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final preview = _selectedText ?? '';
+
+    return SafeArea(
+      top: false,
+      child: Container(
+        margin: const EdgeInsets.all(8),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: colorScheme.surface.withOpacity(0.95),
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              blurRadius: 8,
+              offset: const Offset(0, -2),
+              color: Colors.black.withOpacity(0.4),
+            ),
+          ],
+        ),
+        child: Row(
           children: [
-            for (final paragraph in chapter.paragraphs) ...[
-              SelectableText(
-                paragraph.text,
-                textAlign:
-                    _isJustified ? TextAlign.justify : TextAlign.left,
+            Expanded(
+              child: Text(
+                preview,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  fontSize: _fontSize,
-                  height: _lineHeight,
+                  fontSize: 12,
+                  color: colorScheme.onSurface.withOpacity(0.8),
                 ),
               ),
-              const SizedBox(height: 12),
-            ],
+            ),
+            const SizedBox(width: 8),
+            IconButton(
+              tooltip: 'Kopiuj',
+              icon: const Icon(Icons.copy),
+              onPressed: _copySelectionToClipboard,
+            ),
+            IconButton(
+              tooltip: 'Do ulubionych',
+              icon: const Icon(Icons.favorite_border),
+              onPressed: () => _addSelectionToFavorites(chapter),
+            ),
+            IconButton(
+              tooltip: 'Do dziennika',
+              icon: const Icon(Icons.edit_note),
+              onPressed: () => _addSelectionToJournal(chapter),
+            ),
+            IconButton(
+              tooltip: 'Zakładka (rozdział)',
+              icon: const Icon(Icons.bookmark_add_outlined),
+              onPressed: _addSelectionBookmark,
+            ),
+            IconButton(
+              tooltip: 'Zamknij',
+              icon: const Icon(Icons.close),
+              onPressed: () {
+                setState(() {
+                  _selectedText = null;
+                });
+              },
+            ),
           ],
         ),
       ),
     );
+  }
+
+  Widget _buildHighlightToolbar(BookChapter chapter) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final preview = _highlightSearchText ?? '';
+
+    return SafeArea(
+      top: false,
+      child: Container(
+        margin: const EdgeInsets.all(8),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: colorScheme.surface.withOpacity(0.95),
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              blurRadius: 8,
+              offset: const Offset(0, -2),
+              color: Colors.black.withOpacity(0.4),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                preview,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: colorScheme.onSurface.withOpacity(0.8),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            IconButton(
+              tooltip: 'Kopiuj',
+              icon: const Icon(Icons.copy),
+              onPressed: _copyHighlightToClipboard,
+            ),
+            IconButton(
+              tooltip: 'Do ulubionych',
+              icon: const Icon(Icons.favorite_border),
+              onPressed: () => _addHighlightToFavorites(chapter),
+            ),
+            IconButton(
+              tooltip: 'Do dziennika',
+              icon: const Icon(Icons.edit_note),
+              onPressed: () => _addHighlightToJournal(chapter),
+            ),
+            IconButton(
+              tooltip: 'Zamknij',
+              icon: const Icon(Icons.close),
+              onPressed: () {
+                setState(() {
+                  _highlightSearchText = null;
+                });
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _addSelectionToFavorites(BookChapter chapter) async {
+    final text = _selectedText?.trim();
+    if (text == null || text.isEmpty) return;
+
+    try {
+      final paragraph = BookParagraph(
+        index: 0, // sztuczny indeks dla zaznaczenia
+        reference: '${chapter.reference}-sel',
+        text: text,
+      );
+
+      await _favoritesService.addOrUpdateFavoriteForParagraph(
+        paragraph,
+        note: null,
+      );
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Dodano zaznaczony fragment do ulubionych.'),
+        ),
+      );
+      setState(() {
+        _selectedText = null;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Nie udało się dodać do ulubionych: $e'),
+        ),
+      );
+    }
+  }
+
+  Future<void> _addHighlightToFavorites(BookChapter chapter) async {
+    final text = _highlightSearchText?.trim();
+    if (text == null || text.isEmpty) return;
+
+    try {
+      final paragraph = BookParagraph(
+        index: 0,
+        reference: '${chapter.reference}-hl',
+        text: text,
+      );
+
+      await _favoritesService.addOrUpdateFavoriteForParagraph(
+        paragraph,
+        note: null,
+      );
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Dodano fragment do ulubionych.'),
+        ),
+      );
+      setState(() {
+        _highlightSearchText = null;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Nie udało się dodać do ulubionych: $e'),
+        ),
+      );
+    }
+  }
+
+  Future<void> _addSelectionToJournal(BookChapter chapter) async {
+    final text = _selectedText?.trim();
+    if (text == null || text.isEmpty) return;
+
+    final controller = TextEditingController();
+
+    await showDialog(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          title: const Text('Dodaj do dziennika'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  text,
+                  style: const TextStyle(fontSize: 14),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Twoja notatka:',
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 4),
+                TextField(
+                  controller: controller,
+                  maxLines: 4,
+                  decoration: const InputDecoration(
+                    border: OutlineInputBorder(),
+                    hintText:
+                        'Co mówi do Ciebie ten fragment? '
+                        'Jak chcesz na niego odpowiedzieć?',
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Anuluj'),
+            ),
+            TextButton(
+              onPressed: () async {
+                final note = controller.text.trim();
+
+                await _journalService.addEntry(
+                  content: note.isEmpty ? text : note,
+                  quoteText: text,
+                  quoteRef: '${chapter.reference}-sel',
+                );
+
+                if (!mounted) return;
+                Navigator.of(ctx).pop();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Dodano wpis do dziennika.'),
+                  ),
+                );
+              },
+              child: const Text('Zapisz'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (!mounted) return;
+    setState(() {
+      _selectedText = null;
+    });
+  }
+
+  Future<void> _addHighlightToJournal(BookChapter chapter) async {
+    final text = _highlightSearchText?.trim();
+    if (text == null || text.isEmpty) return;
+
+    final controller = TextEditingController();
+
+    await showDialog(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          title: const Text('Dodaj do dziennika'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  text,
+                  style: const TextStyle(fontSize: 14),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Twoja notatka:',
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 4),
+                TextField(
+                  controller: controller,
+                  maxLines: 4,
+                  decoration: const InputDecoration(
+                    border: OutlineInputBorder(),
+                    hintText:
+                        'Co mówi do Ciebie ten fragment? '
+                        'Jak chcesz na niego odpowiedzieć?',
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Anuluj'),
+            ),
+            TextButton(
+              onPressed: () async {
+                final note = controller.text.trim();
+
+                await _journalService.addEntry(
+                  content: note.isEmpty ? text : note,
+                  quoteText: text,
+                  quoteRef: '${chapter.reference}-hl',
+                );
+
+                if (!mounted) return;
+                Navigator.of(ctx).pop();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Dodano wpis do dziennika.'),
+                  ),
+                );
+              },
+              child: const Text('Zapisz'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (!mounted) return;
+    setState(() {
+      _highlightSearchText = null;
+    });
   }
 }
