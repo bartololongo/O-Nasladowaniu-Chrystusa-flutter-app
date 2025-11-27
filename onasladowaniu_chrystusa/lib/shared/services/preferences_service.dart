@@ -4,7 +4,9 @@ class PreferencesService {
   static const String _keyLastChapterRef = 'last_chapter_ref';
   static const String _keyJumpChapterRef = 'jump_chapter_ref';
   static const String _keyReaderFontSize = 'reader_font_size';
-  static const _highlightSearchKey = 'reader_highlight_search_text';
+
+  // NOWE: numer akapitu, do którego mamy się „zbliżyć” przy skoku
+  static const String _keyJumpParagraphNumber = 'jump_paragraph_number';
 
   String _scrollKeyForChapter(String ref) => 'scroll_offset_$ref';
 
@@ -26,7 +28,7 @@ class PreferencesService {
     return prefs.getString(_keyLastChapterRef);
   }
 
-  /// Tymczasowy skok do rozdziału (np. z "Zobacz w książce" po losowym cytacie).
+  /// Tymczasowy skok do rozdziału (np. z "Zobacz w książce").
   /// Reader przy starcie najpierw sprawdzi jump, a potem last.
   Future<void> setJumpChapterRef(String reference) async {
     final prefs = await SharedPreferences.getInstance();
@@ -41,6 +43,22 @@ class PreferencesService {
   Future<void> clearJumpChapterRef() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_keyJumpChapterRef);
+  }
+
+  /// NOWE: numer akapitu (1-based) do którego mamy się zbliżyć.
+  Future<void> setJumpParagraphNumber(int number) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_keyJumpParagraphNumber, number);
+  }
+
+  Future<int?> getJumpParagraphNumber() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getInt(_keyJumpParagraphNumber);
+  }
+
+  Future<void> clearJumpParagraphNumber() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_keyJumpParagraphNumber);
   }
 
   /// Zapisz rozmiar czcionki w czytniku.
@@ -68,23 +86,4 @@ class PreferencesService {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getDouble(_scrollKeyForChapter(chapterRef));
   }
-
-// Zapisanie tekstu do podświetlenia (jednorazowe)
-Future<void> setHighlightSearchText(String text) async {
-  final prefs = await SharedPreferences.getInstance();
-  await prefs.setString(_highlightSearchKey, text);
-}
-
-// Odczyt tekstu do podświetlenia
-Future<String?> getHighlightSearchText() async {
-  final prefs = await SharedPreferences.getInstance();
-  return prefs.getString(_highlightSearchKey);
-}
-
-// Wyczyszczenie tekstu do podświetlenia
-Future<void> clearHighlightSearchText() async {
-  final prefs = await SharedPreferences.getInstance();
-  await prefs.remove(_highlightSearchKey);
-}
-
 }

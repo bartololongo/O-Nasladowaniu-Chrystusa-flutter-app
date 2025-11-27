@@ -57,7 +57,6 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _loadChallengeProgress(ReadingChallengeState state) async {
-    // Jeśli wyzwanie nieaktywne albo brak info o najdalszym rozdziale – czyścimy postęp.
     if (!state.isActive || state.furthestChapterRef == null) {
       if (!mounted) return;
       setState(() {
@@ -88,12 +87,9 @@ class _HomeScreenState extends State<HomeScreen> {
         _totalChapters = total;
         _furthestChapterIndex = furthestIndex;
       });
-    } catch (_) {
-      // w razie błędu – nic nie psujemy, po prostu brak paska postępu
-    }
+    } catch (_) {}
   }
 
-  /// Otwiera ekran wyzwania i po powrocie odświeża stan kafelka.
   Future<void> _openChallengeScreen() async {
     await Navigator.of(context).push(
       MaterialPageRoute(
@@ -105,7 +101,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
     if (!mounted) return;
 
-    // po powrocie wczytujemy na nowo stan + postęp + ostatni rozdział
     final state = await _challengeService.getState();
     if (!mounted) return;
     setState(() {
@@ -158,12 +153,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
     final parts = _lastChapterRef!.split('-');
     if (parts.length == 2) {
-      final bookCode = parts[0]; // np. "I"
-      final chapterNumber = parts[1]; // np. "3"
+      final bookCode = parts[0];
+      final chapterNumber = parts[1];
       return 'Księga $bookCode, rozdział $chapterNumber';
     }
 
-    // Fallback, gdyby format był inny
     return 'Rozdział $_lastChapterRef';
   }
 
@@ -179,10 +173,8 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _showRandomQuoteBottomSheet() async {
-    final repo = BookRepository();
-
     try {
-      final BookParagraph paragraph = await repo.getRandomParagraph();
+      final BookParagraph paragraph = await _bookRepository.getRandomParagraph();
       if (!mounted) return;
 
       await showModalBottomSheet(
@@ -290,8 +282,21 @@ class _HomeScreenState extends State<HomeScreen> {
                     label: const Text('Zobacz w książce'),
                     onPressed: () async {
                       if (chapterRef != null && chapterRef.isNotEmpty) {
-                        // TYLKO jump, nie last!
+                        // Skok do rozdziału (bez zmiany lastChapterRef)
                         await _prefs.setJumpChapterRef(chapterRef);
+                      }
+
+                      // Jeśli referencja ma trzeci człon (np. I-3-7), potraktuj go jako numer akapitu
+                      final refParts = paragraph.reference.split('-');
+                      if (refParts.length >= 3) {
+                        final num = int.tryParse(refParts[2]);
+                        if (num != null) {
+                          await _prefs.setJumpParagraphNumber(num);
+                        } else {
+                          await _prefs.clearJumpParagraphNumber();
+                        }
+                      } else {
+                        await _prefs.clearJumpParagraphNumber();
                       }
 
                       if (!mounted) return;
@@ -527,7 +532,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
         widget.onNavigateToTab?.call(1);
       },
-      onLongPress: _openChallengeScreen, // 👈 DŁUGIE PRZYTRZYMANIE – szczegóły
+      onLongPress: _openChallengeScreen,
       child: Container(
         decoration: BoxDecoration(
           color: colorScheme.surface.withOpacity(0.1),

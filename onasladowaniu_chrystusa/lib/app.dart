@@ -41,9 +41,8 @@ class _RootScreen extends StatefulWidget {
 class _RootScreenState extends State<_RootScreen> {
   int _selectedIndex = 0;
 
-  // Klucz do aktualnego stanu ReaderScreen,
-  // żeby móc z zewnątrz zasygnalizować "obsłuż skok / highlight".
-  final GlobalKey _readerKey = GlobalKey();
+  /// ID instancji Readera – zmiana powoduje utworzenie nowego ReaderScreen.
+  int _readerInstanceId = 0;
 
   void _onTabSelected(int index) {
     // Ostatni przycisk ("Więcej") otwiera bottom sheet,
@@ -53,22 +52,18 @@ class _RootScreenState extends State<_RootScreen> {
       return;
     }
 
+    final previousIndex = _selectedIndex;
+
     setState(() {
+      // Jeśli ponownie wybieramy zakładkę "Czytanie"
+      // (np. z dziennika/ulubionych, gdy Reader już jest aktywny),
+      // wymuś utworzenie nowej instancji ReaderScreen.
+      if (index == 1 && previousIndex == 1) {
+        _readerInstanceId++;
+      }
       _selectedIndex = index;
     });
-
-    // Jeśli przełączamy na zakładkę "Czytanie",
-    // po klatce prosimy Readera o obsłużenie ewentualnego
-    // jumpChapterRef + highlightSearchText.
-    if (index == 1) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        final state = _readerKey.currentState;
-        if (state != null) {
-          // używamy dynamic, bo klasa stanu jest prywatna w innym pliku
-          (state as dynamic).handleExternalJump();
-        }
-      });
-    }
+    // Reader dalej sam obsługuje jump przez SharedPreferences.
   }
 
   void _showMoreSheet() {
@@ -131,8 +126,9 @@ class _RootScreenState extends State<_RootScreen> {
       case 0:
         return HomeScreen(onNavigateToTab: _onTabSelected);
       case 1:
-        // przekazujemy key, żeby móc dobrać się do stanu
-        return ReaderScreen(key: _readerKey);
+        // ValueKey na podstawie _readerInstanceId wymusza nową instancję,
+        // gdy ten licznik się zmieni.
+        return ReaderScreen(key: ValueKey(_readerInstanceId));
       case 2:
         return BookmarksScreen(onNavigateToTab: _onTabSelected);
       default:

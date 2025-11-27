@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 
 import '../../shared/services/journal_service.dart';
 import '../../shared/services/preferences_service.dart';
+import '../../shared/services/favorites_service.dart';
 import '../../shared/models/reader_user_models.dart';
+import '../../shared/models/book_models.dart';
 
 class JournalScreen extends StatefulWidget {
   final void Function(int tabIndex)? onNavigateToTab;
@@ -16,6 +18,7 @@ class JournalScreen extends StatefulWidget {
 class _JournalScreenState extends State<JournalScreen> {
   final JournalService _journalService = JournalService();
   final PreferencesService _prefs = PreferencesService();
+  final FavoritesService _favoritesService = FavoritesService();
 
   late Future<List<JournalEntry>> _entriesFuture;
 
@@ -151,6 +154,58 @@ class _JournalScreenState extends State<JournalScreen> {
     );
   }
 
+  /// Dodaje cytat z wpisu do ulubionych (jeśli cytat i referencja są dostępne)
+  /// i zamyka bottomsheet.
+  Future<void> _addEntryQuoteToFavorites(
+    JournalEntry entry,
+    BuildContext sheetContext,
+  ) async {
+    final text = entry.quoteText?.trim();
+    final ref = entry.quoteRef?.trim();
+
+    if (text == null || text.isEmpty || ref == null || ref.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Ten wpis nie ma cytatu do dodania do ulubionych.'),
+        ),
+      );
+      return;
+    }
+
+    int index = 0;
+    final parts = ref.split('-');
+    if (parts.length >= 3) {
+      final parsed = int.tryParse(parts[2]);
+      if (parsed != null) {
+        index = parsed;
+      }
+    }
+
+    final paragraph = BookParagraph(
+      index: index,
+      reference: ref,
+      text: text,
+    );
+
+    await _favoritesService.addOrUpdateFavoriteForParagraph(
+      paragraph,
+      note: null,
+    );
+
+    if (!mounted) return;
+
+    // zamknij bottomsheet
+    Navigator.of(sheetContext).pop();
+
+    // i pokaż komunikat
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Cytat dodany do ulubionych.')),
+    );
+  }
+
+  /// "Zobacz w książce" – ustawiamy jumpChapterRef + (jeśli się da) jumpParagraphNumber,
+  /// a potem przełączamy na zakładkę "Czytanie".
   Future<void> _goToBookFromEntry(
     JournalEntry entry,
     BuildContext sheetContext,
@@ -161,13 +216,9 @@ class _JournalScreenState extends State<JournalScreen> {
       return;
     }
 
-    // jeśli mamy tekst cytatu – zapisz go do podświetlenia
-    if (entry.quoteText != null && entry.quoteText!.trim().isNotEmpty) {
-      await _prefs.setHighlightSearchText(entry.quoteText!);
-    }
-
-    // quoteRef np. "I-3-2" -> chapterRef "I-3"
     final parts = quoteRef.split('-');
+
+    // chapterRef np. "I-3-2" -> "I-3"
     String chapterRef;
     if (parts.length >= 2) {
       chapterRef = '${parts[0]}-${parts[1]}';
@@ -178,20 +229,31 @@ class _JournalScreenState extends State<JournalScreen> {
     // 1) ustawiamy skok do rozdziału
     await _prefs.setJumpChapterRef(chapterRef);
 
+    // 2) jeśli quoteRef zawiera numer akapitu (I-3-7), spróbuj go sparsować
+    if (parts.length >= 3) {
+      final num = int.tryParse(parts[2]);
+      if (num != null) {
+        await _prefs.setJumpParagraphNumber(num);
+      } else {
+        await _prefs.clearJumpParagraphNumber();
+      }
+    } else {
+      await _prefs.clearJumpParagraphNumber();
+    }
+
     if (!mounted) return;
 
-    // 2) zamykamy bottomsheet ze szczegółami wpisu
+    // 3) zamykamy bottomsheet ze szczegółami wpisu
     Navigator.of(sheetContext).pop();
 
-    // 3) przełączamy na tab "Czytanie"
+    // 4) przełączamy na tab "Czytanie"
     widget.onNavigateToTab?.call(1);
 
-    // 4) zamykamy ekran dziennika (jeśli jest osobnym route’em)
+    // 5) zamykamy ekran dziennika (jeśli jest osobnym route’em)
     if (Navigator.of(context).canPop()) {
       Navigator.of(context).pop();
     }
   }
-
 
   Future<void> _openEntryDetails(JournalEntry entry) async {
     await showModalBottomSheet(
@@ -199,6 +261,11 @@ class _JournalScreenState extends State<JournalScreen> {
       isScrollControlled: true,
       builder: (sheetContext) {
         final colorScheme = Theme.of(sheetContext).colorScheme;
+
+        final hasQuote = entry.quoteText != null &&
+            entry.quoteText!.trim().isNotEmpty &&
+            entry.quoteRef != null &&
+            entry.quoteRef!.trim().isNotEmpty;
 
         return SafeArea(
           child: Padding(
@@ -244,9 +311,18 @@ class _JournalScreenState extends State<JournalScreen> {
                   style: const TextStyle(fontSize: 14, height: 1.4),
                 ),
                 const SizedBox(height: 16),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
+                Wrap(
+                  alignment: WrapAlignment.end,
+                  spacing: 8,
+                  runSpacing: 4,
                   children: [
+                    if (hasQuote)
+                      TextButton.icon(
+                        icon: const Icon(Icons.favorite_border),
+                        label: const Text('Do ulubionych'),
+                        onPressed: () =>
+                            _addEntryQuoteToFavorites(entry, sheetContext),
+                      ),
                     if (entry.quoteRef != null &&
                         entry.quoteRef!.trim().isNotEmpty)
                       TextButton.icon(

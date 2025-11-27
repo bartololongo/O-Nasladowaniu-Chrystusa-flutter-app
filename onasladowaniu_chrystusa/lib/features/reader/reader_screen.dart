@@ -1,7 +1,4 @@
-import 'dart:math' as math;
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-
 import '../../shared/models/book_models.dart';
 import '../../shared/services/book_repository.dart';
 import '../../shared/services/preferences_service.dart';
@@ -38,11 +35,16 @@ class _ReaderScreenState extends State<ReaderScreen> {
   // flaga, żeby nie odpalać wielu równoległych sprawdzeń jumpa
   bool _isCheckingJump = false;
 
-  // aktualnie zaznaczony tekst (własne zaznaczenie w readerze)
+  // aktualnie zaznaczony tekst (SelectionArea)
   String? _selectedText;
 
-  // tekst, który mamy podświetlić po "Zobacz w książce"
-  String? _highlightSearchText;
+  // --- NOWE: obsługa skoku do konkretnego akapitu ---
+  // numer akapitu (1-based) przekazany z zewnątrz
+  int? _jumpParagraphNumber;
+  // czy po zrenderowaniu rozdziału mamy przewinąć do tego akapitu
+  bool _pendingJumpToParagraph = false;
+  // GlobalKey na każdy akapit w bieżącym rozdziale
+  final Map<int, GlobalKey> _paragraphKeys = {};
 
   @override
   void initState() {
@@ -52,7 +54,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
     _scrollController.addListener(_onScrollChanged);
 
     // Jedno źródło prawdy dla startowego rozdziału:
-    // 1) jumpChapterRef (Zobacz w książce / zakładki / ulubione)
+    // 1) jumpChapterRef (Zobacz w książce / zakładki / ulubione / losowy cytat)
     // 2) lastChapterRef (główny postęp)
     // 3) pierwszy rozdział
     _chapterFuture = _initInitialChapter();
@@ -88,10 +90,13 @@ class _ReaderScreenState extends State<ReaderScreen> {
   /// - jeśli jest jumpChapterRef → użyj go (jednorazowo),
   /// - w przeciwnym razie lastChapterRef,
   /// - jeśli brak → pierwszy rozdział.
+  ///
+  /// Jeśli jest też jumpParagraphNumber – przewiniemy do tego akapitu,
+  /// ustawiając go na górze ekranu.
   Future<BookChapter> _initInitialChapter() async {
     // 1. Najpierw spróbuj tymczasowego skoku
     final jumpRef = await _prefs.getJumpChapterRef();
-    final highlight = await _prefs.getHighlightSearchText();
+    final jumpParagraph = await _prefs.getJumpParagraphNumber();
 
     String? refToLoad;
 
@@ -128,19 +133,23 @@ class _ReaderScreenState extends State<ReaderScreen> {
     }
 
     _currentChapterRef = chapter!.reference;
+    _paragraphKeys.clear();
+    _selectedText = null;
 
-    // przejmij ewentualny tekst do podświetlenia (z ulubionych / dziennika)
-    final trimmedHighlight = highlight?.trim();
-    if (trimmedHighlight != null && trimmedHighlight.isNotEmpty) {
-      setState(() {
-        _highlightSearchText = trimmedHighlight;
-        _selectedText = null; // highlight nie jest "systemowym" zaznaczeniem
-      });
-      await _prefs.clearHighlightSearchText();
+    // Jeśli mamy jumpParagraph i dotyczy właśnie ładowanego rozdziału –
+    // nie ładujemy offsetu scrolla, tylko planujemy skok do akapitu.
+    if (jumpParagraph != null && refToLoad == _currentChapterRef) {
+      _jumpParagraphNumber = jumpParagraph;
+      _pendingJumpToParagraph = true;
+      _pendingScrollOffset = null;
+      await _prefs.clearJumpParagraphNumber();
+    } else {
+      _jumpParagraphNumber = null;
+      _pendingJumpToParagraph = false;
+      await _prefs.clearJumpParagraphNumber();
+      await _loadScrollOffsetForChapter(_currentChapterRef);
     }
 
-    // przygotuj scroll i status zakładki dla bieżącego rozdziału
-    await _loadScrollOffsetForChapter(_currentChapterRef);
     await _refreshBookmarkStatus();
 
     return chapter;
@@ -163,10 +172,12 @@ class _ReaderScreenState extends State<ReaderScreen> {
     });
   }
 
+  /// Ładowanie rozdziału – opcjonalnie bez przywracania offsetu scrolla
+  /// (gdy wskakujemy w środek rozdziału do konkretnego akapitu).
   void _loadChapterByReference(
     String reference, {
     bool saveAsLast = true,
-    bool keepHighlight = false,
+    bool skipScrollOffset = false,
   }) {
     setState(() {
       _currentChapterRef = reference;
@@ -179,16 +190,18 @@ class _ReaderScreenState extends State<ReaderScreen> {
       });
       _pendingScrollOffset = null;
       _selectedText = null;
-      if (!keepHighlight) {
-        _highlightSearchText = null;
-      }
+      _paragraphKeys.clear();
+      // _jumpParagraphNumber / _pendingJumpToParagraph ustawiamy
+      // z zewnątrz, np. w _maybeHandleExternalJump
     });
 
     if (saveAsLast) {
       _prefs.saveLastChapterRef(reference);
     }
 
-    _loadScrollOffsetForChapter(reference);
+    if (!skipScrollOffset) {
+      _loadScrollOffsetForChapter(reference);
+    }
     _refreshBookmarkStatus();
   }
 
@@ -363,6 +376,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
                                             : null,
                                     onTap: () {
                                       Navigator.of(context).pop();
+                                      _jumpParagraphNumber = null;
+                                      _pendingJumpToParagraph = false;
                                       _loadChapterByReference(
                                         chapter.reference,
                                       );
@@ -398,6 +413,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
         );
         return;
       }
+      _jumpParagraphNumber = null;
+      _pendingJumpToParagraph = false;
       _loadChapterByReference(next.reference);
     } catch (e) {
       if (!mounted) return;
@@ -423,6 +440,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
         );
         return;
       }
+      _jumpParagraphNumber = null;
+      _pendingJumpToParagraph = false;
       _loadChapterByReference(previous.reference);
     } catch (e) {
       if (!mounted) return;
@@ -501,33 +520,9 @@ class _ReaderScreenState extends State<ReaderScreen> {
     }
   }
 
-  /// Kopiowanie aktualnie zaznaczonego tekstu (_selectedText) do schowka.
-  Future<void> _copySelectionToClipboard() async {
-    final text = _selectedText?.trim();
-    if (text == null || text.isEmpty) return;
-
-    await Clipboard.setData(ClipboardData(text: text));
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Skopiowano zaznaczony tekst.')),
-    );
-  }
-
-  /// Kopiowanie tekstu z highlightu (_highlightSearchText).
-  Future<void> _copyHighlightToClipboard() async {
-    final text = _highlightSearchText?.trim();
-    if (text == null || text.isEmpty) return;
-
-    await Clipboard.setData(ClipboardData(text: text));
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Skopiowano fragment.')),
-    );
-  }
-
-  /// Sprawdza, czy z zewnątrz nie ustawiono nowego jumpChapterRef
-  /// (losowy cytat / zakładka / ulubione) i jeśli tak – ładuje odpowiedni rozdział
-  /// bez nadpisywania lastChapterRef.
+  /// Sprawdza, czy z zewnątrz nie ustawiono nowego jumpChapterRef / jumpParagraphNumber
+  /// (losowy cytat / zakładka / ulubione / dziennik) i jeśli tak – ładuje odpowiedni rozdział
+  /// lub przewija w bieżącym, bez nadpisywania lastChapterRef.
   void _maybeHandleExternalJump() {
     if (_isCheckingJump) return;
     _isCheckingJump = true;
@@ -535,28 +530,44 @@ class _ReaderScreenState extends State<ReaderScreen> {
     Future.microtask(() async {
       try {
         final jumpRef = await _prefs.getJumpChapterRef();
-        final highlight = await _prefs.getHighlightSearchText();
+        final jumpParagraph = await _prefs.getJumpParagraphNumber();
 
-        final trimmedHighlight = highlight?.trim();
-        if (trimmedHighlight != null && trimmedHighlight.isNotEmpty) {
-          if (mounted) {
-            setState(() {
-              _highlightSearchText = trimmedHighlight;
-              _selectedText = null;
-            });
-          }
-          await _prefs.clearHighlightSearchText();
+        if ((jumpRef == null || jumpRef.isEmpty) &&
+            jumpParagraph == null) {
+          return;
         }
 
+        // Jeśli podano rozdział i różni się od bieżącego – przeładuj rozdział.
         if (jumpRef != null &&
             jumpRef.isNotEmpty &&
             jumpRef != _currentChapterRef) {
           await _prefs.clearJumpChapterRef();
+          if (jumpParagraph != null) {
+            _jumpParagraphNumber = jumpParagraph;
+            _pendingJumpToParagraph = true;
+            await _prefs.clearJumpParagraphNumber();
+          } else {
+            _jumpParagraphNumber = null;
+            _pendingJumpToParagraph = false;
+          }
           _loadChapterByReference(
             jumpRef,
             saveAsLast: false,
-            keepHighlight: true,
+            skipScrollOffset: jumpParagraph != null,
           );
+        } else {
+          // Ten sam rozdział, ale np. inny akapit
+          if (jumpParagraph != null) {
+            _jumpParagraphNumber = jumpParagraph;
+            _pendingJumpToParagraph = true;
+            await _prefs.clearJumpParagraphNumber();
+            if (mounted) {
+              setState(() {});
+            }
+          }
+          if (jumpRef != null && jumpRef.isNotEmpty) {
+            await _prefs.clearJumpChapterRef();
+          }
         }
       } finally {
         _isCheckingJump = false;
@@ -564,11 +575,40 @@ class _ReaderScreenState extends State<ReaderScreen> {
     });
   }
 
-  /// Publiczne API dla zewnętrznego świata (RootScreen).
-  /// Wołane np. po "Zobacz w książce", żeby natychmiast
-  /// obsłużyć ewentualny jump / highlight zapisany w PreferencesService.
-  void handleExternalJump() {
-    _maybeHandleExternalJump();
+  /// Po złożeniu drzewa widgetów przewija (jeśli trzeba)
+  /// - albo do zapisanego offsetu,
+  /// - albo do konkretnego akapitu (ustawionego na górze ekranu).
+  void _handlePostFrameScroll(BookChapter chapter) {
+    // 1) Przywrócenie offsetu scrolla z prefs – tylko gdy NIE planujemy skoku do akapitu
+    if (_pendingScrollOffset != null && !_pendingJumpToParagraph) {
+      if (_scrollController.hasClients) {
+        final max = _scrollController.position.maxScrollExtent;
+        final target = _pendingScrollOffset!.clamp(
+          0.0,
+          max > 0 ? max : double.infinity,
+        );
+        _scrollController.jumpTo(target);
+        _pendingScrollOffset = null;
+      }
+    }
+
+    // 2) Skok do konkretnego akapitu – akapit ma być na górze ekranu
+    if (_pendingJumpToParagraph && _jumpParagraphNumber != null) {
+      final targetIndex =
+          (_jumpParagraphNumber! - 1).clamp(0, chapter.paragraphs.length - 1);
+      final key = _paragraphKeys[targetIndex];
+      final ctx = key?.currentContext;
+      if (ctx != null) {
+        _pendingJumpToParagraph = false;
+        _jumpParagraphNumber = null;
+        Scrollable.ensureVisible(
+          ctx,
+          alignment: 0.0, // 0.0 = górna krawędź widoku
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOut,
+        );
+      }
+    }
   }
 
   @override
@@ -627,19 +667,11 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
                 final chapter = snapshot.data!;
 
-                if (_pendingScrollOffset != null) {
-                  WidgetsBinding.instance.addPostFrameCallback((_) {
-                    if (!_scrollController.hasClients) return;
-                    final max =
-                        _scrollController.position.maxScrollExtent;
-                    final target = _pendingScrollOffset!.clamp(
-                      0.0,
-                      max > 0 ? max : double.infinity,
-                    );
-                    _scrollController.jumpTo(target);
-                    _pendingScrollOffset = null;
-                  });
-                }
+                // Po złożeniu drzewa spróbuj przywrócić scroll / skoczyć do akapitu
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (!mounted) return;
+                  _handlePostFrameScroll(chapter);
+                });
 
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -788,17 +820,28 @@ class _ReaderScreenState extends State<ReaderScreen> {
     return Expanded(
       child: Stack(
         children: [
-          SingleChildScrollView(
-            controller: _scrollController,
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                for (final paragraph in chapter.paragraphs) ...[
-                  _buildParagraphText(paragraph.text),
-                  const SizedBox(height: 12),
+          SelectionArea(
+            onSelectionChanged: (selected) {
+              final text = selected?.plainText;
+              if (!mounted) return;
+              setState(() {
+                final trimmed = text?.trim();
+                _selectedText =
+                    (trimmed != null && trimmed.isNotEmpty) ? trimmed : null;
+              });
+            },
+            child: SingleChildScrollView(
+              controller: _scrollController,
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  for (int i = 0; i < chapter.paragraphs.length; i++) ...[
+                    _buildParagraphText(chapter.paragraphs[i].text, i),
+                    const SizedBox(height: 12),
+                  ],
                 ],
-              ],
+              ),
             ),
           ),
           if (_selectedText != null)
@@ -807,114 +850,27 @@ class _ReaderScreenState extends State<ReaderScreen> {
               right: 0,
               bottom: 0,
               child: _buildSelectionToolbar(chapter),
-            )
-          else if (_highlightSearchText != null &&
-              _highlightSearchText!.trim().isNotEmpty)
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: 0,
-              child: _buildHighlightToolbar(chapter),
             ),
         ],
       ),
     );
   }
 
-  /// Rysuje akapit, a jeśli jest _highlightSearchText – podświetla w nim fragment.
-  /// Używamy SelectableText / SelectableText.rich zamiast SelectionArea.
-  Widget _buildParagraphText(String text) {
-    final query = _highlightSearchText?.trim();
-    final colorScheme = Theme.of(context).colorScheme;
+  /// Pojedynczy akapit, opakowany w GlobalKey, żeby móc przewijać
+  /// dokładnie do jego pozycji (na górę ekranu).
+  Widget _buildParagraphText(String text, int index) {
+    final key = _paragraphKeys.putIfAbsent(index, () => GlobalKey());
 
-    void handleSelection(TextSelection selection, SelectionChangedCause? cause) {
-      final start = selection.start;
-      final end = selection.end;
-
-      // Brak realnego zaznaczenia
-      if (start == -1 || end == -1 || start == end) {
-        setState(() {
-          _selectedText = null;
-        });
-        return;
-      }
-
-      final lo = math.min(start, end);
-      final hi = math.max(start, end);
-
-      if (lo < 0 || hi > text.length) {
-        setState(() {
-          _selectedText = null;
-        });
-        return;
-      }
-
-      final selected = text.substring(lo, hi).trim();
-      setState(() {
-        _selectedText = selected.isNotEmpty ? selected : null;
-        if (_selectedText != null) {
-          // w momencie własnego zaznaczenia wyłącz highlight z "Zobacz w książce"
-          _highlightSearchText = null;
-        }
-      });
-    }
-
-    // Bez highlightu – zwykły SelectableText
-    if (query == null || query.isEmpty) {
-      return SelectableText(
+    return KeyedSubtree(
+      key: key,
+      child: Text(
         text,
         textAlign: _isJustified ? TextAlign.justify : TextAlign.left,
         style: TextStyle(
           fontSize: _fontSize,
           height: _lineHeight,
         ),
-        onSelectionChanged: handleSelection,
-      );
-    }
-
-    // Z highlightem – szukamy fragmentu w akapicie
-    final lowerText = text.toLowerCase();
-    final lowerQuery = query.toLowerCase();
-    final startIndex = lowerText.indexOf(lowerQuery);
-
-    // akapit nie zawiera szukanego fragmentu – zwykły SelectableText
-    if (startIndex < 0) {
-      return SelectableText(
-        text,
-        textAlign: _isJustified ? TextAlign.justify : TextAlign.left,
-        style: TextStyle(
-          fontSize: _fontSize,
-          height: _lineHeight,
-        ),
-        onSelectionChanged: handleSelection,
-      );
-    }
-
-    final endIndex = startIndex + query.length;
-    final before = text.substring(0, startIndex);
-    final match = text.substring(startIndex, endIndex);
-    final after = text.substring(endIndex);
-
-    return SelectableText.rich(
-      TextSpan(
-        style: TextStyle(
-          fontSize: _fontSize,
-          height: _lineHeight,
-          color: colorScheme.onSurface,
-        ),
-        children: [
-          if (before.isNotEmpty) TextSpan(text: before),
-          TextSpan(
-            text: match,
-            style: TextStyle(
-              backgroundColor: colorScheme.primary.withOpacity(0.35),
-            ),
-          ),
-          if (after.isNotEmpty) TextSpan(text: after),
-        ],
       ),
-      textAlign: _isJustified ? TextAlign.justify : TextAlign.left,
-      onSelectionChanged: handleSelection,
     );
   }
 
@@ -953,11 +909,6 @@ class _ReaderScreenState extends State<ReaderScreen> {
             ),
             const SizedBox(width: 8),
             IconButton(
-              tooltip: 'Kopiuj',
-              icon: const Icon(Icons.copy),
-              onPressed: _copySelectionToClipboard,
-            ),
-            IconButton(
               tooltip: 'Do ulubionych',
               icon: const Icon(Icons.favorite_border),
               onPressed: () => _addSelectionToFavorites(chapter),
@@ -987,77 +938,13 @@ class _ReaderScreenState extends State<ReaderScreen> {
     );
   }
 
-  Widget _buildHighlightToolbar(BookChapter chapter) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final preview = _highlightSearchText ?? '';
-
-    return SafeArea(
-      top: false,
-      child: Container(
-        margin: const EdgeInsets.all(8),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color: colorScheme.surface.withOpacity(0.95),
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: [
-            BoxShadow(
-              blurRadius: 8,
-              offset: const Offset(0, -2),
-              color: Colors.black.withOpacity(0.4),
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            Expanded(
-              child: Text(
-                preview,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: colorScheme.onSurface.withOpacity(0.8),
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            IconButton(
-              tooltip: 'Kopiuj',
-              icon: const Icon(Icons.copy),
-              onPressed: _copyHighlightToClipboard,
-            ),
-            IconButton(
-              tooltip: 'Do ulubionych',
-              icon: const Icon(Icons.favorite_border),
-              onPressed: () => _addHighlightToFavorites(chapter),
-            ),
-            IconButton(
-              tooltip: 'Do dziennika',
-              icon: const Icon(Icons.edit_note),
-              onPressed: () => _addHighlightToJournal(chapter),
-            ),
-            IconButton(
-              tooltip: 'Zamknij',
-              icon: const Icon(Icons.close),
-              onPressed: () {
-                setState(() {
-                  _highlightSearchText = null;
-                });
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   Future<void> _addSelectionToFavorites(BookChapter chapter) async {
     final text = _selectedText?.trim();
     if (text == null || text.isEmpty) return;
 
     try {
       final paragraph = BookParagraph(
-        index: 0, // sztuczny indeks dla zaznaczenia
+        index: 0, // wymagany parametr – sztuczny indeks dla zaznaczenia
         reference: '${chapter.reference}-sel',
         text: text,
       );
@@ -1075,41 +962,6 @@ class _ReaderScreenState extends State<ReaderScreen> {
       );
       setState(() {
         _selectedText = null;
-      });
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Nie udało się dodać do ulubionych: $e'),
-        ),
-      );
-    }
-  }
-
-  Future<void> _addHighlightToFavorites(BookChapter chapter) async {
-    final text = _highlightSearchText?.trim();
-    if (text == null || text.isEmpty) return;
-
-    try {
-      final paragraph = BookParagraph(
-        index: 0,
-        reference: '${chapter.reference}-hl',
-        text: text,
-      );
-
-      await _favoritesService.addOrUpdateFavoriteForParagraph(
-        paragraph,
-        note: null,
-      );
-
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Dodano fragment do ulubionych.'),
-        ),
-      );
-      setState(() {
-        _highlightSearchText = null;
       });
     } catch (e) {
       if (!mounted) return;
@@ -1193,81 +1045,6 @@ class _ReaderScreenState extends State<ReaderScreen> {
     if (!mounted) return;
     setState(() {
       _selectedText = null;
-    });
-  }
-
-  Future<void> _addHighlightToJournal(BookChapter chapter) async {
-    final text = _highlightSearchText?.trim();
-    if (text == null || text.isEmpty) return;
-
-    final controller = TextEditingController();
-
-    await showDialog(
-      context: context,
-      builder: (ctx) {
-        return AlertDialog(
-          title: const Text('Dodaj do dziennika'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  text,
-                  style: const TextStyle(fontSize: 14),
-                ),
-                const SizedBox(height: 16),
-                const Text(
-                  'Twoja notatka:',
-                  style: TextStyle(fontWeight: FontWeight.w600),
-                ),
-                const SizedBox(height: 4),
-                TextField(
-                  controller: controller,
-                  maxLines: 4,
-                  decoration: const InputDecoration(
-                    border: OutlineInputBorder(),
-                    hintText:
-                        'Co mówi do Ciebie ten fragment? '
-                        'Jak chcesz na niego odpowiedzieć?',
-                  ),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text('Anuluj'),
-            ),
-            TextButton(
-              onPressed: () async {
-                final note = controller.text.trim();
-
-                await _journalService.addEntry(
-                  content: note.isEmpty ? text : note,
-                  quoteText: text,
-                  quoteRef: '${chapter.reference}-hl',
-                );
-
-                if (!mounted) return;
-                Navigator.of(ctx).pop();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Dodano wpis do dziennika.'),
-                  ),
-                );
-              },
-              child: const Text('Zapisz'),
-            ),
-          ],
-        );
-      },
-    );
-
-    if (!mounted) return;
-    setState(() {
-      _highlightSearchText = null;
     });
   }
 }

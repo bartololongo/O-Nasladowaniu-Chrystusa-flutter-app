@@ -52,7 +52,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
   }
 
   Future<void> _openFavorite(FavoriteQuote f) async {
-    // wyciągamy referencję rozdziału z "I-1-3" -> "I-1"
+    // wyciągamy referencję rozdziału z "I-1-3" lub "I-1-sel" -> "I-1"
     final parts = f.paragraphRef.split('-');
     String chapterRef;
     if (parts.length >= 2) {
@@ -61,8 +61,20 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
       chapterRef = f.paragraphRef;
     }
 
-    // Jednorazowy skok do rozdziału z ulubionego cytatu
+    // 1) Jednorazowy skok do rozdziału z ulubionego cytatu
     await _prefs.setJumpChapterRef(chapterRef);
+
+    // 2) Jeśli paragraphRef ma trzeci człon i jest liczbą – traktujemy go jako numer akapitu
+    if (parts.length >= 3) {
+      final num = int.tryParse(parts[2]);
+      if (num != null) {
+        await _prefs.setJumpParagraphNumber(num);
+      } else {
+        await _prefs.clearJumpParagraphNumber();
+      }
+    } else {
+      await _prefs.clearJumpParagraphNumber();
+    }
 
     if (!mounted) return;
 
