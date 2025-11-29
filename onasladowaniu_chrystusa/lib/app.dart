@@ -6,6 +6,7 @@ import 'features/bookmarks/bookmarks_screen.dart';
 import 'features/journal/journal_screen.dart';
 import 'features/settings/settings_screen.dart';
 import 'features/favorites/favorites_screen.dart';
+import 'app_route_observer.dart';
 
 class ImitationOfChristApp extends StatelessWidget {
   const ImitationOfChristApp({super.key});
@@ -27,6 +28,7 @@ class ImitationOfChristApp extends StatelessWidget {
       ),
       home: const _RootScreen(),
       debugShowCheckedModeBanner: false,
+      // RouteObserver podpinamy do wewnętrznego Navigatora, nie tutaj.
     );
   }
 }
@@ -39,31 +41,66 @@ class _RootScreen extends StatefulWidget {
 }
 
 class _RootScreenState extends State<_RootScreen> {
+  /// Bazowa zakładka (Start / Czytanie / Zakładki).
+  int _baseTabIndex = 0;
+
+  /// Aktualnie podświetlana zakładka w BottomNavigationBar (Start/Czytanie/Zakładki/Więcej).
   int _selectedIndex = 0;
 
-  /// ID instancji Readera – zmiana powoduje utworzenie nowego ReaderScreen.
+  /// ID instancji Readera – zmiana powoduje utworzenie nowej ReaderScreen.
   int _readerInstanceId = 0;
+
+  /// Wewnętrzny Navigator, w którym renderujemy:
+  /// - ekrany z bottom nav (Start, Czytanie, Zakładki),
+  /// - oraz stack "Więcej": Dziennik, Ulubione, Ustawienia itp.
+  ///
+  /// Dzięki temu dolny pasek jest zawsze widoczny.
+  final GlobalKey<NavigatorState> _innerNavigatorKey =
+      GlobalKey<NavigatorState>();
 
   void _onTabSelected(int index) {
     // Ostatni przycisk ("Więcej") otwiera bottom sheet,
-    // nie zmieniamy wtedy wybranego taba.
+    // nie zmieniamy wtedy bazowej zakładki.
     if (index == 3) {
       _showMoreSheet();
       return;
     }
 
-    final previousIndex = _selectedIndex;
+    final nav = _innerNavigatorKey.currentState;
+    final atRoot = !(nav?.canPop() ?? false);
+
+    // Jeśli jesteśmy już na bazowym ekranie tego taba
+    // i nie jest to "Czytanie", to nic nie rób – unikamy
+    // ponownej animacji/pushowania.
+    //
+    // Dla "Czytanie" (index == 1) zostawiamy specjalne
+    // zachowanie: ponowne kliknięcie tworzy nową instancję
+    // ReaderScreen, więc nie short-circuitujemy.
+    if (index == _baseTabIndex && atRoot && index != 1) {
+      setState(() {
+        _selectedIndex = index; // dla porządku, choć i tak już jest
+      });
+      return;
+    }
+
+    final previousBase = _baseTabIndex;
 
     setState(() {
-      // Jeśli ponownie wybieramy zakładkę "Czytanie"
-      // (np. z dziennika/ulubionych, gdy Reader już jest aktywny),
-      // wymuś utworzenie nowej instancji ReaderScreen.
-      if (index == 1 && previousIndex == 1) {
+      // Specjalny przypadek: Czytanie -> Czytanie.
+      if (index == 1 && previousBase == 1) {
         _readerInstanceId++;
       }
+      _baseTabIndex = index;
       _selectedIndex = index;
     });
-    // Reader dalej sam obsługuje jump przez SharedPreferences.
+
+    // Resetujemy stos wewnętrznego Navigatora do bazowego ekranu taba.
+    nav?.pushAndRemoveUntil(
+      MaterialPageRoute(
+        builder: (_) => _buildTabBody(),
+      ),
+      (route) => false,
+    );
   }
 
   void _showMoreSheet() {
@@ -78,12 +115,10 @@ class _RootScreenState extends State<_RootScreen> {
                 leading: const Icon(Icons.edit_note),
                 title: const Text('Dziennik duchowy'),
                 onTap: () {
-                  Navigator.of(ctx).pop();
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => JournalScreen(
-                        onNavigateToTab: _onTabSelected,
-                      ),
+                  Navigator.of(ctx).pop(); // zamknij bottom sheet
+                  _openMoreScreen(
+                    JournalScreen(
+                      onNavigateToTab: _onTabSelected,
                     ),
                   );
                 },
@@ -93,11 +128,9 @@ class _RootScreenState extends State<_RootScreen> {
                 title: const Text('Ulubione cytaty'),
                 onTap: () {
                   Navigator.of(ctx).pop();
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => FavoritesScreen(
-                        onNavigateToTab: _onTabSelected,
-                      ),
+                  _openMoreScreen(
+                    FavoritesScreen(
+                      onNavigateToTab: _onTabSelected,
                     ),
                   );
                 },
@@ -107,10 +140,8 @@ class _RootScreenState extends State<_RootScreen> {
                 title: const Text('Ustawienia'),
                 onTap: () {
                   Navigator.of(ctx).pop();
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => const SettingsScreen(),
-                    ),
+                  _openMoreScreen(
+                    const SettingsScreen(),
                   );
                 },
               ),
@@ -121,10 +152,45 @@ class _RootScreenState extends State<_RootScreen> {
     );
   }
 
-  Widget _buildBody() {
-    switch (_selectedIndex) {
+  /// Otwiera ekran z sekcji "Więcej" (Dziennik/Ulubione/Ustawienia).
+  /// Podświetla przycisk "Więcej", a po zamknięciu ekranu przywraca
+  /// podświetlenie bazowej zakładki (_baseTabIndex).
+  void _openMoreScreen(Widget screen) {
+    setState(() {
+      _selectedIndex = 3; // podświetl "Więcej"
+    });
+
+    _innerNavigatorKey.currentState
+        ?.push(
+      MaterialPageRoute(
+        builder: (_) => screen,
+      ),
+    )
+        .then((_) {
+      if (!mounted) return;
+      // Po powrocie z ekranu "Więcej" przywracamy podświetlenie bazowej zakładki.
+      setState(() {
+        _selectedIndex = _baseTabIndex;
+      });
+    });
+  }
+
+  /// NOWE: używane przez HomeScreen (szybkie akcje), żeby
+  /// otwierać Dziennik/Ulubione/Ustawienia dokładnie tak samo,
+  /// jak z bottom sheet „Więcej”.
+  void _openMoreScreenFromHome(Widget screen) {
+    _openMoreScreen(screen);
+  }
+
+  /// Buduje ekran odpowiadający aktualnie wybranemu bazowemu tabowi
+  /// (Start/Czytanie/Zakładki).
+  Widget _buildTabBody() {
+    switch (_baseTabIndex) {
       case 0:
-        return HomeScreen(onNavigateToTab: _onTabSelected);
+        return HomeScreen(
+          onNavigateToTab: _onTabSelected,
+          onOpenMoreScreen: _openMoreScreenFromHome, // NOWE
+        );
       case 1:
         // ValueKey na podstawie _readerInstanceId wymusza nową instancję,
         // gdy ten licznik się zmieni.
@@ -139,7 +205,20 @@ class _RootScreenState extends State<_RootScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: _buildBody(),
+      // Zamiast bezpośrednio `_buildTabBody()`, używamy wewnętrznego Navigatora.
+      body: Navigator(
+        key: _innerNavigatorKey,
+        observers: [
+          appRouteObserver, // RouteObserver działa dla wewnętrznego stosu route’ów.
+        ],
+        onGenerateRoute: (settings) {
+          // Pierwsza (bazowa) trasa – aktualny tab (Start domyślnie).
+          return MaterialPageRoute(
+            builder: (_) => _buildTabBody(),
+            settings: settings,
+          );
+        },
+      ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _selectedIndex,
         onTap: _onTabSelected,

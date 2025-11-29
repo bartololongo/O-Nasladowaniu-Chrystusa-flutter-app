@@ -1,25 +1,39 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
+
 import '../../shared/services/reading_challenge_service.dart';
 import '../../shared/services/book_repository.dart';
 import '../../shared/models/book_models.dart';
 import '../../shared/services/preferences_service.dart';
 import '../../shared/services/favorites_service.dart';
 import '../../shared/services/journal_service.dart';
+
 import '../challenge/reading_challenge_screen.dart';
+import '../journal/journal_screen.dart';
+import '../favorites/favorites_screen.dart';
+import '../bookmarks/bookmarks_screen.dart';
+import '../settings/settings_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   final void Function(int tabIndex)? onNavigateToTab;
 
+  /// NOWE: callback do otwierania ekranów z sekcji "Więcej"
+  /// (Dziennik, Ulubione, Ustawienia) tak, żeby RootScreen
+  /// mógł podświetlić ikonę "Więcej" i zarządzać powrotem.
+  final void Function(Widget screen)? onOpenMoreScreen;
+
   const HomeScreen({
     super.key,
     this.onNavigateToTab,
+    this.onOpenMoreScreen,
   });
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen>
+    with SingleTickerProviderStateMixin {
   final PreferencesService _prefs = PreferencesService();
   final FavoritesService _favoritesService = FavoritesService();
   final JournalService _journalService = JournalService();
@@ -32,11 +46,38 @@ class _HomeScreenState extends State<HomeScreen> {
   int? _totalChapters;
   int? _furthestChapterIndex;
 
+  // --- Wsparcie / BuyMeACoffee ---
+  static const String _supportUrl =
+      'https://www.buymeacoffee.com/bartolo_longo'; 
+      
+  late final AnimationController _supportAnimController;
+  late final Animation<double> _supportScaleAnimation;
+
   @override
   void initState() {
     super.initState();
     _loadLastChapterRef();
     _loadChallengeState();
+
+    _supportAnimController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 2),
+    );
+
+    _supportScaleAnimation = Tween<double>(begin: 1.0, end: 1.03).animate(
+      CurvedAnimation(
+        parent: _supportAnimController,
+        curve: Curves.easeInOut,
+      ),
+    );
+
+    _supportAnimController.repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _supportAnimController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadLastChapterRef() async {
@@ -93,6 +134,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _openChallengeScreen() async {
     await Navigator.of(context).push(
       MaterialPageRoute(
+        settings: const RouteSettings(name: '/challenge'),
         builder: (_) => ReadingChallengeScreen(
           onNavigateToTab: widget.onNavigateToTab,
         ),
@@ -174,7 +216,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _showRandomQuoteBottomSheet() async {
     try {
-      final BookParagraph paragraph = await _bookRepository.getRandomParagraph();
+      final BookParagraph paragraph =
+          await _bookRepository.getRandomParagraph();
       if (!mounted) return;
 
       await showModalBottomSheet(
@@ -282,11 +325,9 @@ class _HomeScreenState extends State<HomeScreen> {
                     label: const Text('Zobacz w książce'),
                     onPressed: () async {
                       if (chapterRef != null && chapterRef.isNotEmpty) {
-                        // Skok do rozdziału (bez zmiany lastChapterRef)
                         await _prefs.setJumpChapterRef(chapterRef);
                       }
 
-                      // Jeśli referencja ma trzeci człon (np. I-3-7), potraktuj go jako numer akapitu
                       final refParts = paragraph.reference.split('-');
                       if (refParts.length >= 3) {
                         final num = int.tryParse(refParts[2]);
@@ -302,7 +343,6 @@ class _HomeScreenState extends State<HomeScreen> {
                       if (!mounted) return;
                       Navigator.of(sheetContext).pop();
 
-                      // przełączamy na zakładkę "Czytanie"
                       widget.onNavigateToTab?.call(1);
                     },
                   ),
@@ -389,6 +429,80 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  Future<void> _openSupportLink() async {
+    final uri = Uri.parse(_supportUrl);
+    final ok = await launchUrl(
+      uri,
+      mode: LaunchMode.externalApplication,
+    );
+    if (!ok && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Nie udało się otworzyć strony wsparcia.'),
+        ),
+      );
+    }
+  }
+
+  // --- QUICK ACTIONS ---
+
+  void _openJournalQuick() {
+    if (widget.onOpenMoreScreen != null) {
+      widget.onOpenMoreScreen!(
+        JournalScreen(
+          onNavigateToTab: widget.onNavigateToTab,
+        ),
+      );
+    } else {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          settings: const RouteSettings(name: '/journal'),
+          builder: (_) => JournalScreen(
+            onNavigateToTab: widget.onNavigateToTab,
+          ),
+        ),
+      );
+    }
+  }
+
+  void _openFavoritesQuick() {
+    if (widget.onOpenMoreScreen != null) {
+      widget.onOpenMoreScreen!(
+        FavoritesScreen(
+          onNavigateToTab: widget.onNavigateToTab,
+        ),
+      );
+    } else {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          settings: const RouteSettings(name: '/favorites'),
+          builder: (_) => FavoritesScreen(
+            onNavigateToTab: widget.onNavigateToTab,
+          ),
+        ),
+      );
+    }
+  }
+
+  void _openBookmarksQuick() {
+    widget.onNavigateToTab?.call(2);
+  }
+
+  void _openSettingsQuick() {
+    if (widget.onOpenMoreScreen != null) {
+      widget.onOpenMoreScreen!(
+        const SettingsScreen(),
+      );
+    } else {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          settings: const RouteSettings(name: '/settings'),
+          builder: (_) => const SettingsScreen(),
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -400,12 +514,16 @@ class _HomeScreenState extends State<HomeScreen> {
         child: ListView(
           children: [
             _buildHeader(context),
+            const SizedBox(height: 12),
+            _buildQuickActionsRow(context),
             const SizedBox(height: 16),
             _buildContinueReadingCard(context),
             const SizedBox(height: 12),
             _buildChallengeCard(context),
             const SizedBox(height: 12),
             _buildRandomQuoteCard(context),
+            const SizedBox(height: 12),
+            _buildSupportCard(context),
           ],
         ),
       ),
@@ -418,6 +536,45 @@ class _HomeScreenState extends State<HomeScreen> {
       style: TextStyle(
         fontSize: 24,
         fontWeight: FontWeight.bold,
+      ),
+    );
+  }
+
+  Widget _buildQuickActionsRow(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: [
+          _QuickActionChip(
+            icon: Icons.edit_note,
+            label: 'Dziennik duchowy',
+            colorScheme: colorScheme,
+            onTap: _openJournalQuick,
+          ),
+          const SizedBox(width: 8),
+          _QuickActionChip(
+            icon: Icons.format_quote,
+            label: 'Ulubione cytaty',
+            colorScheme: colorScheme,
+            onTap: _openFavoritesQuick,
+          ),
+          const SizedBox(width: 8),
+          _QuickActionChip(
+            icon: Icons.bookmark,
+            label: 'Zakładki',
+            colorScheme: colorScheme,
+            onTap: _openBookmarksQuick,
+          ),
+          const SizedBox(width: 8),
+          _QuickActionChip(
+            icon: Icons.settings,
+            label: 'Ustawienia',
+            colorScheme: colorScheme,
+            onTap: _openSettingsQuick,
+          ),
+        ],
       ),
     );
   }
@@ -633,11 +790,11 @@ class _HomeScreenState extends State<HomeScreen> {
               color: colorScheme.primary,
             ),
             const SizedBox(width: 16),
-            Expanded(
+            const Expanded(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
-                children: const [
+                children: [
                   Text(
                     'Losuj cytat',
                     style: TextStyle(
@@ -657,6 +814,114 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
             const Icon(Icons.chevron_right),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSupportCard(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return ScaleTransition(
+      scale: _supportScaleAnimation,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: _openSupportLink,
+        child: Container(
+          decoration: BoxDecoration(
+            color: colorScheme.surface.withOpacity(0.08),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: colorScheme.primary.withOpacity(0.25),
+            ),
+          ),
+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.coffee,
+                size: 32,
+                color: colorScheme.primary,
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Wesprzyj projekt',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Jeśli aplikacja jest dla Ciebie pomocna, możesz postawić mi „wirtualną kawę”.',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: colorScheme.onSurface.withOpacity(0.7),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(Icons.chevron_right),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// Mały pomocniczy widget na „chip” w pasku szybkich akcji.
+class _QuickActionChip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final ColorScheme colorScheme;
+  final VoidCallback onTap;
+
+  const _QuickActionChip({
+    required this.icon,
+    required this.label,
+    required this.colorScheme,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(999),
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(999),
+          color: colorScheme.surface.withOpacity(0.16),
+          border: Border.all(
+            color: colorScheme.primary.withOpacity(0.35),
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 18,
+              color: colorScheme.primary,
+            ),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 13,
+                color: colorScheme.onSurface.withOpacity(0.9),
+              ),
+            ),
           ],
         ),
       ),
