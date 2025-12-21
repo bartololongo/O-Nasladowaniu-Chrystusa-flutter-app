@@ -13,17 +13,28 @@ class ImitationOfChristApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    const backgroundColor = Color(0xFF0F0B08);
+    final colorScheme = ColorScheme.fromSeed(
+      seedColor: Colors.amber,
+      brightness: Brightness.dark,
+    );
+
     return MaterialApp(
       title: 'O naśladowaniu Chrystusa',
       themeMode: ThemeMode.dark,
       theme: ThemeData.light(),
       darkTheme: ThemeData.dark().copyWith(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: Colors.amber,
-          brightness: Brightness.dark,
+        colorScheme: colorScheme,
+        scaffoldBackgroundColor: backgroundColor,
+        bottomNavigationBarTheme: BottomNavigationBarThemeData(
+          backgroundColor: backgroundColor,
+          selectedItemColor: colorScheme.secondary,
+          unselectedItemColor:
+              colorScheme.onSurface.withOpacity(0.7),
         ),
         appBarTheme: const AppBarTheme(
           centerTitle: false,
+          backgroundColor: backgroundColor,
         ),
       ),
       home: const _RootScreen(),
@@ -175,7 +186,7 @@ class _RootScreenState extends State<_RootScreen> {
     });
   }
 
-  /// NOWE: używane przez HomeScreen (szybkie akcje), żeby
+  /// Używane przez HomeScreen (szybkie akcje), żeby
   /// otwierać Dziennik/Ulubione/Ustawienia dokładnie tak samo,
   /// jak z bottom sheet „Więcej”.
   void _openMoreScreenFromHome(Widget screen) {
@@ -189,7 +200,7 @@ class _RootScreenState extends State<_RootScreen> {
       case 0:
         return HomeScreen(
           onNavigateToTab: _onTabSelected,
-          onOpenMoreScreen: _openMoreScreenFromHome, // NOWE
+          onOpenMoreScreen: _openMoreScreenFromHome,
         );
       case 1:
         // ValueKey na podstawie _readerInstanceId wymusza nową instancję,
