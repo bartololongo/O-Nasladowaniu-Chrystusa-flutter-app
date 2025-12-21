@@ -302,7 +302,7 @@ class SettingsScreen extends StatelessWidget {
                           ),
                           const SizedBox(height: 12),
                           Text(
-                            'Autor: Bartek (projekt prywatny)',
+                            'Autor: Bartłomiej Kozak vel Bartolo Longo',
                             style: TextStyle(
                               fontSize: 13,
                               color: colorScheme.onSurface.withOpacity(0.8),
