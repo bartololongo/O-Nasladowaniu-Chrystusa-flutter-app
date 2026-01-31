@@ -48,7 +48,7 @@ class _HomeScreenState extends State<HomeScreen>
 
   // --- Wsparcie / BuyMeACoffee ---
   static const String _supportUrl =
-      'https://www.buymeacoffee.com/bartolo_longo'; 
+      'https://www.buymeacoffee.com/bartololongo'; 
       
   late final AnimationController _supportAnimController;
   late final Animation<double> _supportScaleAnimation;

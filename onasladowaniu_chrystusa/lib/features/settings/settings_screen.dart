@@ -10,9 +10,9 @@ class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
 
   static const String _projectUrl =
-      'https://github.com/your-user/onasladowaniu_chrystusa'; // TODO: podmień
+      'https://bartololongo.pl/blog/o-nasladowaniu-chrystusa/';
   static const String _supportUrl =
-      'https://www.buymeacoffee.com/bartolo_longo'; 
+      'https://www.buymeacoffee.com/bartololongo';
 
   Future<void> _resetChallenge(BuildContext context) async {
     final confirmed = await showModalBottomSheet<bool>(
@@ -133,76 +133,6 @@ class SettingsScreen extends StatelessWidget {
     }
   }
 
-  Future<void> _openUpdatesInfo(BuildContext context) async {
-    await showModalBottomSheet(
-      context: context,
-      isScrollControlled: false,
-      builder: (sheetContext) {
-        final colorScheme = Theme.of(sheetContext).colorScheme;
-
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Row(
-                  children: [
-                    Icon(
-                      Icons.system_update,
-                      size: 32,
-                      color: colorScheme.primary,
-                    ),
-                    const SizedBox(width: 12),
-                    const Expanded(
-                      child: Text(
-                        'Aktualizacje aplikacji',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Wersja 1.0.0\n'
-                  'Najnowsze informacje o wydaniach znajdziesz na stronie projektu.',
-                  style: const TextStyle(fontSize: 14, height: 1.4),
-                ),
-                const SizedBox(height: 16),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: Wrap(
-                    spacing: 8,
-                    children: [
-                      TextButton(
-                        onPressed: () => Navigator.of(sheetContext).pop(),
-                        child: const Text('Zamknij'),
-                      ),
-                      ElevatedButton.icon(
-                        onPressed: () => _launchUrl(
-                          context,
-                          _projectUrl,
-                          failMessage:
-                              'Nie udało się otworzyć strony projektu.',
-                        ),
-                        icon: const Icon(Icons.open_in_new),
-                        label: const Text('Otwórz stronę projektu'),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -220,13 +150,6 @@ class SettingsScreen extends StatelessWidget {
           // ),
           // const Divider(),
 
-          ListTile(
-            leading: const Icon(Icons.system_update),
-            title: const Text('Uaktualnienia'),
-            subtitle: const Text('Informacje o wersji i nowe wydania'),
-            onTap: () => _openUpdatesInfo(context),
-          ),
-          const Divider(),
           ListTile(
             leading: const Icon(Icons.cloud_download_outlined),
             title: const Text('Kopia danych (eksport/import)'),
@@ -261,79 +184,89 @@ class SettingsScreen extends StatelessWidget {
                   return SafeArea(
                     child: Padding(
                       padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Row(
-                            children: [
-                              Icon(
-                                Icons.menu_book,
-                                size: 32,
-                                color: colorScheme.primary,
-                              ),
-                              const SizedBox(width: 12),
-                              const Expanded(
-                                child: Text(
-                                  'O naśladowaniu Chrystusa',
-                                  style: TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.w600,
+                      child: SingleChildScrollView(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(
+                                  Icons.menu_book,
+                                  size: 32,
+                                  color: colorScheme.primary,
+                                ),
+                                const SizedBox(width: 12),
+                                const Expanded(
+                                  child: Text(
+                                    'O naśladowaniu Chrystusa',
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w600,
+                                    ),
                                   ),
                                 ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Wersja 1.0.0',
+                              style: TextStyle(
+                                fontSize: 13,
+                                color:
+                                    colorScheme.onSurface.withOpacity(0.7),
                               ),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            'Wersja 1.0.0',
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: colorScheme.onSurface.withOpacity(0.7),
                             ),
-                          ),
-                          const SizedBox(height: 16),
-                          const Text(
-                            'Aplikacja do czytania klasycznego dzieła '
-                            '„O naśladowaniu Chrystusa” z możliwością '
-                            'notowania, zapisywania ulubionych cytatów '
-                            'i prowadzenia dziennika duchowego.',
-                            style: TextStyle(fontSize: 14, height: 1.4),
-                          ),
-                          const SizedBox(height: 12),
-                          Text(
-                            'Autor: Bartłomiej Kozak vel Bartolo Longo',
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: colorScheme.onSurface.withOpacity(0.8),
+                            const SizedBox(height: 16),
+                            const Text(
+                              'Aplikacja do czytania klasycznego dzieła '
+                              '„O naśladowaniu Chrystusa” z możliwością '
+                              'notowania, zapisywania ulubionych cytatów '
+                              'i prowadzenia dziennika duchowego.',
+                              style: TextStyle(fontSize: 14, height: 1.4),
                             ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Tekst książki: domena publiczna / zgodnie z prawami autorskimi zastosowanego '
-                            'tłumaczenia.',
-                            style: TextStyle(
-                              fontSize: 11,
-                              height: 1.3,
-                              color: colorScheme.onSurface.withOpacity(0.6),
+                            const SizedBox(height: 12),
+                            Text(
+                              'Autor: Bartłomiej Kozak vel Bartolo Longo',
+                              style: TextStyle(
+                                fontSize: 13,
+                                color:
+                                    colorScheme.onSurface.withOpacity(0.8),
+                              ),
                             ),
-                          ),
-                          const SizedBox(height: 16),
-                          const Text(
-                            'Jeśli aplikacja jest dla Ciebie pomocna i chcesz wesprzeć '
-                            'jej rozwój, możesz postawić mi „wirtualną kawę”. 😊',
-                            style: TextStyle(fontSize: 13, height: 1.4),
-                          ),
-                          const SizedBox(height: 12),
-                          Align(
-                            alignment: Alignment.centerRight,
-                            child: Wrap(
+                            const SizedBox(height: 4),
+                            Text(
+                              'Tekst książki: domena publiczna / zgodnie z prawami autorskimi zastosowanego '
+                              'tłumaczenia.',
+                              style: TextStyle(
+                                fontSize: 11,
+                                height: 1.3,
+                                color:
+                                    colorScheme.onSurface.withOpacity(0.6),
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            const Text(
+                              'Jeśli aplikacja jest dla Ciebie pomocna i chcesz wesprzeć '
+                              'jej rozwój, możesz postawić mi „wirtualną kawę”. 😊',
+                              style: TextStyle(fontSize: 13, height: 1.4),
+                            ),
+                            const SizedBox(height: 16),
+
+                            // Dwa główne przyciski
+                            Wrap(
                               spacing: 8,
+                              runSpacing: 8,
                               children: [
-                                TextButton(
-                                  onPressed: () =>
-                                      Navigator.of(sheetContext).pop(),
-                                  child: const Text('Zamknij'),
+                                ElevatedButton.icon(
+                                  onPressed: () => _launchUrl(
+                                    context,
+                                    _projectUrl,
+                                    failMessage:
+                                        'Nie udało się otworzyć strony projektu.',
+                                  ),
+                                  icon: const Icon(Icons.info_outline),
+                                  label: const Text('O projekcie'),
                                 ),
                                 ElevatedButton.icon(
                                   onPressed: () => _launchUrl(
@@ -347,8 +280,20 @@ class SettingsScreen extends StatelessWidget {
                                 ),
                               ],
                             ),
-                          ),
-                        ],
+
+                            const SizedBox(height: 8),
+
+                            // Zamknij na samym dole
+                            Align(
+                              alignment: Alignment.centerRight,
+                              child: TextButton(
+                                onPressed: () =>
+                                    Navigator.of(sheetContext).pop(),
+                                child: const Text('Zamknij'),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   );
