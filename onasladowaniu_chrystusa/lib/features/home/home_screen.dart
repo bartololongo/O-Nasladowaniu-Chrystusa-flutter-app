@@ -574,6 +574,13 @@ class _HomeScreenState extends State<HomeScreen>
           ),
           const SizedBox(width: 8),
           _QuickActionChip(
+            icon: Icons.auto_stories_outlined,
+            label: 'Droga',
+            colorScheme: colorScheme,
+            onTap: _openFormationChallengeScreen,
+          ),
+          const SizedBox(width: 8),
+          _QuickActionChip(
             icon: Icons.bookmark,
             label: 'Zakładki',
             colorScheme: colorScheme,
