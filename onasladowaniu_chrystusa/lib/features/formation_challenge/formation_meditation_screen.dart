@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../shared/models/formation_challenge_models.dart';
+import '../../shared/services/formation_meditation_settings_service.dart';
 import 'formation_journal_helpers.dart';
 
 class FormationMeditationScreen extends StatefulWidget {
@@ -21,17 +22,37 @@ class FormationMeditationScreen extends StatefulWidget {
 }
 
 class _FormationMeditationScreenState extends State<FormationMeditationScreen> {
-  static const Duration _initialDuration = Duration(minutes: 15);
+  final FormationMeditationSettingsService _settingsService =
+      FormationMeditationSettingsService();
 
   Timer? _timer;
-  Duration _remaining = _initialDuration;
+  Duration? _remaining;
+  int? _durationMinutes;
+  bool _isLoadingSettings = true;
   bool _isRunning = false;
   bool _isFinished = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDuration();
+  }
 
   @override
   void dispose() {
     _timer?.cancel();
     super.dispose();
+  }
+
+  Future<void> _loadDuration() async {
+    final minutes = await _settingsService.getDurationMinutes();
+    if (!mounted) return;
+
+    setState(() {
+      _durationMinutes = minutes;
+      _remaining = Duration(minutes: minutes);
+      _isLoadingSettings = false;
+    });
   }
 
   void _start() {
@@ -44,13 +65,16 @@ class _FormationMeditationScreenState extends State<FormationMeditationScreen> {
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!mounted) return;
 
-      if (_remaining.inSeconds <= 1) {
+      final remaining = _remaining;
+      if (remaining == null) return;
+
+      if (remaining.inSeconds <= 1) {
         _finish();
         return;
       }
 
       setState(() {
-        _remaining = _remaining - const Duration(seconds: 1);
+        _remaining = remaining - const Duration(seconds: 1);
       });
     });
   }
@@ -78,6 +102,44 @@ class _FormationMeditationScreenState extends State<FormationMeditationScreen> {
     });
   }
 
+  Future<void> _chooseDuration() async {
+    if (_isRunning || _isFinished || _durationMinutes == null) return;
+
+    final selected = await showModalBottomSheet<int>(
+      context: context,
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: FormationMeditationSettingsService.allowedDurationMinutes
+                .map(
+                  (minutes) => ListTile(
+                    leading: Icon(
+                      minutes == _durationMinutes
+                          ? Icons.radio_button_checked
+                          : Icons.radio_button_unchecked,
+                    ),
+                    title: Text('$minutes min'),
+                    onTap: () => Navigator.of(sheetContext).pop(minutes),
+                  ),
+                )
+                .toList(),
+          ),
+        );
+      },
+    );
+
+    if (selected == null) return;
+
+    await _settingsService.setDurationMinutes(selected);
+    if (!mounted) return;
+
+    setState(() {
+      _durationMinutes = selected;
+      _remaining = Duration(minutes: selected);
+    });
+  }
+
   Future<void> _addReflectionToJournal() async {
     final saved = await openFormationReflectionComposer(
       context: context,
@@ -92,8 +154,9 @@ class _FormationMeditationScreenState extends State<FormationMeditationScreen> {
   }
 
   String get _timerText {
-    final minutes = _remaining.inMinutes.toString().padLeft(2, '0');
-    final seconds = (_remaining.inSeconds % 60).toString().padLeft(2, '0');
+    final remaining = _remaining ?? Duration.zero;
+    final minutes = remaining.inMinutes.toString().padLeft(2, '0');
+    final seconds = (remaining.inSeconds % 60).toString().padLeft(2, '0');
     return '$minutes:$seconds';
   }
 
@@ -105,7 +168,9 @@ class _FormationMeditationScreenState extends State<FormationMeditationScreen> {
       appBar: AppBar(
         title: const Text('Medytacja'),
       ),
-      body: SafeArea(
+      body: _isLoadingSettings
+          ? const Center(child: CircularProgressIndicator())
+          : SafeArea(
         child: ListView(
           padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
           children: [
@@ -123,6 +188,15 @@ class _FormationMeditationScreenState extends State<FormationMeditationScreen> {
               ),
             ),
             const SizedBox(height: 16),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: _isRunning || _isFinished ? null : _chooseDuration,
+                icon: const Icon(Icons.timer_outlined),
+                label: Text('Czas medytacji: $_durationMinutes min'),
+              ),
+            ),
+            const SizedBox(height: 8),
             Container(
               padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
               decoration: BoxDecoration(
