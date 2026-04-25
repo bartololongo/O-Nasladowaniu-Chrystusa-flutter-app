@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import 'features/home/home_screen.dart';
@@ -6,10 +8,19 @@ import 'features/bookmarks/bookmarks_screen.dart';
 import 'features/journal/journal_screen.dart';
 import 'features/settings/settings_screen.dart';
 import 'features/favorites/favorites_screen.dart';
+import 'features/formation_challenge/formation_challenge_screen.dart';
+import 'shared/services/formation_notification_service.dart';
 import 'app_route_observer.dart';
 
+final GlobalKey<NavigatorState> appNavigatorKey = GlobalKey<NavigatorState>();
+
 class ImitationOfChristApp extends StatelessWidget {
-  const ImitationOfChristApp({super.key});
+  final String? initialNotificationPayload;
+
+  const ImitationOfChristApp({
+    super.key,
+    this.initialNotificationPayload,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -20,6 +31,7 @@ class ImitationOfChristApp extends StatelessWidget {
     );
 
     return MaterialApp(
+      navigatorKey: appNavigatorKey,
       title: 'O naśladowaniu Chrystusa',
       themeMode: ThemeMode.dark,
       theme: ThemeData.light(),
@@ -37,7 +49,9 @@ class ImitationOfChristApp extends StatelessWidget {
           backgroundColor: backgroundColor,
         ),
       ),
-      home: const _RootScreen(),
+      home: _RootScreen(
+        initialNotificationPayload: initialNotificationPayload,
+      ),
       debugShowCheckedModeBanner: false,
       // RouteObserver podpinamy do wewnętrznego Navigatora, nie tutaj.
     );
@@ -45,13 +59,18 @@ class ImitationOfChristApp extends StatelessWidget {
 }
 
 class _RootScreen extends StatefulWidget {
-  const _RootScreen({super.key});
+  final String? initialNotificationPayload;
+
+  const _RootScreen({
+    this.initialNotificationPayload,
+  });
 
   @override
   State<_RootScreen> createState() => _RootScreenState();
 }
 
-class _RootScreenState extends State<_RootScreen> {
+class _RootScreenState extends State<_RootScreen>
+    with WidgetsBindingObserver {
   /// Bazowa zakładka (Start / Czytanie / Zakładki).
   int _baseTabIndex = 0;
 
@@ -68,6 +87,129 @@ class _RootScreenState extends State<_RootScreen> {
   /// Dzięki temu dolny pasek jest zawsze widoczny.
   final GlobalKey<NavigatorState> _innerNavigatorKey =
       GlobalKey<NavigatorState>();
+  StreamSubscription<String>? _notificationSubscription;
+  String? _pendingNotificationPayload;
+  bool _isOpeningFormationFromNotification = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    debugPrint(
+      '[FormationNavigation] _RootScreen initState, '
+      'initialPayload=${widget.initialNotificationPayload}',
+    );
+    _notificationSubscription = FormationNotificationService
+        .instance.payloadStream
+        .listen(_handleNotificationPayload);
+
+    final initialPayload = widget.initialNotificationPayload;
+    if (initialPayload != null && initialPayload.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _handleNotificationPayload(initialPayload);
+      });
+    }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkPendingNotificationPayload('initState');
+    });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _notificationSubscription?.cancel();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    debugPrint('[FormationNavigation] lifecycle state changed: $state');
+    if (state != AppLifecycleState.resumed) return;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkPendingNotificationPayload('resumed');
+    });
+  }
+
+  Future<void> _checkPendingNotificationPayload(String source) async {
+    if (!mounted) return;
+
+    debugPrint('[FormationNavigation] checking pending payload from $source');
+    final pendingPayload =
+        await FormationNotificationService.instance.takePendingPayload();
+    if (!mounted) return;
+
+    if (pendingPayload != null && pendingPayload.isNotEmpty) {
+      _handleNotificationPayload(pendingPayload);
+    }
+  }
+
+  void _handleNotificationPayload(String payload) {
+    debugPrint('[FormationNavigation] payload received: $payload');
+    if (payload != FormationNotificationService.formationPayload) {
+      debugPrint('[FormationNavigation] payload ignored: $payload');
+      return;
+    }
+
+    debugPrint('[FormationNavigation] formation_challenge payload detected');
+    _pendingNotificationPayload = payload;
+    _openPendingNotificationPayload();
+  }
+
+  void _openPendingNotificationPayload() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+
+      final payload = _pendingNotificationPayload;
+      if (payload != FormationNotificationService.formationPayload) {
+        debugPrint(
+          '[FormationNavigation] no pending formation payload to open',
+        );
+        return;
+      }
+
+      if (_isOpeningFormationFromNotification) {
+        debugPrint('[FormationNavigation] push already in progress');
+        return;
+      }
+
+      final navigator = appNavigatorKey.currentState;
+      if (navigator == null) {
+        debugPrint(
+          '[FormationNavigation] root navigator not ready, retrying push',
+        );
+        _openPendingNotificationPayload();
+        return;
+      }
+
+      _isOpeningFormationFromNotification = true;
+      _pendingNotificationPayload = null;
+
+      setState(() {
+        _selectedIndex = _baseTabIndex;
+      });
+
+      debugPrint(
+        '[FormationNavigation] trying to push FormationChallengeScreen',
+      );
+      navigator
+          .push(
+            MaterialPageRoute(
+              settings: const RouteSettings(name: '/formation-challenge'),
+              builder: (_) => const FormationChallengeScreen(),
+            ),
+          )
+          .whenComplete(() {
+        _isOpeningFormationFromNotification = false;
+      });
+      debugPrint(
+        '[FormationNavigation] push invoked for FormationChallengeScreen',
+      );
+    });
+  }
 
   void _onTabSelected(int index) {
     // Ostatni przycisk ("Więcej") otwiera bottom sheet,

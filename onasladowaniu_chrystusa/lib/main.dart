@@ -1,8 +1,15 @@
 import 'package:flutter/material.dart';
 
 import 'app.dart';
+import 'shared/services/formation_notification_service.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(const ImitationOfChristApp());
+  final initialNotificationPayload =
+      await FormationNotificationService.instance.initialize();
+  runApp(
+    ImitationOfChristApp(
+      initialNotificationPayload: initialNotificationPayload,
+    ),
+  );
 }

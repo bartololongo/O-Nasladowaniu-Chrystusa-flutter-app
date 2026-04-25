@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../shared/models/formation_challenge_models.dart';
 import '../../shared/services/formation_challenge_progress_service.dart';
 import '../../shared/services/formation_challenge_service.dart';
+import '../../shared/services/formation_notification_service.dart';
 import 'formation_journal_helpers.dart';
 import 'formation_meditation_screen.dart';
 
@@ -19,6 +20,8 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
       FormationChallengeService();
   final FormationChallengeProgressService _progressService =
       FormationChallengeProgressService();
+  final FormationNotificationService _notificationService =
+      FormationNotificationService.instance;
 
   late Future<_FormationChallengeViewState> _stateFuture;
 
@@ -29,14 +32,25 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
   }
 
   Future<_FormationChallengeViewState> _loadState() async {
+    final reminderEnabled = await _notificationService.isReminderEnabled();
+    final reminderTime = await _notificationService.getReminderTime();
+
     final isStarted = await _progressService.isStarted();
     if (!isStarted) {
-      return const _FormationChallengeViewState(isStarted: false);
+      return _FormationChallengeViewState(
+        isStarted: false,
+        reminderEnabled: reminderEnabled,
+        reminderTime: reminderTime,
+      );
     }
 
     final startDate = await _progressService.getStartDate();
     if (startDate == null) {
-      return const _FormationChallengeViewState(isStarted: false);
+      return _FormationChallengeViewState(
+        isStarted: false,
+        reminderEnabled: reminderEnabled,
+        reminderTime: reminderTime,
+      );
     }
 
     final day = await _challengeService.getDayForDate(
@@ -49,6 +63,8 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
       isStarted: true,
       day: day,
       totalDays: totalDays,
+      reminderEnabled: reminderEnabled,
+      reminderTime: reminderTime,
     );
   }
 
@@ -99,6 +115,27 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _setReminderEnabled(bool enabled) async {
+    await _notificationService.setReminderEnabled(enabled);
+    if (!mounted) return;
+    await _refresh();
+  }
+
+  Future<void> _changeReminderTime(FormationReminderTime currentTime) async {
+    final selected = await showTimePicker(
+      context: context,
+      initialTime: currentTime.toTimeOfDay(),
+    );
+    if (selected == null) return;
+
+    await _notificationService.setReminderTime(
+      hour: selected.hour,
+      minute: selected.minute,
+    );
+    if (!mounted) return;
+    await _refresh();
   }
 
   @override
@@ -221,6 +258,8 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
                 ),
               ],
               const SizedBox(height: 20),
+              _buildReminderSection(context, state),
+              const SizedBox(height: 20),
               Text(
                 day.text,
                 style: const TextStyle(
@@ -266,6 +305,44 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
     );
   }
 
+  Widget _buildReminderSection(
+    BuildContext context,
+    _FormationChallengeViewState state,
+  ) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final reminderTime = state.reminderTime;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: colorScheme.surface.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: colorScheme.primary.withValues(alpha: 0.25),
+        ),
+      ),
+      child: Column(
+        children: [
+          SwitchListTile(
+            value: state.reminderEnabled,
+            onChanged: _setReminderEnabled,
+            title: const Text('Przypomnienie o Drodze naśladowania'),
+            subtitle: Text(reminderTime.formatted),
+            secondary: const Icon(Icons.notifications_outlined),
+          ),
+          ListTile(
+            enabled: state.reminderEnabled,
+            leading: const Icon(Icons.schedule),
+            title: const Text('Godzina przypomnienia'),
+            subtitle: Text(reminderTime.formatted),
+            onTap: state.reminderEnabled
+                ? () => _changeReminderTime(reminderTime)
+                : null,
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildErrorBody(BuildContext context, Object? error) {
     return Center(
       child: Padding(
@@ -307,9 +384,13 @@ class _FormationChallengeViewState {
   final bool isStarted;
   final FormationChallengeDay? day;
   final int? totalDays;
+  final bool reminderEnabled;
+  final FormationReminderTime reminderTime;
 
   const _FormationChallengeViewState({
     required this.isStarted,
+    required this.reminderEnabled,
+    required this.reminderTime,
     this.day,
     this.totalDays,
   });
