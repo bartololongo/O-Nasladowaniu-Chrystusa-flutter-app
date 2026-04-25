@@ -9,6 +9,7 @@ import '../../shared/services/favorites_service.dart';
 import '../../shared/services/journal_service.dart';
 
 import '../challenge/reading_challenge_screen.dart';
+import '../formation_challenge/formation_challenge_screen.dart';
 import '../journal/journal_screen.dart';
 import '../favorites/favorites_screen.dart';
 import '../bookmarks/bookmarks_screen.dart';
@@ -150,6 +151,15 @@ class _HomeScreenState extends State<HomeScreen>
     });
     await _loadChallengeProgress(state);
     await _loadLastChapterRef();
+  }
+
+  Future<void> _openFormationChallengeScreen() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        settings: const RouteSettings(name: '/formation-challenge'),
+        builder: (_) => const FormationChallengeScreen(),
+      ),
+    );
   }
 
   String _formatDate(DateTime dt) {
@@ -521,6 +531,8 @@ class _HomeScreenState extends State<HomeScreen>
             const SizedBox(height: 12),
             _buildChallengeCard(context),
             const SizedBox(height: 12),
+            _buildFormationChallengeCard(context),
+            const SizedBox(height: 12),
             _buildRandomQuoteCard(context),
             const SizedBox(height: 12),
             _buildSupportCard(context),
@@ -591,10 +603,10 @@ class _HomeScreenState extends State<HomeScreen>
       },
       child: Container(
         decoration: BoxDecoration(
-          color: colorScheme.surface.withOpacity(0.1),
+          color: colorScheme.surface.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: colorScheme.primary.withOpacity(0.3),
+            color: colorScheme.primary.withValues(alpha: 0.3),
           ),
         ),
         padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
@@ -624,7 +636,7 @@ class _HomeScreenState extends State<HomeScreen>
                     _continueReadingSubtitle,
                     style: TextStyle(
                       fontSize: 14,
-                      color: colorScheme.onSurface.withOpacity(0.7),
+                      color: colorScheme.onSurface.withValues(alpha: 0.7),
                     ),
                   ),
                 ],
@@ -758,6 +770,60 @@ class _HomeScreenState extends State<HomeScreen>
                 ),
               ),
             ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFormationChallengeCard(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(16),
+      onTap: _openFormationChallengeScreen,
+      child: Container(
+        decoration: BoxDecoration(
+          color: colorScheme.surface.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: colorScheme.primary.withOpacity(0.3),
+          ),
+        ),
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.auto_stories_outlined,
+              size: 32,
+              color: colorScheme.primary,
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Droga naśladowania',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Codzienna medytacja z książką',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: colorScheme.onSurface.withOpacity(0.7),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right),
           ],
         ),
       ),
