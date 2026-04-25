@@ -16,6 +16,7 @@ class JournalScreen extends StatefulWidget {
   final String? initialComposerTitle;
   final String? initialComposerHint;
   final String? initialContentPrefix;
+  final String? initialEntryId;
 
   const JournalScreen({
     super.key,
@@ -28,6 +29,7 @@ class JournalScreen extends StatefulWidget {
     this.initialComposerTitle,
     this.initialComposerHint,
     this.initialContentPrefix,
+    this.initialEntryId,
   });
 
   @override
@@ -41,6 +43,7 @@ class _JournalScreenState extends State<JournalScreen> {
 
   late Future<List<JournalEntry>> _entriesFuture;
   bool _initialComposerOpened = false;
+  bool _initialEntryOpened = false;
 
   @override
   void initState() {
@@ -50,6 +53,12 @@ class _JournalScreenState extends State<JournalScreen> {
     if (widget.openInitialComposer) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _openInitialComposer();
+      });
+    }
+
+    if (widget.initialEntryId != null && widget.initialEntryId!.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _openInitialEntry();
       });
     }
   }
@@ -95,6 +104,24 @@ class _JournalScreenState extends State<JournalScreen> {
 
     if (!mounted || !widget.closeAfterInitialComposer) return;
     Navigator.of(context).pop(saved);
+  }
+
+  Future<void> _openInitialEntry() async {
+    if (_initialEntryOpened) return;
+    _initialEntryOpened = true;
+
+    final entryId = widget.initialEntryId;
+    if (entryId == null || entryId.isEmpty) return;
+
+    final entries = await _journalService.getEntries();
+    if (!mounted) return;
+
+    for (final entry in entries) {
+      if (entry.id == entryId) {
+        await _openEntryDetails(entry);
+        return;
+      }
+    }
   }
 
   Future<bool> _addManualEntry({

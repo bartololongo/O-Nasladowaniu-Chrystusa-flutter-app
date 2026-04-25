@@ -14,6 +14,7 @@ import '../journal/journal_screen.dart';
 import '../favorites/favorites_screen.dart';
 import '../bookmarks/bookmarks_screen.dart';
 import '../settings/settings_screen.dart';
+import '../search/search_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   final void Function(int tabIndex)? onNavigateToTab;
@@ -513,11 +514,30 @@ class _HomeScreenState extends State<HomeScreen>
     }
   }
 
+  void _openSearchScreen() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        settings: const RouteSettings(name: '/search'),
+        builder: (_) => SearchScreen(
+          onNavigateToTab: widget.onNavigateToTab,
+          onOpenMoreScreen: widget.onOpenMoreScreen,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('O naśladowaniu Chrystusa'),
+        actions: [
+          IconButton(
+            onPressed: _openSearchScreen,
+            icon: const Icon(Icons.search),
+            tooltip: 'Szukaj',
+          ),
+        ],
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -529,9 +549,9 @@ class _HomeScreenState extends State<HomeScreen>
             const SizedBox(height: 16),
             _buildContinueReadingCard(context),
             const SizedBox(height: 12),
-            _buildChallengeCard(context),
-            const SizedBox(height: 12),
             _buildFormationChallengeCard(context),
+            const SizedBox(height: 12),
+            _buildChallengeCard(context),
             const SizedBox(height: 12),
             _buildRandomQuoteCard(context),
             const SizedBox(height: 12),
