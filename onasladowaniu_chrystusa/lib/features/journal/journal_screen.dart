@@ -40,15 +40,19 @@ class _JournalScreenState extends State<JournalScreen> {
   final JournalService _journalService = JournalService();
   final PreferencesService _prefs = PreferencesService();
   final FavoritesService _favoritesService = FavoritesService();
+  final ScrollController _scrollController = ScrollController();
+  final Map<String, GlobalKey> _entryKeys = {};
 
   late Future<List<JournalEntry>> _entriesFuture;
   bool _initialComposerOpened = false;
-  bool _initialEntryOpened = false;
+  bool _initialEntryRevealScheduled = false;
+  String? _highlightedEntryId;
 
   @override
   void initState() {
     super.initState();
     _entriesFuture = _journalService.getEntries();
+    _highlightedEntryId = widget.initialEntryId;
 
     if (widget.openInitialComposer) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -56,11 +60,12 @@ class _JournalScreenState extends State<JournalScreen> {
       });
     }
 
-    if (widget.initialEntryId != null && widget.initialEntryId!.isNotEmpty) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _openInitialEntry();
-      });
-    }
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
   }
 
   Future<void> _refresh() async {
@@ -104,24 +109,6 @@ class _JournalScreenState extends State<JournalScreen> {
 
     if (!mounted || !widget.closeAfterInitialComposer) return;
     Navigator.of(context).pop(saved);
-  }
-
-  Future<void> _openInitialEntry() async {
-    if (_initialEntryOpened) return;
-    _initialEntryOpened = true;
-
-    final entryId = widget.initialEntryId;
-    if (entryId == null || entryId.isEmpty) return;
-
-    final entries = await _journalService.getEntries();
-    if (!mounted) return;
-
-    for (final entry in entries) {
-      if (entry.id == entryId) {
-        await _openEntryDetails(entry);
-        return;
-      }
-    }
   }
 
   Future<bool> _addManualEntry({
@@ -510,120 +497,133 @@ class _JournalScreenState extends State<JournalScreen> {
 
           final colorScheme = Theme.of(context).colorScheme;
 
+          _scheduleInitialEntryReveal(entries);
+
           return RefreshIndicator(
             onRefresh: _refresh,
             child: ListView.separated(
+              controller: _scrollController,
               padding: const EdgeInsets.all(16),
               itemCount: entries.length,
               separatorBuilder: (_, __) => const SizedBox(height: 8),
               itemBuilder: (context, index) {
                 final e = entries[index];
+                final isHighlighted = e.id == _highlightedEntryId;
 
-                return Dismissible(
-                  key: ValueKey(e.id),
-                  direction: DismissDirection.horizontal,
-                  // Przeciągnięcie w prawo – EDYCJA
-                  background: Container(
-                    alignment: Alignment.centerLeft,
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    color: colorScheme.primary.withOpacity(0.8),
-                    child: const Row(
-                      children: [
-                        Icon(Icons.edit, color: Colors.white),
-                        SizedBox(width: 8),
-                        Text(
-                          'Edytuj',
-                          style: TextStyle(color: Colors.white),
-                        ),
-                      ],
-                    ),
-                  ),
-                  // Przeciągnięcie w lewo – USUWANIE
-                  secondaryBackground: Container(
-                    alignment: Alignment.centerRight,
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    color: Theme.of(context).colorScheme.error,
-                    child: const Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        Text(
-                          'Usuń',
-                          style: TextStyle(color: Colors.white),
-                        ),
-                        SizedBox(width: 8),
-                        Icon(Icons.delete, color: Colors.white),
-                      ],
-                    ),
-                  ),
-                  confirmDismiss: (direction) async {
-                    if (direction == DismissDirection.startToEnd) {
-                      // EDYCJA
-                      await _editEntry(e);
-                      // Nie usuwamy elementu z listy via Dismissible
-                      return false;
-                    } else if (direction == DismissDirection.endToStart) {
-                      // USUWANIE – jak dotychczas
-                      return await showDialog<bool>(
-                            context: context,
-                            builder: (ctx) => AlertDialog(
-                              title: const Text('Usuń wpis dziennika'),
-                              content: const Text(
-                                'Na pewno chcesz usunąć ten wpis?',
-                              ),
-                              actions: [
-                                TextButton(
-                                  onPressed: () =>
-                                      Navigator.of(ctx).pop(false),
-                                  child: const Text('Anuluj'),
-                                ),
-                                TextButton(
-                                  onPressed: () =>
-                                      Navigator.of(ctx).pop(true),
-                                  child: const Text('Usuń'),
-                                ),
-                              ],
-                            ),
-                          ) ??
-                          false;
-                    }
-                    return false;
-                  },
-                  onDismissed: (direction) {
-                    if (direction == DismissDirection.endToStart) {
-                      _deleteEntry(e);
-                    }
-                  },
-                  child: ListTile(
-                    onTap: () => _openEntryDetails(e),
-                    title: Text(
-                      _formatDateTime(e.createdAt),
-                      style: const TextStyle(fontWeight: FontWeight.w600),
-                    ),
-                    subtitle: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        if (e.quoteText != null &&
-                            e.quoteText!.trim().isNotEmpty) ...[
+                return KeyedSubtree(
+                  key: _keyForEntry(e.id),
+                  child: Dismissible(
+                    key: ValueKey(e.id),
+                    direction: DismissDirection.horizontal,
+                    // Przeciągnięcie w prawo – EDYCJA
+                    background: Container(
+                      alignment: Alignment.centerLeft,
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      color: colorScheme.primary.withOpacity(0.8),
+                      child: const Row(
+                        children: [
+                          Icon(Icons.edit, color: Colors.white),
+                          SizedBox(width: 8),
                           Text(
-                            e.quoteText!,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontStyle: FontStyle.italic,
-                              color: colorScheme.onSurface.withOpacity(0.8),
-                            ),
+                            'Edytuj',
+                            style: TextStyle(color: Colors.white),
                           ),
-                          const SizedBox(height: 4),
                         ],
-                        Text(
-                          e.content,
-                          maxLines: 3,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
+                      ),
                     ),
-                    isThreeLine: true,
-                    trailing: const Icon(Icons.chevron_right),
+                    // Przeciągnięcie w lewo – USUWANIE
+                    secondaryBackground: Container(
+                      alignment: Alignment.centerRight,
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      color: Theme.of(context).colorScheme.error,
+                      child: const Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          Text(
+                            'Usuń',
+                            style: TextStyle(color: Colors.white),
+                          ),
+                          SizedBox(width: 8),
+                          Icon(Icons.delete, color: Colors.white),
+                        ],
+                      ),
+                    ),
+                    confirmDismiss: (direction) async {
+                      if (direction == DismissDirection.startToEnd) {
+                        // EDYCJA
+                        await _editEntry(e);
+                        // Nie usuwamy elementu z listy via Dismissible
+                        return false;
+                      } else if (direction == DismissDirection.endToStart) {
+                        // USUWANIE – jak dotychczas
+                        return await showDialog<bool>(
+                              context: context,
+                              builder: (ctx) => AlertDialog(
+                                title: const Text('Usuń wpis dziennika'),
+                                content: const Text(
+                                  'Na pewno chcesz usunąć ten wpis?',
+                                ),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () =>
+                                        Navigator.of(ctx).pop(false),
+                                    child: const Text('Anuluj'),
+                                  ),
+                                  TextButton(
+                                    onPressed: () =>
+                                        Navigator.of(ctx).pop(true),
+                                    child: const Text('Usuń'),
+                                  ),
+                                ],
+                              ),
+                            ) ??
+                            false;
+                      }
+                      return false;
+                    },
+                    onDismissed: (direction) {
+                      if (direction == DismissDirection.endToStart) {
+                        _deleteEntry(e);
+                      }
+                    },
+                    child: ListTile(
+                      tileColor: isHighlighted
+                          ? colorScheme.primary.withValues(alpha: 0.12)
+                          : null,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      onTap: () => _openEntryDetails(e),
+                      title: Text(
+                        _formatDateTime(e.createdAt),
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                      subtitle: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (e.quoteText != null &&
+                              e.quoteText!.trim().isNotEmpty) ...[
+                            Text(
+                              e.quoteText!,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontStyle: FontStyle.italic,
+                                color: colorScheme.onSurface.withOpacity(0.8),
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                          ],
+                          Text(
+                            e.content,
+                            maxLines: 3,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                      isThreeLine: true,
+                      trailing: const Icon(Icons.chevron_right),
+                    ),
                   ),
                 );
               },
@@ -632,6 +632,33 @@ class _JournalScreenState extends State<JournalScreen> {
         },
       ),
     );
+  }
+
+  GlobalKey _keyForEntry(String id) {
+    return _entryKeys.putIfAbsent(id, GlobalKey.new);
+  }
+
+  void _scheduleInitialEntryReveal(List<JournalEntry> entries) {
+    final entryId = widget.initialEntryId;
+    if (_initialEntryRevealScheduled ||
+        entryId == null ||
+        entryId.isEmpty ||
+        !entries.any((entry) => entry.id == entryId)) {
+      return;
+    }
+
+    _initialEntryRevealScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final context = _entryKeys[entryId]?.currentContext;
+      if (context == null) return;
+
+      Scrollable.ensureVisible(
+        context,
+        duration: const Duration(milliseconds: 350),
+        curve: Curves.easeOut,
+        alignment: 0.25,
+      );
+    });
   }
 }
 

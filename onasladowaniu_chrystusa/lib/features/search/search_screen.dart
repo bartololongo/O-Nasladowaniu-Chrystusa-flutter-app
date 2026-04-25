@@ -308,7 +308,7 @@ class _SearchScreenState extends State<SearchScreen> {
                           _goToResult(result);
                         },
                         icon: const Icon(Icons.arrow_forward),
-                        label: const Text('Przejdź'),
+                        label: Text(_goToButtonLabel(result.type)),
                       ),
                     ],
                   ),
@@ -437,6 +437,14 @@ class _SearchScreenState extends State<SearchScreen> {
       case GlobalSearchResultType.journalEntry:
         return Icons.edit_note;
     }
+  }
+
+  String _goToButtonLabel(GlobalSearchResultType type) {
+    if (type == GlobalSearchResultType.journalEntry) {
+      return 'Pokaż w dzienniku';
+    }
+
+    return 'Przejdź';
   }
 }
 
