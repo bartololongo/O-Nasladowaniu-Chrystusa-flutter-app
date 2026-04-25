@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../../shared/models/formation_challenge_models.dart';
 import '../../shared/services/formation_challenge_progress_service.dart';
 import '../../shared/services/formation_challenge_service.dart';
-import '../../shared/services/formation_notification_service.dart';
 import 'formation_journal_helpers.dart';
 import 'formation_meditation_screen.dart';
 
@@ -20,8 +19,6 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
       FormationChallengeService();
   final FormationChallengeProgressService _progressService =
       FormationChallengeProgressService();
-  final FormationNotificationService _notificationService =
-      FormationNotificationService.instance;
 
   late Future<_FormationChallengeViewState> _stateFuture;
 
@@ -32,15 +29,10 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
   }
 
   Future<_FormationChallengeViewState> _loadState() async {
-    final reminderEnabled = await _notificationService.isReminderEnabled();
-    final reminderTime = await _notificationService.getReminderTime();
-
     final isStarted = await _progressService.isStarted();
     if (!isStarted) {
       return _FormationChallengeViewState(
         isStarted: false,
-        reminderEnabled: reminderEnabled,
-        reminderTime: reminderTime,
       );
     }
 
@@ -48,8 +40,6 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
     if (startDate == null) {
       return _FormationChallengeViewState(
         isStarted: false,
-        reminderEnabled: reminderEnabled,
-        reminderTime: reminderTime,
       );
     }
 
@@ -69,8 +59,6 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
       totalDays: totalDays,
       lastCompletedDay: lastCompletedDay,
       isTodayCompleted: isTodayCompleted,
-      reminderEnabled: reminderEnabled,
-      reminderTime: reminderTime,
     );
   }
 
@@ -82,12 +70,6 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
 
   Future<void> _startChallenge() async {
     await _progressService.startChallenge();
-    if (!mounted) return;
-    await _refresh();
-  }
-
-  Future<void> _resetChallenge() async {
-    await _progressService.resetChallenge();
     if (!mounted) return;
     await _refresh();
   }
@@ -131,27 +113,6 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
           totalDays: totalDays,
         ),
       ),
-    );
-    if (!mounted) return;
-    await _refresh();
-  }
-
-  Future<void> _setReminderEnabled(bool enabled) async {
-    await _notificationService.setReminderEnabled(enabled);
-    if (!mounted) return;
-    await _refresh();
-  }
-
-  Future<void> _changeReminderTime(FormationReminderTime currentTime) async {
-    final selected = await showTimePicker(
-      context: context,
-      initialTime: currentTime.toTimeOfDay(),
-    );
-    if (selected == null) return;
-
-    await _notificationService.setReminderTime(
-      hour: selected.hour,
-      minute: selected.minute,
     );
     if (!mounted) return;
     await _refresh();
@@ -279,8 +240,6 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
               const SizedBox(height: 20),
               _buildProgressSection(context, state),
               const SizedBox(height: 20),
-              _buildReminderSection(context, state),
-              const SizedBox(height: 20),
               Text(
                 day.text,
                 style: const TextStyle(
@@ -324,14 +283,6 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
                     state.isTodayCompleted
                         ? 'Dzisiejszy dzień ukończony'
                         : 'Oznacz dzień jako ukończony',
-                  ),
-                ),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: TextButton.icon(
-                    onPressed: _resetChallenge,
-                    icon: const Icon(Icons.refresh),
-                    label: const Text('Zacznij od nowa'),
                   ),
                 ),
               ],
@@ -383,44 +334,6 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
     );
   }
 
-  Widget _buildReminderSection(
-    BuildContext context,
-    _FormationChallengeViewState state,
-  ) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final reminderTime = state.reminderTime;
-
-    return Container(
-      decoration: BoxDecoration(
-        color: colorScheme.surface.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: colorScheme.primary.withValues(alpha: 0.25),
-        ),
-      ),
-      child: Column(
-        children: [
-          SwitchListTile(
-            value: state.reminderEnabled,
-            onChanged: _setReminderEnabled,
-            title: const Text('Przypomnienie o Drodze naśladowania'),
-            subtitle: Text(reminderTime.formatted),
-            secondary: const Icon(Icons.notifications_outlined),
-          ),
-          ListTile(
-            enabled: state.reminderEnabled,
-            leading: const Icon(Icons.schedule),
-            title: const Text('Godzina przypomnienia'),
-            subtitle: Text(reminderTime.formatted),
-            onTap: state.reminderEnabled
-                ? () => _changeReminderTime(reminderTime)
-                : null,
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildErrorBody(BuildContext context, Object? error) {
     return Center(
       child: Padding(
@@ -464,13 +377,9 @@ class _FormationChallengeViewState {
   final int? totalDays;
   final int lastCompletedDay;
   final bool isTodayCompleted;
-  final bool reminderEnabled;
-  final FormationReminderTime reminderTime;
 
   const _FormationChallengeViewState({
     required this.isStarted,
-    required this.reminderEnabled,
-    required this.reminderTime,
     this.lastCompletedDay = 0,
     this.isTodayCompleted = false,
     this.day,

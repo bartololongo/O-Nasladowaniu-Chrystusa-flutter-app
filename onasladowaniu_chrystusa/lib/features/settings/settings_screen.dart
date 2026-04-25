@@ -4,17 +4,60 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../shared/services/reading_challenge_service.dart';
 import '../../shared/services/preferences_service.dart';
 import '../../shared/services/book_repository.dart';
+import '../../shared/services/formation_challenge_progress_service.dart';
+import '../../shared/services/formation_meditation_settings_service.dart';
+import '../../shared/services/formation_notification_service.dart';
 import 'backup_screen.dart';
 
-class SettingsScreen extends StatelessWidget {
+class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
 
+  @override
+  State<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends State<SettingsScreen> {
   static const String _projectUrl =
       'https://bartololongo.pl/blog/o-nasladowaniu-chrystusa/';
   static const String _supportUrl =
       'https://www.buymeacoffee.com/bartololongo';
 
-  Future<void> _resetChallenge(BuildContext context) async {
+  final FormationMeditationSettingsService _meditationSettingsService =
+      FormationMeditationSettingsService();
+  final FormationNotificationService _formationNotificationService =
+      FormationNotificationService.instance;
+  final FormationChallengeProgressService _formationProgressService =
+      FormationChallengeProgressService();
+
+  late Future<_FormationSettingsState> _formationSettingsFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _formationSettingsFuture = _loadFormationSettings();
+  }
+
+  Future<_FormationSettingsState> _loadFormationSettings() async {
+    final durationMinutes =
+        await _meditationSettingsService.getDurationMinutes();
+    final reminderEnabled =
+        await _formationNotificationService.isReminderEnabled();
+    final reminderTime = await _formationNotificationService.getReminderTime();
+
+    return _FormationSettingsState(
+      durationMinutes: durationMinutes,
+      reminderEnabled: reminderEnabled,
+      reminderTime: reminderTime,
+    );
+  }
+
+  Future<void> _refreshFormationSettings() async {
+    setState(() {
+      _formationSettingsFuture = _loadFormationSettings();
+    });
+  }
+
+  Future<void> _resetReadingChallenge(BuildContext context) async {
     final confirmed = await showModalBottomSheet<bool>(
           context: context,
           isScrollControlled: false,
@@ -112,6 +155,136 @@ class SettingsScreen extends StatelessWidget {
     }
   }
 
+  Future<void> _changeMeditationDuration(int currentMinutes) async {
+    final selected = await showModalBottomSheet<int>(
+      context: context,
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: FormationMeditationSettingsService.allowedDurationMinutes
+                .map(
+                  (minutes) => ListTile(
+                    leading: Icon(
+                      minutes == currentMinutes
+                          ? Icons.radio_button_checked
+                          : Icons.radio_button_unchecked,
+                    ),
+                    title: Text('$minutes min'),
+                    onTap: () => Navigator.of(sheetContext).pop(minutes),
+                  ),
+                )
+                .toList(),
+          ),
+        );
+      },
+    );
+
+    if (selected == null) return;
+
+    await _meditationSettingsService.setDurationMinutes(selected);
+    if (!mounted) return;
+    await _refreshFormationSettings();
+  }
+
+  Future<void> _setFormationReminderEnabled(bool enabled) async {
+    await _formationNotificationService.setReminderEnabled(enabled);
+    if (!mounted) return;
+    await _refreshFormationSettings();
+  }
+
+  Future<void> _changeFormationReminderTime(
+    FormationReminderTime currentTime,
+  ) async {
+    final selected = await showTimePicker(
+      context: context,
+      initialTime: currentTime.toTimeOfDay(),
+    );
+    if (selected == null) return;
+
+    await _formationNotificationService.setReminderTime(
+      hour: selected.hour,
+      minute: selected.minute,
+    );
+    if (!mounted) return;
+    await _refreshFormationSettings();
+  }
+
+  Future<void> _resetFormationChallenge() async {
+    final confirmed = await showModalBottomSheet<bool>(
+          context: context,
+          isScrollControlled: false,
+          builder: (sheetContext) {
+            final colorScheme = Theme.of(sheetContext).colorScheme;
+
+            return SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.self_improvement,
+                          size: 32,
+                          color: colorScheme.primary,
+                        ),
+                        const SizedBox(width: 12),
+                        const Expanded(
+                          child: Text(
+                            'Resetować Drogę naśladowania?',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    const Text(
+                      'Usunie to datę rozpoczęcia i postęp Drogi '
+                      'naśladowania. Dziennik, zakładki i ulubione '
+                      'pozostaną bez zmian.',
+                      style: TextStyle(fontSize: 14, height: 1.4),
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        TextButton(
+                          onPressed: () =>
+                              Navigator.of(sheetContext).pop(false),
+                          child: const Text('Anuluj'),
+                        ),
+                        const SizedBox(width: 8),
+                        ElevatedButton.icon(
+                          onPressed: () =>
+                              Navigator.of(sheetContext).pop(true),
+                          icon: const Icon(Icons.refresh),
+                          label: const Text('Resetuj'),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        ) ??
+        false;
+
+    if (!confirmed) return;
+
+    await _formationProgressService.resetChallenge();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Droga naśladowania została zresetowana.')),
+    );
+  }
+
   Future<void> _launchUrl(
     BuildContext context,
     String url, {
@@ -131,6 +304,80 @@ class SettingsScreen extends StatelessWidget {
         ),
       );
     }
+  }
+
+  Widget _buildFormationSettingsSection(BuildContext context) {
+    return FutureBuilder<_FormationSettingsState>(
+      future: _formationSettingsFuture,
+      builder: (context, snapshot) {
+        final state = snapshot.data;
+
+        if (snapshot.connectionState == ConnectionState.waiting &&
+            state == null) {
+          return const ListTile(
+            leading: Icon(Icons.self_improvement),
+            title: Text('Droga naśladowania'),
+            subtitle: Text('Ładowanie ustawień...'),
+          );
+        }
+
+        if (snapshot.hasError || state == null) {
+          return ListTile(
+            leading: const Icon(Icons.self_improvement),
+            title: const Text('Droga naśladowania'),
+            subtitle: const Text('Nie udało się wczytać ustawień'),
+            trailing: IconButton(
+              onPressed: _refreshFormationSettings,
+              icon: const Icon(Icons.refresh),
+            ),
+          );
+        }
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(16, 8, 16, 4),
+              child: Text(
+                'Droga naśladowania',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.timer_outlined),
+              title: const Text('Czas medytacji'),
+              subtitle: Text('${state.durationMinutes} min'),
+              onTap: () => _changeMeditationDuration(state.durationMinutes),
+            ),
+            SwitchListTile(
+              value: state.reminderEnabled,
+              onChanged: _setFormationReminderEnabled,
+              secondary: const Icon(Icons.notifications_outlined),
+              title: const Text('Przypomnienie o Drodze'),
+              subtitle: Text(state.reminderTime.formatted),
+            ),
+            ListTile(
+              enabled: state.reminderEnabled,
+              leading: const Icon(Icons.schedule),
+              title: const Text('Godzina przypomnienia'),
+              subtitle: Text(state.reminderTime.formatted),
+              onTap: state.reminderEnabled
+                  ? () => _changeFormationReminderTime(state.reminderTime)
+                  : null,
+            ),
+            ListTile(
+              leading: const Icon(Icons.restart_alt),
+              title: const Text('Resetuj Drogę naśladowania'),
+              subtitle: const Text('Usuń postęp i rozpocznij od nowa'),
+              onTap: _resetFormationChallenge,
+            ),
+          ],
+        );
+      },
+    );
   }
 
   @override
@@ -167,8 +414,10 @@ class SettingsScreen extends StatelessWidget {
             leading: const Icon(Icons.flag),
             title: const Text('Wyzwanie: Czytaj całość'),
             subtitle: const Text('Zresetuj postęp i zacznij od początku'),
-            onTap: () => _resetChallenge(context),
+            onTap: () => _resetReadingChallenge(context),
           ),
+          const Divider(),
+          _buildFormationSettingsSection(context),
           const Divider(),
           ListTile(
             leading: const Icon(Icons.info_outline),
@@ -305,4 +554,16 @@ class SettingsScreen extends StatelessWidget {
       ),
     );
   }
+}
+
+class _FormationSettingsState {
+  final int durationMinutes;
+  final bool reminderEnabled;
+  final FormationReminderTime reminderTime;
+
+  const _FormationSettingsState({
+    required this.durationMinutes,
+    required this.reminderEnabled,
+    required this.reminderTime,
+  });
 }
