@@ -168,6 +168,10 @@ class _FormationMeditationScreenState extends State<FormationMeditationScreen> {
     );
   }
 
+  void _returnToChallenge() {
+    Navigator.of(context).pop();
+  }
+
   String get _timerText {
     final remaining = _remaining ?? Duration.zero;
     final minutes = remaining.inMinutes.toString().padLeft(2, '0');
@@ -245,62 +249,123 @@ class _FormationMeditationScreenState extends State<FormationMeditationScreen> {
               ),
             ),
             const SizedBox(height: 32),
-            Center(
-              child: Text(
-                _timerText,
-                style: const TextStyle(
-                  fontSize: 56,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 0,
-                ),
-              ),
-            ),
-            const SizedBox(height: 8),
-            Center(
-              child: Text(
-                _isFinished
-                    ? 'Medytacja zakończona'
-                    : _isRunning
-                        ? 'Medytacja trwa'
-                        : 'Gotowe do rozpoczęcia',
-                style: TextStyle(
-                  color: colorScheme.onSurface.withValues(alpha: 0.75),
-                ),
-              ),
-            ),
-            const SizedBox(height: 24),
-            Wrap(
-              alignment: WrapAlignment.center,
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                ElevatedButton.icon(
-                  onPressed: _isFinished ? null : _start,
-                  icon: const Icon(Icons.play_arrow),
-                  label: const Text('Start'),
-                ),
-                OutlinedButton.icon(
-                  onPressed: _isRunning ? _pause : null,
-                  icon: const Icon(Icons.pause),
-                  label: const Text('Pauza'),
-                ),
-                TextButton.icon(
-                  onPressed: _isFinished ? null : () => unawaited(_finish()),
-                  icon: const Icon(Icons.stop),
-                  label: const Text('Zakończ'),
-                ),
-              ],
-            ),
-            if (_isFinished) ...[
-              const SizedBox(height: 24),
-              ElevatedButton.icon(
-                onPressed: _addReflectionToJournal,
-                icon: const Icon(Icons.edit_note),
-                label: const Text('Dodaj refleksję do dziennika'),
-              ),
-            ],
+            if (_isFinished)
+              _buildFinishedSection(context)
+            else
+              _buildTimerSection(context),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildTimerSection(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Column(
+      children: [
+        Center(
+          child: Text(
+            _timerText,
+            style: const TextStyle(
+              fontSize: 56,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0,
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Center(
+          child: Text(
+            _isRunning ? 'Medytacja trwa' : 'Gotowe do rozpoczęcia',
+            style: TextStyle(
+              color: colorScheme.onSurface.withValues(alpha: 0.75),
+            ),
+          ),
+        ),
+        const SizedBox(height: 24),
+        Wrap(
+          alignment: WrapAlignment.center,
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            ElevatedButton.icon(
+              onPressed: _start,
+              icon: const Icon(Icons.play_arrow),
+              label: const Text('Start'),
+            ),
+            OutlinedButton.icon(
+              onPressed: _isRunning ? _pause : null,
+              icon: const Icon(Icons.pause),
+              label: const Text('Pauza'),
+            ),
+            TextButton.icon(
+              onPressed: () => unawaited(_finish()),
+              icon: const Icon(Icons.stop),
+              label: const Text('Zakończ'),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFinishedSection(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: colorScheme.surface.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: colorScheme.primary.withValues(alpha: 0.3),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Icon(
+            Icons.check_circle,
+            size: 42,
+            color: colorScheme.primary,
+          ),
+          const SizedBox(height: 14),
+          const Text(
+            'Medytacja zakończona',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 10),
+          const Text(
+            'Dzisiejszy dzień został oznaczony jako ukończony.',
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Zapisz jedną myśl, która zostaje z Tobą po tej medytacji.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: colorScheme.onSurface.withValues(alpha: 0.78),
+              height: 1.35,
+            ),
+          ),
+          const SizedBox(height: 20),
+          ElevatedButton.icon(
+            onPressed: _addReflectionToJournal,
+            icon: const Icon(Icons.edit_note),
+            label: const Text('Dodaj refleksję do dziennika'),
+          ),
+          const SizedBox(height: 8),
+          OutlinedButton.icon(
+            onPressed: _returnToChallenge,
+            icon: const Icon(Icons.arrow_back),
+            label: const Text('Wróć do Drogi'),
+          ),
+        ],
       ),
     );
   }
