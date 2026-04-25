@@ -97,13 +97,6 @@ class _FormationMeditationScreenState extends State<FormationMeditationScreen> {
     return '$minutes:$seconds';
   }
 
-  String get _previewText {
-    const maxLength = 360;
-    final text = widget.day.text.trim();
-    if (text.length <= maxLength) return text;
-    return '${text.substring(0, maxLength).trimRight()}...';
-  }
-
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
@@ -131,7 +124,7 @@ class _FormationMeditationScreenState extends State<FormationMeditationScreen> {
             ),
             const SizedBox(height: 16),
             Container(
-              padding: const EdgeInsets.all(14),
+              padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
               decoration: BoxDecoration(
                 color: colorScheme.surface.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(12),
@@ -139,9 +132,27 @@ class _FormationMeditationScreenState extends State<FormationMeditationScreen> {
                   color: colorScheme.primary.withValues(alpha: 0.25),
                 ),
               ),
-              child: Text(
-                _previewText,
-                style: const TextStyle(fontSize: 15, height: 1.45),
+              constraints: const BoxConstraints(maxHeight: 220),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    'Przewiń fragment',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: colorScheme.onSurface.withValues(alpha: 0.65),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Expanded(
+                    child: SingleChildScrollView(
+                      child: Text(
+                        widget.day.text,
+                        style: const TextStyle(fontSize: 15, height: 1.45),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
             const SizedBox(height: 32),
