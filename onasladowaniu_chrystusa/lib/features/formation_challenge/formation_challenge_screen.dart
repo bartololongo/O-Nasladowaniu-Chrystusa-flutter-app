@@ -3,7 +3,8 @@ import 'package:flutter/material.dart';
 import '../../shared/models/formation_challenge_models.dart';
 import '../../shared/services/formation_challenge_progress_service.dart';
 import '../../shared/services/formation_challenge_service.dart';
-import '../journal/journal_screen.dart';
+import 'formation_journal_helpers.dart';
+import 'formation_meditation_screen.dart';
 
 class FormationChallengeScreen extends StatefulWidget {
   const FormationChallengeScreen({super.key});
@@ -73,38 +74,31 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
     FormationChallengeDay day,
     int totalDays,
   ) async {
-    final saved = await Navigator.of(context).push<bool>(
-      MaterialPageRoute(
-        settings: const RouteSettings(name: '/journal/from-formation'),
-        builder: (_) => JournalScreen(
-          openInitialComposer: true,
-          closeAfterInitialComposer: true,
-          initialContent: _buildJournalPrefill(day, totalDays),
-          initialQuoteText: day.text,
-          initialQuoteRef: day.chapterReference,
-          initialComposerTitle: 'Refleksja z Drogi naśladowania',
-          initialComposerHint: 'Dopisz własną refleksję...',
-        ),
-      ),
+    final saved = await openFormationReflectionComposer(
+      context: context,
+      day: day,
+      totalDays: totalDays,
     );
 
-    if (!mounted || saved != true) return;
+    if (!mounted || !saved) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Refleksja dodana do dziennika.')),
     );
   }
 
-  String _buildJournalPrefill(FormationChallengeDay day, int totalDays) {
-    final buffer = StringBuffer()
-      ..writeln('Droga naśladowania')
-      ..writeln('Dzień ${day.dayNumber} z $totalDays')
-      ..writeln(day.bookTitle)
-      ..writeln('${day.chapterTitle} (${day.chapterReference})')
-      ..writeln()
-      ..writeln('Moja refleksja:')
-      ..writeln();
-
-    return buffer.toString();
+  Future<void> _openMeditation(
+    FormationChallengeDay day,
+    int totalDays,
+  ) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        settings: const RouteSettings(name: '/formation-meditation'),
+        builder: (_) => FormationMeditationScreen(
+          day: day,
+          totalDays: totalDays,
+        ),
+      ),
+    );
   }
 
   @override
@@ -249,6 +243,12 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
                   onPressed: () => _addReflectionToJournal(day, totalDays),
                   icon: const Icon(Icons.edit_note),
                   label: const Text('Dodaj refleksję do dziennika'),
+                ),
+                const SizedBox(height: 8),
+                OutlinedButton.icon(
+                  onPressed: () => _openMeditation(day, totalDays),
+                  icon: const Icon(Icons.self_improvement),
+                  label: const Text('Rozpocznij medytację'),
                 ),
                 Align(
                   alignment: Alignment.centerRight,

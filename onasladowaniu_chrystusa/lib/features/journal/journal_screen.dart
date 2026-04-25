@@ -15,6 +15,7 @@ class JournalScreen extends StatefulWidget {
   final String? initialQuoteRef;
   final String? initialComposerTitle;
   final String? initialComposerHint;
+  final String? initialContentPrefix;
 
   const JournalScreen({
     super.key,
@@ -26,6 +27,7 @@ class JournalScreen extends StatefulWidget {
     this.initialQuoteRef,
     this.initialComposerTitle,
     this.initialComposerHint,
+    this.initialContentPrefix,
   });
 
   @override
@@ -88,6 +90,7 @@ class _JournalScreenState extends State<JournalScreen> {
       quoteRef: widget.initialQuoteRef,
       title: widget.initialComposerTitle,
       hintText: widget.initialComposerHint,
+      contentPrefix: widget.initialContentPrefix,
     );
 
     if (!mounted || !widget.closeAfterInitialComposer) return;
@@ -100,6 +103,7 @@ class _JournalScreenState extends State<JournalScreen> {
     String? quoteRef,
     String? title,
     String? hintText,
+    String? contentPrefix,
   }) async {
     return await showDialog<bool>(
           context: context,
@@ -113,8 +117,11 @@ class _JournalScreenState extends State<JournalScreen> {
                       'Napisz krótki zapis myśli, modlitwy, decyzji...',
               onSave: (text) async {
                 if (text.isNotEmpty) {
+                  final content = contentPrefix == null
+                      ? text
+                      : '$contentPrefix$text';
                   await _journalService.addEntry(
-                    content: text,
+                    content: content,
                     quoteText: quoteText,
                     quoteRef: quoteRef,
                   );
