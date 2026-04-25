@@ -468,10 +468,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             ),
                             const SizedBox(height: 16),
                             const Text(
-                              'Aplikacja do czytania klasycznego dzieła '
-                              '„O naśladowaniu Chrystusa” z możliwością '
-                              'notowania, zapisywania ulubionych cytatów '
-                              'i prowadzenia dziennika duchowego.',
+                              'Przejdź przez „O\u00A0naśladowaniu Chrystusa” dzień po dniu '
+                              'w\u00A0Drodze naśladowania. Otrzymasz fragment dnia, medytację, '
+                              'miejsce na refleksję, postęp i\u00A0przypomnienia. Aplikacja zawiera '
+                              'też czytnik, zakładki, ulubione cytaty oraz wyszukiwanie.',
                               style: TextStyle(fontSize: 14, height: 1.4),
                             ),
                             const SizedBox(height: 12),
