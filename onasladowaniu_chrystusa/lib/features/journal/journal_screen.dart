@@ -152,7 +152,19 @@ class _JournalScreenState extends State<JournalScreen> {
 
   /// Edycja istniejącego wpisu – prosty dialog z prewypełnionym tekstem.
   Future<void> _editEntry(JournalEntry entry) async {
-    final controller = TextEditingController(text: entry.content);
+    const reflectionMarker = 'Moja refleksja:';
+    final markerIndex = entry.content.indexOf(reflectionMarker);
+    final hasReflectionMarker = markerIndex != -1;
+    final contentPrefix = hasReflectionMarker
+        ? entry.content.substring(
+            0,
+            markerIndex + reflectionMarker.length,
+          )
+        : null;
+    final editableContent = hasReflectionMarker
+        ? entry.content.substring(markerIndex + reflectionMarker.length).trim()
+        : entry.content;
+    final controller = TextEditingController(text: editableContent);
 
     await showDialog(
       context: context,
@@ -175,9 +187,12 @@ class _JournalScreenState extends State<JournalScreen> {
             TextButton(
               onPressed: () async {
                 final text = controller.text.trim();
+                final updatedContent = contentPrefix == null
+                    ? text
+                    : '$contentPrefix\n$text';
 
                 // Jeśli nic się nie zmieniło – po prostu zamknij
-                if (text.isEmpty || text == entry.content) {
+                if (text.isEmpty || updatedContent == entry.content) {
                   Navigator.of(dialogContext).pop();
                   return;
                 }
@@ -185,7 +200,7 @@ class _JournalScreenState extends State<JournalScreen> {
                 // Aktualizacja istniejącego wpisu (bez zmiany id/createdAt/cytatu)
                 await _journalService.updateEntryContent(
                   id: entry.id,
-                  content: text,
+                  content: updatedContent,
                 );
 
                 await _refresh();
