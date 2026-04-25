@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../shared/models/formation_challenge_models.dart';
 import '../../shared/services/formation_challenge_progress_service.dart';
 import '../../shared/services/formation_challenge_service.dart';
+import '../journal/journal_screen.dart';
 
 class FormationChallengeScreen extends StatefulWidget {
   const FormationChallengeScreen({super.key});
@@ -66,6 +67,44 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
     await _progressService.resetChallenge();
     if (!mounted) return;
     await _refresh();
+  }
+
+  Future<void> _addReflectionToJournal(
+    FormationChallengeDay day,
+    int totalDays,
+  ) async {
+    final saved = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        settings: const RouteSettings(name: '/journal/from-formation'),
+        builder: (_) => JournalScreen(
+          openInitialComposer: true,
+          closeAfterInitialComposer: true,
+          initialContent: _buildJournalPrefill(day, totalDays),
+          initialQuoteText: day.text,
+          initialQuoteRef: day.chapterReference,
+          initialComposerTitle: 'Refleksja z Drogi naśladowania',
+          initialComposerHint: 'Dopisz własną refleksję...',
+        ),
+      ),
+    );
+
+    if (!mounted || saved != true) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Refleksja dodana do dziennika.')),
+    );
+  }
+
+  String _buildJournalPrefill(FormationChallengeDay day, int totalDays) {
+    final buffer = StringBuffer()
+      ..writeln('Droga naśladowania')
+      ..writeln('Dzień ${day.dayNumber} z $totalDays')
+      ..writeln(day.bookTitle)
+      ..writeln('${day.chapterTitle} (${day.chapterReference})')
+      ..writeln()
+      ..writeln('Moja refleksja:')
+      ..writeln();
+
+    return buffer.toString();
   }
 
   @override
@@ -202,13 +241,24 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
           top: false,
           child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-            child: Align(
-              alignment: Alignment.centerRight,
-              child: TextButton.icon(
-                onPressed: _resetChallenge,
-                icon: const Icon(Icons.refresh),
-                label: const Text('Zacznij od nowa'),
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ElevatedButton.icon(
+                  onPressed: () => _addReflectionToJournal(day, totalDays),
+                  icon: const Icon(Icons.edit_note),
+                  label: const Text('Dodaj refleksję do dziennika'),
+                ),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton.icon(
+                    onPressed: _resetChallenge,
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('Zacznij od nowa'),
+                  ),
+                ),
+              ],
             ),
           ),
         ),

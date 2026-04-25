@@ -8,8 +8,25 @@ import '../../shared/models/book_models.dart';
 
 class JournalScreen extends StatefulWidget {
   final void Function(int tabIndex)? onNavigateToTab;
+  final bool openInitialComposer;
+  final bool closeAfterInitialComposer;
+  final String? initialContent;
+  final String? initialQuoteText;
+  final String? initialQuoteRef;
+  final String? initialComposerTitle;
+  final String? initialComposerHint;
 
-  const JournalScreen({super.key, this.onNavigateToTab});
+  const JournalScreen({
+    super.key,
+    this.onNavigateToTab,
+    this.openInitialComposer = false,
+    this.closeAfterInitialComposer = false,
+    this.initialContent,
+    this.initialQuoteText,
+    this.initialQuoteRef,
+    this.initialComposerTitle,
+    this.initialComposerHint,
+  });
 
   @override
   State<JournalScreen> createState() => _JournalScreenState();
@@ -21,11 +38,18 @@ class _JournalScreenState extends State<JournalScreen> {
   final FavoritesService _favoritesService = FavoritesService();
 
   late Future<List<JournalEntry>> _entriesFuture;
+  bool _initialComposerOpened = false;
 
   @override
   void initState() {
     super.initState();
     _entriesFuture = _journalService.getEntries();
+
+    if (widget.openInitialComposer) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _openInitialComposer();
+      });
+    }
   }
 
   Future<void> _refresh() async {
@@ -54,49 +78,55 @@ class _JournalScreenState extends State<JournalScreen> {
     );
   }
 
-  Future<void> _addManualEntry() async {
-    final controller = TextEditingController();
+  Future<void> _openInitialComposer() async {
+    if (_initialComposerOpened) return;
+    _initialComposerOpened = true;
 
-    await showDialog(
-      context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text('Nowy wpis dziennika'),
-          content: TextField(
-            controller: controller,
-            maxLines: 6,
-            decoration: const InputDecoration(
-              border: OutlineInputBorder(),
-              hintText:
+    final saved = await _addManualEntry(
+      initialContent: widget.initialContent,
+      quoteText: widget.initialQuoteText,
+      quoteRef: widget.initialQuoteRef,
+      title: widget.initialComposerTitle,
+      hintText: widget.initialComposerHint,
+    );
+
+    if (!mounted || !widget.closeAfterInitialComposer) return;
+    Navigator.of(context).pop(saved);
+  }
+
+  Future<bool> _addManualEntry({
+    String? initialContent,
+    String? quoteText,
+    String? quoteRef,
+    String? title,
+    String? hintText,
+  }) async {
+    return await showDialog<bool>(
+          context: context,
+          barrierDismissible: true,
+          builder: (dialogContext) {
+            return _JournalEntryComposerDialog(
+              initialContent: initialContent,
+              title: title ?? 'Nowy wpis dziennika',
+              hintText: hintText ??
                   'Co się dziś wydarzyło? Co mówi do Ciebie Pan?\n\n'
-                  'Napisz krótki zapis myśli, modlitwy, decyzji...',
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(),
-              child: const Text('Anuluj'),
-            ),
-            TextButton(
-              onPressed: () async {
-                final text = controller.text.trim();
+                      'Napisz krótki zapis myśli, modlitwy, decyzji...',
+              onSave: (text) async {
                 if (text.isNotEmpty) {
                   await _journalService.addEntry(
                     content: text,
-                    quoteText: null,
-                    quoteRef: null,
+                    quoteText: quoteText,
+                    quoteRef: quoteRef,
                   );
                   await _refresh();
                 }
-                if (!mounted) return;
-                Navigator.of(dialogContext).pop();
+                if (!dialogContext.mounted) return;
+                Navigator.of(dialogContext).pop(text.isNotEmpty);
               },
-              child: const Text('Zapisz'),
-            ),
-          ],
-        );
-      },
-    );
+            );
+          },
+        ) ??
+        false;
   }
 
   /// Edycja istniejącego wpisu – prosty dialog z prewypełnionym tekstem.
@@ -261,6 +291,7 @@ class _JournalScreenState extends State<JournalScreen> {
       isScrollControlled: true,
       builder: (sheetContext) {
         final colorScheme = Theme.of(sheetContext).colorScheme;
+        final displayContent = _buildEntryDisplayContent(entry);
 
         final hasQuote = entry.quoteText != null &&
             entry.quoteText!.trim().isNotEmpty &&
@@ -268,80 +299,137 @@ class _JournalScreenState extends State<JournalScreen> {
             entry.quoteRef!.trim().isNotEmpty;
 
         return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+          child: FractionallySizedBox(
+            heightFactor: 0.9,
             child: Column(
-              mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Row(
-                  children: [
-                    Icon(
-                      Icons.menu_book_rounded,
-                      color: colorScheme.primary,
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        _formatDateTime(entry.createdAt),
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.menu_book_rounded,
+                        color: colorScheme.primary,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          _formatDateTime(entry.createdAt),
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
                 const SizedBox(height: 12),
-                if (entry.quoteText != null &&
-                    entry.quoteText!.trim().isNotEmpty) ...[
-                  Text(
-                    entry.quoteText!,
-                    style: TextStyle(
-                      fontStyle: FontStyle.italic,
-                      color: colorScheme.onSurface.withOpacity(0.9),
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        if (displayContent.reflectionText.isNotEmpty) ...[
+                          const Text(
+                            'Moja refleksja:',
+                            style: TextStyle(fontWeight: FontWeight.w600),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            displayContent.reflectionText,
+                            style: const TextStyle(fontSize: 14, height: 1.4),
+                          ),
+                          const SizedBox(height: 12),
+                        ],
+                        if (displayContent.contextText.isNotEmpty) ...[
+                          Text(
+                            displayContent.contextText,
+                            style: TextStyle(
+                              fontSize: 13,
+                              height: 1.35,
+                              color:
+                                  colorScheme.onSurface.withValues(alpha: 0.7),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                        ],
+                        if (entry.quoteText != null &&
+                            entry.quoteText!.trim().isNotEmpty) ...[
+                          const Divider(),
+                          const SizedBox(height: 8),
+                          const Text(
+                            'Fragment:',
+                            style: TextStyle(fontWeight: FontWeight.w600),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            entry.quoteText!,
+                            style: TextStyle(
+                              fontStyle: FontStyle.italic,
+                              color: colorScheme.onSurface.withOpacity(0.9),
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
                   ),
-                  const SizedBox(height: 12),
-                  const Divider(),
-                  const SizedBox(height: 8),
-                ],
-                Text(
-                  entry.content,
-                  style: const TextStyle(fontSize: 14, height: 1.4),
                 ),
-                const SizedBox(height: 16),
-                Wrap(
-                  alignment: WrapAlignment.end,
-                  spacing: 8,
-                  runSpacing: 4,
-                  children: [
-                    if (hasQuote)
-                      TextButton.icon(
-                        icon: const Icon(Icons.favorite_border),
-                        label: const Text('Do ulubionych'),
-                        onPressed: () =>
-                            _addEntryQuoteToFavorites(entry, sheetContext),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                  child: Wrap(
+                    alignment: WrapAlignment.end,
+                    spacing: 8,
+                    runSpacing: 4,
+                    children: [
+                      if (hasQuote)
+                        TextButton.icon(
+                          icon: const Icon(Icons.favorite_border),
+                          label: const Text('Do ulubionych'),
+                          onPressed: () =>
+                              _addEntryQuoteToFavorites(entry, sheetContext),
+                        ),
+                      if (entry.quoteRef != null &&
+                          entry.quoteRef!.trim().isNotEmpty)
+                        TextButton.icon(
+                          icon: const Icon(Icons.menu_book_outlined),
+                          label: const Text('Zobacz w książce'),
+                          onPressed: () =>
+                              _goToBookFromEntry(entry, sheetContext),
+                        ),
+                      TextButton(
+                        onPressed: () => Navigator.of(sheetContext).pop(),
+                        child: const Text('Zamknij'),
                       ),
-                    if (entry.quoteRef != null &&
-                        entry.quoteRef!.trim().isNotEmpty)
-                      TextButton.icon(
-                        icon: const Icon(Icons.menu_book_outlined),
-                        label: const Text('Zobacz w książce'),
-                        onPressed: () =>
-                            _goToBookFromEntry(entry, sheetContext),
-                      ),
-                    TextButton(
-                      onPressed: () => Navigator.of(sheetContext).pop(),
-                      child: const Text('Zamknij'),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ],
             ),
           ),
         );
       },
+    );
+  }
+
+  _JournalEntryDisplayContent _buildEntryDisplayContent(JournalEntry entry) {
+    const marker = 'Moja refleksja:';
+    final content = entry.content.trim();
+    final markerIndex = content.indexOf(marker);
+
+    if (markerIndex == -1) {
+      return _JournalEntryDisplayContent(reflectionText: content);
+    }
+
+    final contextText = content.substring(0, markerIndex).trim();
+    final reflectionText =
+        content.substring(markerIndex + marker.length).trim();
+
+    return _JournalEntryDisplayContent(
+      contextText: contextText,
+      reflectionText: reflectionText,
     );
   }
 
@@ -509,6 +597,95 @@ class _JournalScreenState extends State<JournalScreen> {
           );
         },
       ),
+    );
+  }
+}
+
+class _JournalEntryComposerDialog extends StatefulWidget {
+  final String? initialContent;
+  final String title;
+  final String hintText;
+  final Future<void> Function(String text) onSave;
+
+  const _JournalEntryComposerDialog({
+    required this.initialContent,
+    required this.title,
+    required this.hintText,
+    required this.onSave,
+  });
+
+  @override
+  State<_JournalEntryComposerDialog> createState() =>
+      _JournalEntryComposerDialogState();
+}
+
+class _JournalEntryDisplayContent {
+  final String contextText;
+  final String reflectionText;
+
+  const _JournalEntryDisplayContent({
+    this.contextText = '',
+    required this.reflectionText,
+  });
+}
+
+class _JournalEntryComposerDialogState
+    extends State<_JournalEntryComposerDialog> {
+  late final TextEditingController _controller;
+  bool _isSaving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.initialContent);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    if (_isSaving) return;
+
+    setState(() {
+      _isSaving = true;
+    });
+
+    try {
+      await widget.onSave(_controller.text.trim());
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSaving = false;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(widget.title),
+      content: TextField(
+        controller: _controller,
+        maxLines: 6,
+        decoration: InputDecoration(
+          border: const OutlineInputBorder(),
+          hintText: widget.hintText,
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _isSaving ? null : () => Navigator.of(context).pop(),
+          child: const Text('Anuluj'),
+        ),
+        TextButton(
+          onPressed: _isSaving ? null : _save,
+          child: const Text('Zapisz'),
+        ),
+      ],
     );
   }
 }
