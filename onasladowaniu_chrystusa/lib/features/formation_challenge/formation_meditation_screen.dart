@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../shared/models/formation_challenge_models.dart';
+import '../../shared/services/formation_challenge_progress_service.dart';
 import '../../shared/services/formation_meditation_settings_service.dart';
 import 'formation_journal_helpers.dart';
 
@@ -24,6 +25,8 @@ class FormationMeditationScreen extends StatefulWidget {
 class _FormationMeditationScreenState extends State<FormationMeditationScreen> {
   final FormationMeditationSettingsService _settingsService =
       FormationMeditationSettingsService();
+  final FormationChallengeProgressService _progressService =
+      FormationChallengeProgressService();
 
   Timer? _timer;
   Duration? _remaining;
@@ -31,6 +34,7 @@ class _FormationMeditationScreenState extends State<FormationMeditationScreen> {
   bool _isLoadingSettings = true;
   bool _isRunning = false;
   bool _isFinished = false;
+  bool _completionSaved = false;
 
   @override
   void initState() {
@@ -69,7 +73,7 @@ class _FormationMeditationScreenState extends State<FormationMeditationScreen> {
       if (remaining == null) return;
 
       if (remaining.inSeconds <= 1) {
-        _finish();
+        unawaited(_finish());
         return;
       }
 
@@ -90,7 +94,9 @@ class _FormationMeditationScreenState extends State<FormationMeditationScreen> {
     });
   }
 
-  void _finish() {
+  Future<void> _finish() async {
+    if (_isFinished) return;
+
     _timer?.cancel();
     _timer = null;
 
@@ -100,6 +106,15 @@ class _FormationMeditationScreenState extends State<FormationMeditationScreen> {
       _isFinished = true;
       _remaining = Duration.zero;
     });
+
+    if (_completionSaved) return;
+    await _progressService.markDayCompleted(widget.day.dayNumber);
+    _completionSaved = true;
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Dzień oznaczony jako ukończony.')),
+    );
   }
 
   Future<void> _chooseDuration() async {
@@ -270,7 +285,7 @@ class _FormationMeditationScreenState extends State<FormationMeditationScreen> {
                   label: const Text('Pauza'),
                 ),
                 TextButton.icon(
-                  onPressed: _isFinished ? null : _finish,
+                  onPressed: _isFinished ? null : () => unawaited(_finish()),
                   icon: const Icon(Icons.stop),
                   label: const Text('Zakończ'),
                 ),

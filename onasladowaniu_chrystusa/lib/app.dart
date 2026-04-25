@@ -95,10 +95,6 @@ class _RootScreenState extends State<_RootScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    debugPrint(
-      '[FormationNavigation] _RootScreen initState, '
-      'initialPayload=${widget.initialNotificationPayload}',
-    );
     _notificationSubscription = FormationNotificationService
         .instance.payloadStream
         .listen(_handleNotificationPayload);
@@ -124,7 +120,6 @@ class _RootScreenState extends State<_RootScreen>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    debugPrint('[FormationNavigation] lifecycle state changed: $state');
     if (state != AppLifecycleState.resumed) return;
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -135,7 +130,6 @@ class _RootScreenState extends State<_RootScreen>
   Future<void> _checkPendingNotificationPayload(String source) async {
     if (!mounted) return;
 
-    debugPrint('[FormationNavigation] checking pending payload from $source');
     final pendingPayload =
         await FormationNotificationService.instance.takePendingPayload();
     if (!mounted) return;
@@ -146,13 +140,10 @@ class _RootScreenState extends State<_RootScreen>
   }
 
   void _handleNotificationPayload(String payload) {
-    debugPrint('[FormationNavigation] payload received: $payload');
     if (payload != FormationNotificationService.formationPayload) {
-      debugPrint('[FormationNavigation] payload ignored: $payload');
       return;
     }
 
-    debugPrint('[FormationNavigation] formation_challenge payload detected');
     _pendingNotificationPayload = payload;
     _openPendingNotificationPayload();
   }
@@ -165,22 +156,15 @@ class _RootScreenState extends State<_RootScreen>
 
       final payload = _pendingNotificationPayload;
       if (payload != FormationNotificationService.formationPayload) {
-        debugPrint(
-          '[FormationNavigation] no pending formation payload to open',
-        );
         return;
       }
 
       if (_isOpeningFormationFromNotification) {
-        debugPrint('[FormationNavigation] push already in progress');
         return;
       }
 
-      final navigator = appNavigatorKey.currentState;
+      final navigator = _innerNavigatorKey.currentState;
       if (navigator == null) {
-        debugPrint(
-          '[FormationNavigation] root navigator not ready, retrying push',
-        );
         _openPendingNotificationPayload();
         return;
       }
@@ -192,9 +176,7 @@ class _RootScreenState extends State<_RootScreen>
         _selectedIndex = _baseTabIndex;
       });
 
-      debugPrint(
-        '[FormationNavigation] trying to push FormationChallengeScreen',
-      );
+      unawaited(FormationNotificationService.instance.clearPendingPayload());
       navigator
           .push(
             MaterialPageRoute(
@@ -205,9 +187,6 @@ class _RootScreenState extends State<_RootScreen>
           .whenComplete(() {
         _isOpeningFormationFromNotification = false;
       });
-      debugPrint(
-        '[FormationNavigation] push invoked for FormationChallengeScreen',
-      );
     });
   }
 

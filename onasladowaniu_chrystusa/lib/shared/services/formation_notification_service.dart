@@ -12,10 +12,6 @@ import 'package:timezone/timezone.dart' as tz;
 @pragma('vm:entry-point')
 void formationNotificationTapBackground(NotificationResponse response) {
   DartPluginRegistrant.ensureInitialized();
-  debugPrint(
-    '[FormationNotification] onDidReceiveBackgroundNotificationResponse '
-    'payload=${response.payload}',
-  );
   unawaited(
     FormationNotificationService.savePendingPayloadFromBackground(
       response.payload,
@@ -82,11 +78,13 @@ class FormationNotificationService {
     final resolvedPayload = payload ?? storedPayload;
     _pendingPayload = null;
     await prefs.remove(_keyPendingPayload);
-    debugPrint(
-      '[FormationNotification] takePendingPayload returned '
-      'payload=$resolvedPayload',
-    );
     return resolvedPayload;
+  }
+
+  Future<void> clearPendingPayload() async {
+    final prefs = await SharedPreferences.getInstance();
+    _pendingPayload = null;
+    await prefs.remove(_keyPendingPayload);
   }
 
   static Future<void> savePendingPayloadFromBackground(String? payload) async {
@@ -94,15 +92,9 @@ class FormationNotificationService {
 
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_keyPendingPayload, payload);
-    debugPrint(
-      '[FormationNotification] pending payload set=$payload from background',
-    );
   }
 
   Future<String?> initialize() async {
-    debugPrint(
-      '[FormationNotification] initialize start, initialized=$_initialized',
-    );
     _registerNativeTapHandler();
     if (_initialized) return null;
 
@@ -120,44 +112,19 @@ class FormationNotificationService {
       onDidReceiveBackgroundNotificationResponse:
           formationNotificationTapBackground,
     );
-    debugPrint(
-      '[FormationNotification] plugin initialize result=$initializeResult',
-    );
     if (initializeResult != true) return null;
-
-    debugPrint(
-      '[FormationNotification] plugin initialized with response callback',
-    );
 
     _initialized = true;
 
     final launchDetails =
         await _notifications.getNotificationAppLaunchDetails();
-    debugPrint(
-      '[FormationNotification] didNotificationLaunchApp='
-      '${launchDetails?.didNotificationLaunchApp}',
-    );
-    debugPrint(
-      '[FormationNotification] launch payload='
-      '${launchDetails?.notificationResponse?.payload}',
-    );
     if ((launchDetails?.didNotificationLaunchApp ?? false) &&
         launchDetails?.notificationResponse?.payload != null) {
       final payload = launchDetails!.notificationResponse!.payload!;
-      unawaited(
-        _setPendingPayload(
-          payload,
-          source: 'cold start',
-          emitToStream: false,
-        ),
-      );
-      debugPrint(
-        '[FormationNotification] pending payload saved from cold start: '
-        'payload=$payload',
-      );
       return payload;
     }
 
+    await clearPendingPayload();
     return null;
   }
 
@@ -174,16 +141,12 @@ class FormationNotificationService {
       );
     });
     _nativeTapHandlerRegistered = true;
-    debugPrint('[FormationNotification] native tap channel registered');
   }
 
   void handleNotificationResponse(
     String? payload, {
     required String source,
   }) {
-    debugPrint(
-      '[FormationNotification] $source payload=$payload',
-    );
     if (payload == null || payload.isEmpty) return;
 
     unawaited(
@@ -203,14 +166,6 @@ class FormationNotificationService {
     _pendingPayload = payload;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_keyPendingPayload, payload);
-    debugPrint(
-      '[FormationNotification] pending payload set=$payload from $source',
-    );
-    debugPrint(
-      '[FormationNotification] pending payload saved to preferences from '
-      '$source: '
-      'payload=$payload',
-    );
     if (emitToStream) {
       _payloadController.add(payload);
     }
@@ -273,10 +228,6 @@ class FormationNotificationService {
     await _requestPermissions();
 
     final reminderTime = await getReminderTime();
-    debugPrint(
-      '[FormationNotification] scheduleDailyReminder: '
-      'time=${reminderTime.formatted}, payload=$formationPayload',
-    );
     await _notifications.zonedSchedule(
       id: _notificationId,
       title: 'Droga naśladowania',

@@ -58,11 +58,17 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
       DateTime.now(),
     );
     final totalDays = await _challengeService.getTotalDays();
+    final lastCompletedDay = await _progressService.getLastCompletedDay();
+    final isTodayCompleted = await _progressService.isDayCompleted(
+      day.dayNumber,
+    );
 
     return _FormationChallengeViewState(
       isStarted: true,
       day: day,
       totalDays: totalDays,
+      lastCompletedDay: lastCompletedDay,
+      isTodayCompleted: isTodayCompleted,
       reminderEnabled: reminderEnabled,
       reminderTime: reminderTime,
     );
@@ -84,6 +90,17 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
     await _progressService.resetChallenge();
     if (!mounted) return;
     await _refresh();
+  }
+
+  Future<void> _markDayCompleted(FormationChallengeDay day) async {
+    await _progressService.markDayCompleted(day.dayNumber);
+    if (!mounted) return;
+
+    await _refresh();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Dzień oznaczony jako ukończony.')),
+    );
   }
 
   Future<void> _addReflectionToJournal(
@@ -115,6 +132,8 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
         ),
       ),
     );
+    if (!mounted) return;
+    await _refresh();
   }
 
   Future<void> _setReminderEnabled(bool enabled) async {
@@ -258,6 +277,8 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
                 ),
               ],
               const SizedBox(height: 20),
+              _buildProgressSection(context, state),
+              const SizedBox(height: 20),
               _buildReminderSection(context, state),
               const SizedBox(height: 20),
               Text(
@@ -289,6 +310,22 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
                   icon: const Icon(Icons.self_improvement),
                   label: const Text('Rozpocznij medytację'),
                 ),
+                const SizedBox(height: 8),
+                FilledButton.tonalIcon(
+                  onPressed: state.isTodayCompleted
+                      ? null
+                      : () => _markDayCompleted(day),
+                  icon: Icon(
+                    state.isTodayCompleted
+                        ? Icons.check_circle
+                        : Icons.check_circle_outline,
+                  ),
+                  label: Text(
+                    state.isTodayCompleted
+                        ? 'Dzisiejszy dzień ukończony'
+                        : 'Oznacz dzień jako ukończony',
+                  ),
+                ),
                 Align(
                   alignment: Alignment.centerRight,
                   child: TextButton.icon(
@@ -302,6 +339,47 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildProgressSection(
+    BuildContext context,
+    _FormationChallengeViewState state,
+  ) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final totalDays = state.totalDays ?? 0;
+    final completedDays = state.lastCompletedDay.clamp(0, totalDays);
+    final progress = totalDays == 0 ? 0.0 : completedDays / totalDays;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: colorScheme.surface.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: colorScheme.primary.withValues(alpha: 0.25),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          LinearProgressIndicator(value: progress),
+          const SizedBox(height: 12),
+          Text(
+            'Ukończono $completedDays z $totalDays dni',
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+          const SizedBox(height: 6),
+          Text(
+            state.isTodayCompleted
+                ? 'Dzisiejszy dzień jest ukończony.'
+                : 'Dzisiejszy dzień nie jest jeszcze ukończony.',
+            style: TextStyle(
+              color: colorScheme.onSurface.withValues(alpha: 0.75),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -384,6 +462,8 @@ class _FormationChallengeViewState {
   final bool isStarted;
   final FormationChallengeDay? day;
   final int? totalDays;
+  final int lastCompletedDay;
+  final bool isTodayCompleted;
   final bool reminderEnabled;
   final FormationReminderTime reminderTime;
 
@@ -391,6 +471,8 @@ class _FormationChallengeViewState {
     required this.isStarted,
     required this.reminderEnabled,
     required this.reminderTime,
+    this.lastCompletedDay = 0,
+    this.isTodayCompleted = false,
     this.day,
     this.totalDays,
   });
