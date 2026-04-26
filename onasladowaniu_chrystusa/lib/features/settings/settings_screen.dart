@@ -306,6 +306,98 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
+  void _showWhatsNewSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (sheetContext) {
+        final colorScheme = Theme.of(sheetContext).colorScheme;
+
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.new_releases_outlined,
+                        size: 32,
+                        color: colorScheme.primary,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Co nowego',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              'Wersja 1.0.0',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: colorScheme.onSurface.withValues(
+                                  alpha: 0.65,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  const _WhatsNewItem(
+                    title: 'Droga naśladowania',
+                    description:
+                        'Codzienna ścieżka formacyjna z fragmentem dnia, medytacją, postępem i dziennikiem refleksji.',
+                  ),
+                  const _WhatsNewItem(
+                    title: 'Medytacja',
+                    description:
+                        'Dodano timer medytacji z możliwością ustawienia czasu.',
+                  ),
+                  const _WhatsNewItem(
+                    title: 'Przypomnienia',
+                    description:
+                        'Możesz ustawić codzienne przypomnienie o Drodze naśladowania.',
+                  ),
+                  const _WhatsNewItem(
+                    title: 'Wyszukiwanie',
+                    description:
+                        'Dodano globalne wyszukiwanie w książce, zakładkach, ulubionych cytatach i dzienniku.',
+                  ),
+                  const _WhatsNewItem(
+                    title: 'Kopie zapasowe',
+                    description:
+                        'Kopie zapasowe obejmują teraz także dane Drogi naśladowania.',
+                  ),
+                  const SizedBox(height: 8),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton(
+                      onPressed: () => Navigator.of(sheetContext).pop(),
+                      child: const Text('Zamknij'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   Widget _buildFormationSettingsSection(BuildContext context) {
     return FutureBuilder<_FormationSettingsState>(
       future: _formationSettingsFuture,
@@ -527,6 +619,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                   icon: const Icon(Icons.coffee),
                                   label: const Text('Wesprzyj projekt'),
                                 ),
+                                OutlinedButton.icon(
+                                  onPressed: () =>
+                                      _showWhatsNewSheet(context),
+                                  icon: const Icon(
+                                    Icons.new_releases_outlined,
+                                  ),
+                                  label: const Text('Co nowego'),
+                                ),
                               ],
                             ),
 
@@ -566,4 +666,44 @@ class _FormationSettingsState {
     required this.reminderEnabled,
     required this.reminderTime,
   });
+}
+
+class _WhatsNewItem extends StatelessWidget {
+  final String title;
+  final String description;
+
+  const _WhatsNewItem({
+    required this.title,
+    required this.description,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            description,
+            style: TextStyle(
+              fontSize: 13,
+              height: 1.35,
+              color: colorScheme.onSurface.withValues(alpha: 0.8),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
