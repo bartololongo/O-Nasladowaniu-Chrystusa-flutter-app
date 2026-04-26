@@ -68,6 +68,7 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
       isStarted: true,
       day: day,
       totalDays: totalDays,
+      startDate: startDate,
       days: days,
       completedDays: completedDays,
       lastCompletedDay: lastCompletedDay,
@@ -694,6 +695,10 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
         .length;
     final progress = totalDays == 0 ? 0.0 : completedDays / totalDays;
     final progressPercent = (progress * 100).round();
+    final startDate = state.startDate;
+    final plannedEndDate = startDate == null || totalDays == 0
+        ? null
+        : startDate.add(Duration(days: totalDays - 1));
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -737,6 +742,18 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
             'Postęp',
             '$progressPercent%',
           ),
+          const SizedBox(height: 6),
+          _buildSummaryRow(
+            context,
+            'Rozpoczęto',
+            startDate == null ? '—' : _formatDate(startDate),
+          ),
+          const SizedBox(height: 6),
+          _buildSummaryRow(
+            context,
+            'Planowane zakończenie',
+            plannedEndDate == null ? '—' : _formatDate(plannedEndDate),
+          ),
           const SizedBox(height: 12),
           Text(
             activeDayStatusText,
@@ -747,6 +764,14 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
         ],
       ),
     );
+  }
+
+  String _formatDate(DateTime date) {
+    final local = date.toLocal();
+    final year = local.year.toString().padLeft(4, '0');
+    final month = local.month.toString().padLeft(2, '0');
+    final day = local.day.toString().padLeft(2, '0');
+    return '$year-$month-$day';
   }
 
   Widget _buildSummaryRow(
@@ -815,6 +840,7 @@ class _FormationChallengeViewState {
   final bool isStarted;
   final FormationChallengeDay? day;
   final int? totalDays;
+  final DateTime? startDate;
   final List<FormationChallengeDay> days;
   final Set<int> completedDays;
   final int lastCompletedDay;
@@ -828,6 +854,7 @@ class _FormationChallengeViewState {
     this.isTodayCompleted = false,
     this.day,
     this.totalDays,
+    this.startDate,
   });
 }
 
