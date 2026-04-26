@@ -5,6 +5,8 @@ class FormationChallengeProgressService {
   static const String _keyStartedAt = 'formation_challenge_started_at';
   static const String _keyLastCompletedDay =
       'formation_challenge_last_completed_day';
+  static const String _keyCompletedDays =
+      'formation_challenge_completed_days_v1';
 
   Future<bool> isStarted() async {
     final prefs = await SharedPreferences.getInstance();
@@ -32,6 +34,7 @@ class FormationChallengeProgressService {
     await prefs.remove(_keyIsStarted);
     await prefs.remove(_keyStartedAt);
     await prefs.remove(_keyLastCompletedDay);
+    await prefs.remove(_keyCompletedDays);
   }
 
   Future<int> getLastCompletedDay() async {
@@ -39,16 +42,44 @@ class FormationChallengeProgressService {
     return prefs.getInt(_keyLastCompletedDay) ?? 0;
   }
 
-  Future<void> markDayCompleted(int dayNumber) async {
+  Future<Set<int>> getCompletedDays() async {
     final prefs = await SharedPreferences.getInstance();
-    final lastCompletedDay = await getLastCompletedDay();
-    if (dayNumber <= lastCompletedDay) return;
+    final stored = prefs.getStringList(_keyCompletedDays);
 
-    await prefs.setInt(_keyLastCompletedDay, dayNumber);
+    if (stored == null) {
+      final legacyLastCompletedDay = await getLastCompletedDay();
+      if (legacyLastCompletedDay <= 0) return <int>{};
+      return <int>{legacyLastCompletedDay};
+    }
+
+    return stored
+        .map(int.tryParse)
+        .whereType<int>()
+        .where((dayNumber) => dayNumber > 0)
+        .toSet();
+  }
+
+  Future<void> markDayCompleted(int dayNumber) async {
+    if (dayNumber <= 0) return;
+
+    final prefs = await SharedPreferences.getInstance();
+    final completedDays = await getCompletedDays();
+    completedDays.add(dayNumber);
+
+    final sortedDays = completedDays.toList()..sort();
+    await prefs.setStringList(
+      _keyCompletedDays,
+      sortedDays.map((day) => day.toString()).toList(),
+    );
+
+    final lastCompletedDay = await getLastCompletedDay();
+    if (dayNumber > lastCompletedDay) {
+      await prefs.setInt(_keyLastCompletedDay, dayNumber);
+    }
   }
 
   Future<bool> isDayCompleted(int dayNumber) async {
-    final lastCompletedDay = await getLastCompletedDay();
-    return dayNumber <= lastCompletedDay;
+    final completedDays = await getCompletedDays();
+    return completedDays.contains(dayNumber);
   }
 }

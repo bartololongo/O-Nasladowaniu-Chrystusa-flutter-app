@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../shared/models/formation_challenge_models.dart';
 import '../../shared/services/formation_challenge_progress_service.dart';
 import '../../shared/services/formation_challenge_service.dart';
+import '../../shared/services/journal_service.dart';
 import 'formation_journal_helpers.dart';
 import 'formation_meditation_screen.dart';
 
@@ -19,8 +20,11 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
       FormationChallengeService();
   final FormationChallengeProgressService _progressService =
       FormationChallengeProgressService();
+  final JournalService _journalService = JournalService();
 
   late Future<_FormationChallengeViewState> _stateFuture;
+  _FormationChallengeTab _selectedTab = _FormationChallengeTab.today;
+  FormationChallengeDay? _activeDayOverride;
 
   @override
   void initState() {
@@ -48,15 +52,17 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
       DateTime.now(),
     );
     final totalDays = await _challengeService.getTotalDays();
+    final days = await _challengeService.getDays();
     final lastCompletedDay = await _progressService.getLastCompletedDay();
-    final isTodayCompleted = await _progressService.isDayCompleted(
-      day.dayNumber,
-    );
+    final completedDays = await _progressService.getCompletedDays();
+    final isTodayCompleted = completedDays.contains(day.dayNumber);
 
     return _FormationChallengeViewState(
       isStarted: true,
       day: day,
       totalDays: totalDays,
+      days: days,
+      completedDays: completedDays,
       lastCompletedDay: lastCompletedDay,
       isTodayCompleted: isTodayCompleted,
     );
@@ -206,100 +212,422 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
       );
     }
 
+    final activeDay = _activeDayOverride ?? day;
+    final isActiveDayCompleted = state.completedDays.contains(
+      activeDay.dayNumber,
+    );
+    final isMakeUpDay = activeDay.dayNumber < day.dayNumber;
+
     return Column(
       children: [
-        Expanded(
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+          child: Row(
             children: [
-              Text(
-                'Dzień ${day.dayNumber} z $totalDays',
-                style: Theme.of(context).textTheme.titleMedium,
+              ChoiceChip(
+                label: const Text('Dziś'),
+                selected: _selectedTab == _FormationChallengeTab.today,
+                onSelected: (selected) {
+                  if (!selected) return;
+                  setState(() {
+                    _selectedTab = _FormationChallengeTab.today;
+                    _activeDayOverride = null;
+                  });
+                },
               ),
-              const SizedBox(height: 12),
-              Text(
-                day.bookTitle,
-                style: Theme.of(context).textTheme.bodyMedium,
-              ),
-              const SizedBox(height: 4),
-              Text(
-                day.chapterTitle,
-                style: const TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w600,
-                  height: 1.2,
-                ),
-              ),
-              if (day.chapterReference.isNotEmpty) ...[
-                const SizedBox(height: 6),
-                Text(
-                  day.chapterReference,
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-              ],
-              const SizedBox(height: 20),
-              _buildProgressSection(context, state),
-              const SizedBox(height: 20),
-              Text(
-                day.text,
-                style: const TextStyle(
-                  fontSize: 17,
-                  height: 1.55,
-                ),
+              const SizedBox(width: 8),
+              ChoiceChip(
+                label: const Text('Dni'),
+                selected: _selectedTab == _FormationChallengeTab.days,
+                onSelected: (selected) {
+                  if (!selected) return;
+                  setState(() {
+                    _selectedTab = _FormationChallengeTab.days;
+                  });
+                },
               ),
             ],
           ),
         ),
-        SafeArea(
-          top: false,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                ElevatedButton.icon(
-                  onPressed: () => _addReflectionToJournal(day, totalDays),
-                  icon: const Icon(Icons.edit_note),
-                  label: const Text('Dodaj refleksję do dziennika'),
-                ),
-                const SizedBox(height: 8),
-                OutlinedButton.icon(
-                  onPressed: () => _openMeditation(day, totalDays),
-                  icon: const Icon(Icons.self_improvement),
-                  label: const Text('Rozpocznij medytację'),
-                ),
-                const SizedBox(height: 8),
-                FilledButton.tonalIcon(
-                  onPressed: state.isTodayCompleted
-                      ? null
-                      : () => _markDayCompleted(day),
-                  icon: Icon(
-                    state.isTodayCompleted
-                        ? Icons.check_circle
-                        : Icons.check_circle_outline,
+        Expanded(
+          child: _selectedTab == _FormationChallengeTab.today
+              ? _buildTodayView(
+                  context,
+                  state,
+                  activeDay,
+                  totalDays,
+                  isMakeUpDay: isMakeUpDay,
+                  isActiveDayCompleted: isActiveDayCompleted,
+                )
+              : _buildDaysView(context, state),
+        ),
+        if (_selectedTab == _FormationChallengeTab.today)
+          SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  ElevatedButton.icon(
+                    onPressed: () =>
+                        _addReflectionToJournal(activeDay, totalDays),
+                    icon: const Icon(Icons.edit_note),
+                    label: const Text('Dodaj refleksję do dziennika'),
                   ),
-                  label: Text(
-                    state.isTodayCompleted
-                        ? 'Dzisiejszy dzień ukończony'
-                        : 'Oznacz dzień jako ukończony',
+                  const SizedBox(height: 8),
+                  OutlinedButton.icon(
+                    onPressed: () => _openMeditation(activeDay, totalDays),
+                    icon: const Icon(Icons.self_improvement),
+                    label: const Text('Rozpocznij medytację'),
                   ),
-                ),
-              ],
+                  const SizedBox(height: 8),
+                  FilledButton.tonalIcon(
+                    onPressed: isActiveDayCompleted
+                        ? null
+                        : () => _markDayCompleted(activeDay),
+                    icon: Icon(
+                      isActiveDayCompleted
+                          ? Icons.check_circle
+                          : Icons.check_circle_outline,
+                    ),
+                    label: Text(
+                      isActiveDayCompleted
+                          ? 'Ten dzień jest ukończony'
+                          : 'Oznacz dzień jako ukończony',
+                    ),
+                  ),
+                ],
+              ),
             ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildTodayView(
+    BuildContext context,
+    _FormationChallengeViewState state,
+    FormationChallengeDay day,
+    int totalDays, {
+    required bool isMakeUpDay,
+    required bool isActiveDayCompleted,
+  }) {
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+      children: [
+        Text(
+          'Dzień ${day.dayNumber} z $totalDays',
+          style: Theme.of(context).textTheme.titleMedium,
+        ),
+        const SizedBox(height: 12),
+        Text(
+          day.bookTitle,
+          style: Theme.of(context).textTheme.bodyMedium,
+        ),
+        const SizedBox(height: 4),
+        Text(
+          day.chapterTitle,
+          style: const TextStyle(
+            fontSize: 22,
+            fontWeight: FontWeight.w600,
+            height: 1.2,
+          ),
+        ),
+        if (day.chapterReference.isNotEmpty) ...[
+          const SizedBox(height: 6),
+          Text(
+            day.chapterReference,
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ],
+        if (isMakeUpDay) ...[
+          const SizedBox(height: 10),
+          Text(
+            isActiveDayCompleted
+                ? 'Dzień nadrobiony'
+                : 'Dzień do nadrobienia',
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.primary,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+        const SizedBox(height: 20),
+        _buildProgressSection(
+          context,
+          state,
+          activeDayStatusText: _activeDayStatusText(
+            isMakeUpDay: isMakeUpDay,
+            isActiveDayCompleted: isActiveDayCompleted,
+          ),
+        ),
+        const SizedBox(height: 20),
+        Text(
+          day.text,
+          style: const TextStyle(
+            fontSize: 17,
+            height: 1.55,
           ),
         ),
       ],
     );
   }
 
-  Widget _buildProgressSection(
+  Widget _buildDaysView(
     BuildContext context,
     _FormationChallengeViewState state,
   ) {
+    final days = state.days;
+    final today = state.day;
+    final totalDays = state.totalDays ?? days.length;
+
+    if (today == null || days.isEmpty) {
+      return const Center(
+        child: Text('Nie udało się wczytać listy dni.'),
+      );
+    }
+
+    return ListView.separated(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+      itemCount: days.length,
+      separatorBuilder: (context, index) => const SizedBox(height: 4),
+      itemBuilder: (context, index) {
+        final item = days[index];
+        final isFuture = item.dayNumber > today.dayNumber;
+        final isPast = item.dayNumber < today.dayNumber;
+        final isCompleted = state.completedDays.contains(item.dayNumber);
+        final isToday = item.dayNumber == today.dayNumber;
+        final isUnlocked = !isFuture;
+        final status = _dayStatusLabel(
+          isToday: isToday,
+          isPast: isPast,
+          isCompleted: isCompleted,
+        );
+        final icon = isCompleted
+            ? Icons.check_circle
+            : isToday
+                ? Icons.radio_button_checked
+                : isFuture
+                    ? Icons.lock_outline
+                    : Icons.history;
+        final colorScheme = Theme.of(context).colorScheme;
+        final iconColor = isUnlocked
+            ? colorScheme.primary
+            : colorScheme.onSurface.withValues(alpha: 0.45);
+
+        return ListTile(
+          leading: Icon(icon, color: iconColor),
+          title: Text('Dzień ${item.dayNumber}'),
+          subtitle: Text(
+            '${item.chapterTitle}\n${item.chapterReference}',
+          ),
+          isThreeLine: true,
+          trailing: Text(
+            status,
+            style: TextStyle(
+              color: isUnlocked
+                  ? colorScheme.primary
+                  : colorScheme.onSurface.withValues(alpha: 0.6),
+              fontSize: 12,
+            ),
+          ),
+          onTap: () => _openDayPreview(
+            item,
+            totalDays,
+            isUnlocked: isUnlocked,
+            isCompleted: isCompleted,
+            isToday: isToday,
+            isCurrentDayCompleted: state.isTodayCompleted,
+          ),
+        );
+      },
+    );
+  }
+
+  String _activeDayStatusText({
+    required bool isMakeUpDay,
+    required bool isActiveDayCompleted,
+  }) {
+    if (isMakeUpDay && isActiveDayCompleted) {
+      return 'Ten dzień jest ukończony.';
+    }
+    if (isMakeUpDay) {
+      return 'Ten dzień jest do nadrobienia.';
+    }
+    if (isActiveDayCompleted) {
+      return 'Dzisiejszy dzień jest ukończony.';
+    }
+    return 'Dzisiejszy dzień nie jest jeszcze ukończony.';
+  }
+
+  String _dayStatusLabel({
+    required bool isToday,
+    required bool isPast,
+    required bool isCompleted,
+  }) {
+    if (isToday && isCompleted) return 'Dziś · Ukończony';
+    if (isToday) return 'Dziś';
+    if (isPast && isCompleted) return 'Ukończony';
+    if (isPast) return 'Do nadrobienia';
+    return 'Przed Tobą';
+  }
+
+  Future<void> _openDayPreview(
+    FormationChallengeDay day,
+    int totalDays, {
+    required bool isUnlocked,
+    required bool isCompleted,
+    required bool isToday,
+    required bool isCurrentDayCompleted,
+  }) async {
+    if (!isUnlocked) {
+      final message = isCurrentDayCompleted
+          ? 'Ten dzień jest jeszcze przed Tobą. Wróć jutro, aby kontynuować Drogę.'
+          : 'Ten dzień jest jeszcze przed Tobą. Ukończ dzisiejszy dzień, aby kontynuować Drogę.';
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+        ),
+      );
+      return;
+    }
+
+    if (!isCompleted || isToday) {
+      setState(() {
+        _activeDayOverride = isToday ? null : day;
+        _selectedTab = _FormationChallengeTab.today;
+      });
+      return;
+    }
+
+    final reflection = await _findFormationReflection(day);
+    if (!mounted) return;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (sheetContext) {
+        final colorScheme = Theme.of(sheetContext).colorScheme;
+
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    'Dzień ${day.dayNumber} z $totalDays',
+                    style: Theme.of(sheetContext).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    day.bookTitle,
+                    style: Theme.of(sheetContext).textTheme.bodyMedium,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    day.chapterTitle,
+                    style: const TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w600,
+                      height: 1.2,
+                    ),
+                  ),
+                  if (day.chapterReference.isNotEmpty) ...[
+                    const SizedBox(height: 6),
+                    Text(
+                      day.chapterReference,
+                      style: Theme.of(sheetContext).textTheme.bodySmall,
+                    ),
+                  ],
+                  const SizedBox(height: 18),
+                  Text(
+                    day.text,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      height: 1.5,
+                    ),
+                  ),
+                  const SizedBox(height: 22),
+                  Text(
+                    'Moja refleksja',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: colorScheme.primary,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    reflection ?? 'Brak zapisanej refleksji dla tego dnia.',
+                    style: TextStyle(
+                      height: 1.45,
+                      color: reflection == null
+                          ? colorScheme.onSurface.withValues(alpha: 0.7)
+                          : null,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton(
+                      onPressed: () => Navigator.of(sheetContext).pop(),
+                      child: const Text('Zamknij'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<String?> _findFormationReflection(FormationChallengeDay day) async {
+    final entries = await _journalService.getEntries();
+    final matchingEntries = entries
+        .where(
+          (entry) =>
+              entry.quoteRef == day.chapterReference &&
+              entry.content.contains('Droga naśladowania'),
+        )
+        .toList()
+      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
+    for (final entry in matchingEntries) {
+      final reflection = _extractReflection(entry.content);
+      if (reflection != null && reflection.isNotEmpty) {
+        return reflection;
+      }
+    }
+
+    if (matchingEntries.isEmpty) return null;
+    return _extractReflection(matchingEntries.first.content);
+  }
+
+  String? _extractReflection(String content) {
+    const marker = 'Moja refleksja:';
+    final markerIndex = content.indexOf(marker);
+    if (markerIndex == -1) return content.trim();
+
+    final reflection = content.substring(markerIndex + marker.length).trim();
+    return reflection.isEmpty ? null : reflection;
+  }
+
+  Widget _buildProgressSection(
+    BuildContext context,
+    _FormationChallengeViewState state, {
+    required String activeDayStatusText,
+  }) {
     final colorScheme = Theme.of(context).colorScheme;
     final totalDays = state.totalDays ?? 0;
-    final completedDays = state.lastCompletedDay.clamp(0, totalDays);
+    final completedDays = state.completedDays.length.clamp(0, totalDays);
     final progress = totalDays == 0 ? 0.0 : completedDays / totalDays;
 
     return Container(
@@ -322,9 +650,7 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
           ),
           const SizedBox(height: 6),
           Text(
-            state.isTodayCompleted
-                ? 'Dzisiejszy dzień jest ukończony.'
-                : 'Dzisiejszy dzień nie jest jeszcze ukończony.',
+            activeDayStatusText,
             style: TextStyle(
               color: colorScheme.onSurface.withValues(alpha: 0.75),
             ),
@@ -375,14 +701,23 @@ class _FormationChallengeViewState {
   final bool isStarted;
   final FormationChallengeDay? day;
   final int? totalDays;
+  final List<FormationChallengeDay> days;
+  final Set<int> completedDays;
   final int lastCompletedDay;
   final bool isTodayCompleted;
 
   const _FormationChallengeViewState({
     required this.isStarted,
+    this.days = const [],
+    this.completedDays = const {},
     this.lastCompletedDay = 0,
     this.isTodayCompleted = false,
     this.day,
     this.totalDays,
   });
+}
+
+enum _FormationChallengeTab {
+  today,
+  days,
 }
