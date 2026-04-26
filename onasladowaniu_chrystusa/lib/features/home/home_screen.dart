@@ -1,14 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../../shared/services/reading_challenge_service.dart';
 import '../../shared/services/book_repository.dart';
 import '../../shared/models/book_models.dart';
 import '../../shared/services/preferences_service.dart';
 import '../../shared/services/favorites_service.dart';
 import '../../shared/services/journal_service.dart';
 
-import '../challenge/reading_challenge_screen.dart';
 import '../formation_challenge/formation_challenge_screen.dart';
 import '../journal/journal_screen.dart';
 import '../favorites/favorites_screen.dart';
@@ -39,14 +37,9 @@ class _HomeScreenState extends State<HomeScreen>
   final PreferencesService _prefs = PreferencesService();
   final FavoritesService _favoritesService = FavoritesService();
   final JournalService _journalService = JournalService();
-  final ReadingChallengeService _challengeService = ReadingChallengeService();
   final BookRepository _bookRepository = BookRepository();
 
   String? _lastChapterRef;
-  ReadingChallengeState? _challengeState;
-
-  int? _totalChapters;
-  int? _furthestChapterIndex;
 
   // --- Wsparcie / BuyMeACoffee ---
   static const String _supportUrl =
@@ -59,7 +52,6 @@ class _HomeScreenState extends State<HomeScreen>
   void initState() {
     super.initState();
     _loadLastChapterRef();
-    _loadChallengeState();
 
     _supportAnimController = AnimationController(
       vsync: this,
@@ -90,70 +82,6 @@ class _HomeScreenState extends State<HomeScreen>
     });
   }
 
-  Future<void> _loadChallengeState() async {
-    final state = await _challengeService.getState();
-    if (!mounted) return;
-    setState(() {
-      _challengeState = state;
-    });
-    await _loadChallengeProgress(state);
-  }
-
-  Future<void> _loadChallengeProgress(ReadingChallengeState state) async {
-    if (!state.isActive || state.furthestChapterRef == null) {
-      if (!mounted) return;
-      setState(() {
-        _totalChapters = null;
-        _furthestChapterIndex = null;
-      });
-      return;
-    }
-
-    try {
-      final collection = await _bookRepository.getCollection();
-      int total = 0;
-      int index = 0;
-      int? furthestIndex;
-
-      for (final book in collection.books) {
-        for (final chapter in book.chapters) {
-          index++;
-          total++;
-          if (chapter.reference == state.furthestChapterRef) {
-            furthestIndex = index;
-          }
-        }
-      }
-
-      if (!mounted) return;
-      setState(() {
-        _totalChapters = total;
-        _furthestChapterIndex = furthestIndex;
-      });
-    } catch (_) {}
-  }
-
-  Future<void> _openChallengeScreen() async {
-    await Navigator.of(context).push(
-      MaterialPageRoute(
-        settings: const RouteSettings(name: '/challenge'),
-        builder: (_) => ReadingChallengeScreen(
-          onNavigateToTab: widget.onNavigateToTab,
-        ),
-      ),
-    );
-
-    if (!mounted) return;
-
-    final state = await _challengeService.getState();
-    if (!mounted) return;
-    setState(() {
-      _challengeState = state;
-    });
-    await _loadChallengeProgress(state);
-    await _loadLastChapterRef();
-  }
-
   Future<void> _openFormationChallengeScreen() async {
     await Navigator.of(context).push(
       MaterialPageRoute(
@@ -163,42 +91,6 @@ class _HomeScreenState extends State<HomeScreen>
         ),
       ),
     );
-  }
-
-  String _formatDate(DateTime dt) {
-    final local = dt.toLocal();
-    String two(int v) => v.toString().padLeft(2, '0');
-    final y = local.year.toString().padLeft(4, '0');
-    final m = two(local.month);
-    final d = two(local.day);
-    return '$y-$m-$d';
-  }
-
-  String get _challengeSubtitle {
-    final state = _challengeState;
-
-    if (state == null) {
-      return 'Sprawdzanie statusu wyzwania...';
-    }
-
-    if (!state.isActive) {
-      return 'Rozpocznij wyzwanie i stopniowo przeczytaj całą książkę.';
-    }
-
-    final startedStr = _formatDate(state.startedAt!);
-
-    if (_lastChapterRef == null || _lastChapterRef!.isEmpty) {
-      return 'Wyzwanie aktywne od $startedStr. Zacznij od Księgi I, rozdziału 1.';
-    }
-
-    final parts = _lastChapterRef!.split('-');
-    if (parts.length == 2) {
-      final bookCode = parts[0];
-      final chapterNumber = parts[1];
-      return 'Wyzwanie od $startedStr. Obecnie: Księga $bookCode, rozdział $chapterNumber.';
-    }
-
-    return 'Wyzwanie od $startedStr. Obecnie: rozdział $_lastChapterRef.';
   }
 
   String get _continueReadingSubtitle {
@@ -214,17 +106,6 @@ class _HomeScreenState extends State<HomeScreen>
     }
 
     return 'Rozdział $_lastChapterRef';
-  }
-
-  double get _challengeProgressValue {
-    if (_totalChapters == null ||
-        _totalChapters == 0 ||
-        _furthestChapterIndex == null) {
-      return 0.0;
-    }
-    final value = _furthestChapterIndex! / _totalChapters!;
-    if (value.isNaN || value.isInfinite) return 0.0;
-    return value.clamp(0.0, 1.0);
   }
 
   Future<void> _showRandomQuoteBottomSheet() async {
@@ -553,8 +434,6 @@ class _HomeScreenState extends State<HomeScreen>
             const SizedBox(height: 12),
             _buildFormationChallengeCard(context),
             const SizedBox(height: 12),
-            _buildChallengeCard(context),
-            const SizedBox(height: 12),
             _buildRandomQuoteCard(context),
             const SizedBox(height: 12),
             _buildSupportCard(context),
@@ -672,133 +551,6 @@ class _HomeScreenState extends State<HomeScreen>
               ),
             ),
             const Icon(Icons.chevron_right),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildChallengeCard(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final state = _challengeState;
-    final isActive = state?.isActive ?? false;
-
-    double progress = 0.0;
-    String progressLabel = '';
-
-    if (isActive) {
-      if (_totalChapters != null &&
-          _totalChapters! > 0 &&
-          _furthestChapterIndex != null) {
-        progress = _challengeProgressValue;
-        final percent = (progress * 100).round();
-        progressLabel =
-            'Postęp: $_furthestChapterIndex / $_totalChapters ($percent%)';
-      } else {
-        progressLabel = 'Obliczanie postępu...';
-      }
-    }
-
-    return InkWell(
-      borderRadius: BorderRadius.circular(16),
-      onTap: () async {
-        final currentState = _challengeState;
-
-        if (currentState == null || !currentState.isActive) {
-          const startRef = 'I-1';
-
-          await _challengeService.startChallenge();
-          await _prefs.saveLastChapterRef(startRef);
-          await _prefs.setJumpChapterRef(startRef);
-          await _challengeService.updateFurthestChapter(startRef);
-
-          final newState = await _challengeService.getState();
-          if (!mounted) return;
-          setState(() {
-            _challengeState = newState;
-            _lastChapterRef = startRef;
-          });
-          await _loadChallengeProgress(newState);
-
-          if (!mounted) return;
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Rozpoczęto wyzwanie: Czytaj całość od początku.'),
-            ),
-          );
-        }
-
-        widget.onNavigateToTab?.call(1);
-      },
-      onLongPress: _openChallengeScreen,
-      child: Container(
-        decoration: BoxDecoration(
-          color: colorScheme.surface.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: colorScheme.primary.withOpacity(0.3),
-          ),
-        ),
-        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.flag,
-                  size: 32,
-                  color: colorScheme.primary,
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Wyzwanie: Czytaj całość',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        _challengeSubtitle,
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: colorScheme.onSurface.withOpacity(0.7),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const Icon(Icons.chevron_right),
-              ],
-            ),
-            if (isActive) ...[
-              const SizedBox(height: 8),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(999),
-                child: LinearProgressIndicator(
-                  value: progress,
-                  minHeight: 4,
-                  backgroundColor:
-                      colorScheme.onSurface.withOpacity(0.15),
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                progressLabel,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: colorScheme.onSurface.withOpacity(0.7),
-                ),
-              ),
-            ],
           ],
         ),
       ),
