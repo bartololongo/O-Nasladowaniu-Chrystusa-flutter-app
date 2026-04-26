@@ -5,6 +5,7 @@ import '../../shared/services/preferences_service.dart';
 import '../../shared/services/favorites_service.dart';
 import '../../shared/models/reader_user_models.dart';
 import '../../shared/models/book_models.dart';
+import '../../shared/widgets/section_header.dart';
 
 class JournalScreen extends StatefulWidget {
   final void Function(int tabIndex)? onNavigateToTab;
@@ -472,9 +473,6 @@ class _JournalScreenState extends State<JournalScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Dziennik duchowy'),
-      ),
       floatingActionButton: FloatingActionButton(
         onPressed: _addManualEntry,
         tooltip: 'Nowy wpis',
@@ -483,165 +481,186 @@ class _JournalScreenState extends State<JournalScreen> {
       body: FutureBuilder<List<JournalEntry>>(
         future: _entriesFuture,
         builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snapshot.hasError) {
-            return Center(
-              child: Text(
-                'Błąd wczytywania dziennika:\n${snapshot.error}',
-                textAlign: TextAlign.center,
-              ),
-            );
-          }
+          return SafeArea(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const SectionHeader(
+                  title: 'Dziennik duchowy',
+                  subtitle: 'Twoje refleksje i notatki z lektury.',
+                  icon: Icons.edit_note,
+                  showBackButton: true,
+                ),
+                Expanded(
+                  child: _buildEntriesContent(context, snapshot),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
 
-          final entries = snapshot.data ?? [];
-          if (entries.isEmpty) {
-            return const Center(
-              child: Padding(
-                padding: EdgeInsets.symmetric(horizontal: 32.0),
-                child: Text(
-                  'Brak wpisów w dzienniku.\n\n'
-                  'Dodaj pierwszy wpis z losowego cytatu, z czytnika\n'
-                  'albo za pomocą przycisku „+” w prawym dolnym rogu.',
-                  textAlign: TextAlign.center,
+  Widget _buildEntriesContent(
+    BuildContext context,
+    AsyncSnapshot<List<JournalEntry>> snapshot,
+  ) {
+    if (snapshot.connectionState == ConnectionState.waiting) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (snapshot.hasError) {
+      return Center(
+        child: Text(
+          'Błąd wczytywania dziennika:\n${snapshot.error}',
+          textAlign: TextAlign.center,
+        ),
+      );
+    }
+
+    final entries = snapshot.data ?? [];
+    if (entries.isEmpty) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.symmetric(horizontal: 32.0),
+          child: Text(
+            'Brak wpisów w dzienniku.\n\n'
+            'Dodaj pierwszy wpis z losowego cytatu, z czytnika\n'
+            'albo za pomocą przycisku „+” w prawym dolnym rogu.',
+            textAlign: TextAlign.center,
+          ),
+        ),
+      );
+    }
+
+    final colorScheme = Theme.of(context).colorScheme;
+
+    _scheduleInitialEntryReveal(entries);
+
+    return RefreshIndicator(
+      onRefresh: _refresh,
+      child: ListView.separated(
+        controller: _scrollController,
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        itemCount: entries.length,
+        separatorBuilder: (_, _) => const SizedBox(height: 8),
+        itemBuilder: (context, index) {
+          final e = entries[index];
+          final isHighlighted = e.id == _highlightedEntryId;
+
+          return KeyedSubtree(
+            key: _keyForEntry(e.id),
+            child: Dismissible(
+              key: ValueKey(e.id),
+              direction: DismissDirection.horizontal,
+              // Przeciągnięcie w prawo – EDYCJA
+              background: Container(
+                alignment: Alignment.centerLeft,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                color: colorScheme.primary.withOpacity(0.8),
+                child: const Row(
+                  children: [
+                    Icon(Icons.edit, color: Colors.white),
+                    SizedBox(width: 8),
+                    Text(
+                      'Edytuj',
+                      style: TextStyle(color: Colors.white),
+                    ),
+                  ],
                 ),
               ),
-            );
-          }
-
-          final colorScheme = Theme.of(context).colorScheme;
-
-          _scheduleInitialEntryReveal(entries);
-
-          return RefreshIndicator(
-            onRefresh: _refresh,
-            child: ListView.separated(
-              controller: _scrollController,
-              padding: const EdgeInsets.all(16),
-              itemCount: entries.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 8),
-              itemBuilder: (context, index) {
-                final e = entries[index];
-                final isHighlighted = e.id == _highlightedEntryId;
-
-                return KeyedSubtree(
-                  key: _keyForEntry(e.id),
-                  child: Dismissible(
-                    key: ValueKey(e.id),
-                    direction: DismissDirection.horizontal,
-                    // Przeciągnięcie w prawo – EDYCJA
-                    background: Container(
-                      alignment: Alignment.centerLeft,
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      color: colorScheme.primary.withOpacity(0.8),
-                      child: const Row(
-                        children: [
-                          Icon(Icons.edit, color: Colors.white),
-                          SizedBox(width: 8),
-                          Text(
-                            'Edytuj',
-                            style: TextStyle(color: Colors.white),
-                          ),
-                        ],
-                      ),
+              // Przeciągnięcie w lewo – USUWANIE
+              secondaryBackground: Container(
+                alignment: Alignment.centerRight,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                color: Theme.of(context).colorScheme.error,
+                child: const Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    Text(
+                      'Usuń',
+                      style: TextStyle(color: Colors.white),
                     ),
-                    // Przeciągnięcie w lewo – USUWANIE
-                    secondaryBackground: Container(
-                      alignment: Alignment.centerRight,
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      color: Theme.of(context).colorScheme.error,
-                      child: const Row(
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        children: [
-                          Text(
-                            'Usuń',
-                            style: TextStyle(color: Colors.white),
+                    SizedBox(width: 8),
+                    Icon(Icons.delete, color: Colors.white),
+                  ],
+                ),
+              ),
+              confirmDismiss: (direction) async {
+                if (direction == DismissDirection.startToEnd) {
+                  // EDYCJA
+                  await _editEntry(e);
+                  // Nie usuwamy elementu z listy via Dismissible
+                  return false;
+                } else if (direction == DismissDirection.endToStart) {
+                  // USUWANIE – jak dotychczas
+                  return await showDialog<bool>(
+                        context: context,
+                        builder: (ctx) => AlertDialog(
+                          title: const Text('Usuń wpis dziennika'),
+                          content: const Text(
+                            'Na pewno chcesz usunąć ten wpis?',
                           ),
-                          SizedBox(width: 8),
-                          Icon(Icons.delete, color: Colors.white),
-                        ],
-                      ),
-                    ),
-                    confirmDismiss: (direction) async {
-                      if (direction == DismissDirection.startToEnd) {
-                        // EDYCJA
-                        await _editEntry(e);
-                        // Nie usuwamy elementu z listy via Dismissible
-                        return false;
-                      } else if (direction == DismissDirection.endToStart) {
-                        // USUWANIE – jak dotychczas
-                        return await showDialog<bool>(
-                              context: context,
-                              builder: (ctx) => AlertDialog(
-                                title: const Text('Usuń wpis dziennika'),
-                                content: const Text(
-                                  'Na pewno chcesz usunąć ten wpis?',
-                                ),
-                                actions: [
-                                  TextButton(
-                                    onPressed: () =>
-                                        Navigator.of(ctx).pop(false),
-                                    child: const Text('Anuluj'),
-                                  ),
-                                  TextButton(
-                                    onPressed: () =>
-                                        Navigator.of(ctx).pop(true),
-                                    child: const Text('Usuń'),
-                                  ),
-                                ],
-                              ),
-                            ) ??
-                            false;
-                      }
-                      return false;
-                    },
-                    onDismissed: (direction) {
-                      if (direction == DismissDirection.endToStart) {
-                        _deleteEntry(e);
-                      }
-                    },
-                    child: ListTile(
-                      tileColor: isHighlighted
-                          ? colorScheme.primary.withValues(alpha: 0.12)
-                          : null,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      onTap: () => _openEntryDetails(e),
-                      title: Text(
-                        _formatDateTime(e.createdAt),
-                        style: const TextStyle(fontWeight: FontWeight.w600),
-                      ),
-                      subtitle: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          if (e.quoteText != null &&
-                              e.quoteText!.trim().isNotEmpty) ...[
-                            Text(
-                              e.quoteText!,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontStyle: FontStyle.italic,
-                                color: colorScheme.onSurface.withOpacity(0.8),
-                              ),
+                          actions: [
+                            TextButton(
+                              onPressed: () =>
+                                  Navigator.of(ctx).pop(false),
+                              child: const Text('Anuluj'),
                             ),
-                            const SizedBox(height: 4),
+                            TextButton(
+                              onPressed: () => Navigator.of(ctx).pop(true),
+                              child: const Text('Usuń'),
+                            ),
                           ],
-                          Text(
-                            e.content,
-                            maxLines: 3,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
-                      ),
-                      isThreeLine: true,
-                      trailing: const Icon(Icons.chevron_right),
-                    ),
-                  ),
-                );
+                        ),
+                      ) ??
+                      false;
+                }
+                return false;
               },
+              onDismissed: (direction) {
+                if (direction == DismissDirection.endToStart) {
+                  _deleteEntry(e);
+                }
+              },
+              child: ListTile(
+                tileColor: isHighlighted
+                    ? colorScheme.primary.withValues(alpha: 0.12)
+                    : null,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                onTap: () => _openEntryDetails(e),
+                title: Text(
+                  _formatDateTime(e.createdAt),
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+                subtitle: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (e.quoteText != null &&
+                        e.quoteText!.trim().isNotEmpty) ...[
+                      Text(
+                        e.quoteText!,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontStyle: FontStyle.italic,
+                          color: colorScheme.onSurface.withOpacity(0.8),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                    ],
+                    Text(
+                      e.content,
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+                isThreeLine: true,
+                trailing: const Icon(Icons.chevron_right),
+              ),
             ),
           );
         },

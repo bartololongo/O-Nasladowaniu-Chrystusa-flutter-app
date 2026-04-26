@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../shared/services/favorites_service.dart';
 import '../../shared/services/preferences_service.dart';
 import '../../shared/models/reader_user_models.dart';
+import '../../shared/widgets/section_header.dart';
 
 class FavoritesScreen extends StatefulWidget {
   final void Function(int tabIndex)? onNavigateToTab;
@@ -100,119 +101,140 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Ulubione cytaty'),
-      ),
       body: FutureBuilder<List<FavoriteQuote>>(
         future: _favoritesFuture,
         builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snapshot.hasError) {
-            return Center(
-              child: Text(
-                'Błąd wczytywania ulubionych:\n${snapshot.error}',
-                textAlign: TextAlign.center,
-              ),
-            );
-          }
+          return SafeArea(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const SectionHeader(
+                  title: 'Ulubione cytaty',
+                  subtitle: 'Zapisane fragmenty, do których chcesz wracać.',
+                  icon: Icons.format_quote,
+                  showBackButton: true,
+                ),
+                Expanded(
+                  child: _buildContent(context, snapshot),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
 
-          final favorites = snapshot.data ?? [];
-          if (favorites.isEmpty) {
-            return const Center(
-              child: Text(
-                'Brak ulubionych cytatów.\nPrzytrzymaj dłużej akapit w czytniku, aby dodać pierwszy.',
-                textAlign: TextAlign.center,
-              ),
-            );
-          }
+  Widget _buildContent(
+    BuildContext context,
+    AsyncSnapshot<List<FavoriteQuote>> snapshot,
+  ) {
+    if (snapshot.connectionState == ConnectionState.waiting) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (snapshot.hasError) {
+      return Center(
+        child: Text(
+          'Błąd wczytywania ulubionych:\n${snapshot.error}',
+          textAlign: TextAlign.center,
+        ),
+      );
+    }
 
-          return RefreshIndicator(
-            onRefresh: _refresh,
-            child: ListView.separated(
-              padding: const EdgeInsets.all(16),
-              itemCount: favorites.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 8),
-              itemBuilder: (context, index) {
-                final f = favorites[index];
-                return Dismissible(
-                  key: ValueKey(f.id),
-                  direction: DismissDirection.endToStart,
-                  background: Container(
-                    alignment: Alignment.centerRight,
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    color: Theme.of(context).colorScheme.error,
-                    child: const Icon(Icons.delete, color: Colors.white),
-                  ),
-                  confirmDismiss: (direction) async {
-                    return await showDialog<bool>(
-                          context: context,
-                          builder: (ctx) => AlertDialog(
-                            title: const Text('Usuń ulubiony cytat'),
-                            content: const Text(
-                                'Na pewno chcesz usunąć ten cytat z ulubionych?'),
-                            actions: [
-                              TextButton(
-                                onPressed: () =>
-                                    Navigator.of(ctx).pop(false),
-                                child: const Text('Anuluj'),
-                              ),
-                              TextButton(
-                                onPressed: () =>
-                                    Navigator.of(ctx).pop(true),
-                                child: const Text('Usuń'),
-                              ),
-                            ],
-                          ),
-                        ) ??
-                        false;
-                  },
-                  onDismissed: (_) => _deleteFavorite(f),
-                  child: ListTile(
-                    onTap: () => _openFavorite(f),
-                    title: Text(
-                      _formatRef(f.paragraphRef),
-                      style: const TextStyle(fontWeight: FontWeight.w600),
-                    ),
-                    subtitle: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          f.text,
-                          maxLines: 3,
-                          overflow: TextOverflow.ellipsis,
+    final favorites = snapshot.data ?? [];
+    if (favorites.isEmpty) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(24),
+          child: Text(
+            'Brak ulubionych cytatów.\nPrzytrzymaj dłużej akapit w czytniku, aby dodać pierwszy.',
+            textAlign: TextAlign.center,
+          ),
+        ),
+      );
+    }
+
+    return RefreshIndicator(
+      onRefresh: _refresh,
+      child: ListView.separated(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        itemCount: favorites.length,
+        separatorBuilder: (_, _) => const SizedBox(height: 8),
+        itemBuilder: (context, index) {
+          final f = favorites[index];
+          return Dismissible(
+            key: ValueKey(f.id),
+            direction: DismissDirection.endToStart,
+            background: Container(
+              alignment: Alignment.centerRight,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              color: Theme.of(context).colorScheme.error,
+              child: const Icon(Icons.delete, color: Colors.white),
+            ),
+            confirmDismiss: (direction) async {
+              return await showDialog<bool>(
+                    context: context,
+                    builder: (ctx) => AlertDialog(
+                      title: const Text('Usuń ulubiony cytat'),
+                      content: const Text(
+                        'Na pewno chcesz usunąć ten cytat z ulubionych?',
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.of(ctx).pop(false),
+                          child: const Text('Anuluj'),
                         ),
-                        const SizedBox(height: 4),
-                        if (f.note != null && f.note!.isNotEmpty)
-                          Text(
-                            'Notatka: ${f.note}',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .onSurface
-                                  .withOpacity(0.7),
-                            ),
-                          ),
-                        const SizedBox(height: 2),
-                        Text(
-                          'Dodano: ${_formatDateTime(f.createdAt)}',
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: Theme.of(context)
-                                .colorScheme
-                                .onSurface
-                                .withOpacity(0.6),
-                          ),
+                        TextButton(
+                          onPressed: () => Navigator.of(ctx).pop(true),
+                          child: const Text('Usuń'),
                         ),
                       ],
                     ),
-                    isThreeLine: true,
-                    trailing: const Icon(Icons.chevron_right),
+                  ) ??
+                  false;
+            },
+            onDismissed: (_) => _deleteFavorite(f),
+            child: ListTile(
+              onTap: () => _openFavorite(f),
+              title: Text(
+                _formatRef(f.paragraphRef),
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+              subtitle: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    f.text,
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                );
-              },
+                  const SizedBox(height: 4),
+                  if (f.note != null && f.note!.isNotEmpty)
+                    Text(
+                      'Notatka: ${f.note}',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Theme.of(context)
+                            .colorScheme
+                            .onSurface
+                            .withOpacity(0.7),
+                      ),
+                    ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Dodano: ${_formatDateTime(f.createdAt)}',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: Theme.of(context)
+                          .colorScheme
+                          .onSurface
+                          .withOpacity(0.6),
+                    ),
+                  ),
+                ],
+              ),
+              isThreeLine: true,
+              trailing: const Icon(Icons.chevron_right),
             ),
           );
         },

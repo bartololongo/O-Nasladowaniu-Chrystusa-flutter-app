@@ -9,6 +9,7 @@ import 'package:share_plus/share_plus.dart';
 
 import '../../shared/services/backup_service.dart';
 import '../../shared/services/formation_notification_service.dart';
+import '../../shared/widgets/section_header.dart';
 
 class BackupScreen extends StatefulWidget {
   const BackupScreen({super.key});
@@ -187,22 +188,22 @@ class _BackupScreenState extends State<BackupScreen> {
     final isDisabled = _isBusy;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Kopia danych'),
-      ),
-      body: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 24, 16, 16),
+      body: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Text(
-              'Backup danych aplikacji',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-              ),
+            const SectionHeader(
+              title: 'Kopia danych',
+              subtitle: 'Eksportuj i przywracaj swoje dane.',
+              icon: Icons.cloud_download_outlined,
+              showBackButton: true,
             ),
-            const SizedBox(height: 8),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
             const Text(
               'Tutaj możesz wyeksportować swój dziennik, ulubione, zakładki, '
               'postęp Drogi naśladowania, czas medytacji, przypomnienia oraz '
@@ -236,6 +237,10 @@ class _BackupScreenState extends State<BackupScreen> {
               'zakładki, postęp Drogi naśladowania, czas medytacji, '
               'przypomnienia i preferencje czytnika.',
               style: TextStyle(fontSize: 12, height: 1.3),
+            ),
+                  ],
+                ),
+              ),
             ),
           ],
         ),

@@ -4,6 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../shared/services/formation_challenge_progress_service.dart';
 import '../../shared/services/formation_meditation_settings_service.dart';
 import '../../shared/services/formation_notification_service.dart';
+import '../../shared/widgets/section_header.dart';
 import 'backup_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -374,175 +375,196 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Ustawienia'),
-      ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          // TODO: Przywrócić, gdy dodamy osobny ekran ustawień czytnika.
-          // const ListTile(
-          //   leading: Icon(Icons.text_fields),
-          //   title: Text('Czcionka czytania'),
-          //   subtitle: Text('Ustawienia rozmiaru i stylu czcionki'),
-          // ),
-          // const Divider(),
+      body: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.only(bottom: 16),
+          children: [
+            const SectionHeader(
+              title: 'Ustawienia',
+              subtitle: 'Dostosuj aplikację do swojego sposobu korzystania.',
+              icon: Icons.settings,
+              showBackButton: true,
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Column(
+                children: [
+                  // TODO: Przywrócić, gdy dodamy osobny ekran ustawień czytnika.
+                  // const ListTile(
+                  //   leading: Icon(Icons.text_fields),
+                  //   title: Text('Czcionka czytania'),
+                  //   subtitle: Text('Ustawienia rozmiaru i stylu czcionki'),
+                  // ),
+                  // const Divider(),
 
-          ListTile(
-            leading: const Icon(Icons.cloud_download_outlined),
-            title: const Text('Kopia danych (eksport/import)'),
-            subtitle: const Text('Zapisz lub przywróć dane aplikacji'),
-            onTap: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => const BackupScreen(),
-                ),
-              );
-            },
-          ),
-          const Divider(),
-          _buildFormationSettingsSection(context),
-          const Divider(),
-          ListTile(
-            leading: const Icon(Icons.info_outline),
-            title: const Text('O aplikacji'),
-            subtitle: const Text('Informacje, autor, licencja'),
-            onTap: () {
-              showModalBottomSheet(
-                context: context,
-                isScrollControlled: false,
-                builder: (sheetContext) {
-                  final colorScheme = Theme.of(sheetContext).colorScheme;
-
-                  return SafeArea(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-                      child: SingleChildScrollView(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            Row(
-                              children: [
-                                Icon(
-                                  Icons.menu_book,
-                                  size: 32,
-                                  color: colorScheme.primary,
-                                ),
-                                const SizedBox(width: 12),
-                                const Expanded(
-                                  child: Text(
-                                    'O naśladowaniu Chrystusa',
-                                    style: TextStyle(
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              'Wersja 1.0.0',
-                              style: TextStyle(
-                                fontSize: 13,
-                                color:
-                                    colorScheme.onSurface.withOpacity(0.7),
-                              ),
-                            ),
-                            const SizedBox(height: 16),
-                            const Text(
-                              'Przejdź przez „O\u00A0naśladowaniu Chrystusa” dzień po dniu '
-                              'w\u00A0Drodze naśladowania. Otrzymasz fragment dnia, medytację, '
-                              'miejsce na refleksję, postęp i\u00A0przypomnienia. Aplikacja zawiera '
-                              'też czytnik, zakładki, ulubione cytaty oraz wyszukiwanie.',
-                              style: TextStyle(fontSize: 14, height: 1.4),
-                            ),
-                            const SizedBox(height: 12),
-                            Text(
-                              'Autor: Bartłomiej Kozak vel Bartolo Longo',
-                              style: TextStyle(
-                                fontSize: 13,
-                                color:
-                                    colorScheme.onSurface.withOpacity(0.8),
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              'Tekst książki: domena publiczna / zgodnie z prawami autorskimi zastosowanego '
-                              'tłumaczenia.',
-                              style: TextStyle(
-                                fontSize: 11,
-                                height: 1.3,
-                                color:
-                                    colorScheme.onSurface.withOpacity(0.6),
-                              ),
-                            ),
-                            const SizedBox(height: 16),
-                            const Text(
-                              'Jeśli aplikacja jest dla Ciebie pomocna i chcesz wesprzeć '
-                              'jej rozwój, możesz postawić mi „wirtualną kawę”. 😊',
-                              style: TextStyle(fontSize: 13, height: 1.4),
-                            ),
-                            const SizedBox(height: 16),
-
-                            // Dwa główne przyciski
-                            Wrap(
-                              spacing: 8,
-                              runSpacing: 8,
-                              children: [
-                                ElevatedButton.icon(
-                                  onPressed: () => _launchUrl(
-                                    context,
-                                    _projectUrl,
-                                    failMessage:
-                                        'Nie udało się otworzyć strony projektu.',
-                                  ),
-                                  icon: const Icon(Icons.info_outline),
-                                  label: const Text('O projekcie'),
-                                ),
-                                ElevatedButton.icon(
-                                  onPressed: () => _launchUrl(
-                                    context,
-                                    _supportUrl,
-                                    failMessage:
-                                        'Nie udało się otworzyć strony wsparcia.',
-                                  ),
-                                  icon: const Icon(Icons.coffee),
-                                  label: const Text('Wesprzyj projekt'),
-                                ),
-                                OutlinedButton.icon(
-                                  onPressed: () =>
-                                      _showWhatsNewSheet(context),
-                                  icon: const Icon(
-                                    Icons.new_releases_outlined,
-                                  ),
-                                  label: const Text('Co nowego'),
-                                ),
-                              ],
-                            ),
-
-                            const SizedBox(height: 8),
-
-                            // Zamknij na samym dole
-                            Align(
-                              alignment: Alignment.centerRight,
-                              child: TextButton(
-                                onPressed: () =>
-                                    Navigator.of(sheetContext).pop(),
-                                child: const Text('Zamknij'),
-                              ),
-                            ),
-                          ],
+                  ListTile(
+                    leading: const Icon(Icons.cloud_download_outlined),
+                    title: const Text('Kopia danych (eksport/import)'),
+                    subtitle: const Text('Zapisz lub przywróć dane aplikacji'),
+                    onTap: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => const BackupScreen(),
                         ),
-                      ),
-                    ),
-                  );
-                },
-              );
-            },
-          ),
-        ],
+                      );
+                    },
+                  ),
+                  const Divider(),
+                  _buildFormationSettingsSection(context),
+                  const Divider(),
+                  ListTile(
+                    leading: const Icon(Icons.info_outline),
+                    title: const Text('O aplikacji'),
+                    subtitle: const Text('Informacje, autor, licencja'),
+                    onTap: () {
+                      showModalBottomSheet(
+                        context: context,
+                        isScrollControlled: false,
+                        builder: (sheetContext) {
+                          final colorScheme =
+                              Theme.of(sheetContext).colorScheme;
+
+                          return SafeArea(
+                            child: Padding(
+                              padding:
+                                  const EdgeInsets.fromLTRB(16, 16, 16, 24),
+                              child: SingleChildScrollView(
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Icon(
+                                          Icons.menu_book,
+                                          size: 32,
+                                          color: colorScheme.primary,
+                                        ),
+                                        const SizedBox(width: 12),
+                                        const Expanded(
+                                          child: Text(
+                                            'O naśladowaniu Chrystusa',
+                                            style: TextStyle(
+                                              fontSize: 18,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      'Wersja 1.0.0',
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        color: colorScheme.onSurface
+                                            .withOpacity(0.7),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 16),
+                                    const Text(
+                                      'Przejdź przez „O\u00A0naśladowaniu Chrystusa” dzień po dniu '
+                                      'w\u00A0Drodze naśladowania. Otrzymasz fragment dnia, medytację, '
+                                      'miejsce na refleksję, postęp i\u00A0przypomnienia. Aplikacja zawiera '
+                                      'też czytnik, zakładki, ulubione cytaty oraz wyszukiwanie.',
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        height: 1.4,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 12),
+                                    Text(
+                                      'Autor: Bartłomiej Kozak vel Bartolo Longo',
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        color: colorScheme.onSurface
+                                            .withOpacity(0.8),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      'Tekst książki: domena publiczna / zgodnie z prawami autorskimi zastosowanego '
+                                      'tłumaczenia.',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        height: 1.3,
+                                        color: colorScheme.onSurface
+                                            .withOpacity(0.6),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 16),
+                                    const Text(
+                                      'Jeśli aplikacja jest dla Ciebie pomocna i chcesz wesprzeć '
+                                      'jej rozwój, możesz postawić mi „wirtualną kawę”. 😊',
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        height: 1.4,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 16),
+
+                                    // Dwa główne przyciski
+                                    Wrap(
+                                      spacing: 8,
+                                      runSpacing: 8,
+                                      children: [
+                                        ElevatedButton.icon(
+                                          onPressed: () => _launchUrl(
+                                            context,
+                                            _projectUrl,
+                                            failMessage:
+                                                'Nie udało się otworzyć strony projektu.',
+                                          ),
+                                          icon: const Icon(Icons.info_outline),
+                                          label: const Text('O projekcie'),
+                                        ),
+                                        ElevatedButton.icon(
+                                          onPressed: () => _launchUrl(
+                                            context,
+                                            _supportUrl,
+                                            failMessage:
+                                                'Nie udało się otworzyć strony wsparcia.',
+                                          ),
+                                          icon: const Icon(Icons.coffee),
+                                          label: const Text('Wesprzyj projekt'),
+                                        ),
+                                        OutlinedButton.icon(
+                                          onPressed: () =>
+                                              _showWhatsNewSheet(context),
+                                          icon: const Icon(
+                                            Icons.new_releases_outlined,
+                                          ),
+                                          label: const Text('Co nowego'),
+                                        ),
+                                      ],
+                                    ),
+
+                                    const SizedBox(height: 8),
+
+                                    // Zamknij na samym dole
+                                    Align(
+                                      alignment: Alignment.centerRight,
+                                      child: TextButton(
+                                        onPressed: () =>
+                                            Navigator.of(sheetContext).pop(),
+                                        child: const Text('Zamknij'),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
