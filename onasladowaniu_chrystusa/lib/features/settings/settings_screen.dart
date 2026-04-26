@@ -1,9 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../../shared/services/reading_challenge_service.dart';
-import '../../shared/services/preferences_service.dart';
-import '../../shared/services/book_repository.dart';
 import '../../shared/services/formation_challenge_progress_service.dart';
 import '../../shared/services/formation_meditation_settings_service.dart';
 import '../../shared/services/formation_notification_service.dart';
@@ -55,104 +52,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     setState(() {
       _formationSettingsFuture = _loadFormationSettings();
     });
-  }
-
-  Future<void> _resetReadingChallenge(BuildContext context) async {
-    final confirmed = await showModalBottomSheet<bool>(
-          context: context,
-          isScrollControlled: false,
-          builder: (sheetContext) {
-            final colorScheme = Theme.of(sheetContext).colorScheme;
-
-            return SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.flag,
-                          size: 32,
-                          color: colorScheme.primary,
-                        ),
-                        const SizedBox(width: 12),
-                        const Expanded(
-                          child: Text(
-                            'Zresetować wyzwanie?',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    const Text(
-                      'Spowoduje to wyczyszczenie postępu „Czytaj całość” '
-                      'i rozpoczęcie wyzwania od początku książki.\n\n'
-                      'Twoje zakładki, ulubione i dziennik pozostaną bez zmian.',
-                      style: TextStyle(fontSize: 14, height: 1.4),
-                    ),
-                    const SizedBox(height: 16),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        TextButton(
-                          onPressed: () =>
-                              Navigator.of(sheetContext).pop(false),
-                          child: const Text('Anuluj'),
-                        ),
-                        const SizedBox(width: 8),
-                        ElevatedButton.icon(
-                          onPressed: () =>
-                              Navigator.of(sheetContext).pop(true),
-                          icon: const Icon(Icons.refresh),
-                          label: const Text('Resetuj'),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
-        ) ??
-        false;
-
-    if (!confirmed) return;
-
-    final challengeService = ReadingChallengeService();
-    final prefs = PreferencesService();
-    final bookRepository = BookRepository();
-
-    try {
-      final firstChapter = await bookRepository.getFirstChapter();
-      final startRef = firstChapter.reference;
-
-      await challengeService.resetChallenge();
-      await challengeService.startChallenge();
-      await challengeService.updateFurthestChapter(startRef);
-
-      await prefs.saveLastChapterRef(startRef);
-      await prefs.setJumpChapterRef(startRef);
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content:
-              Text('Wyzwanie zresetowane. Zaczynasz od początku książki.'),
-        ),
-      );
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Nie udało się zresetować wyzwania: $e'),
-        ),
-      );
-    }
   }
 
   Future<void> _changeMeditationDuration(int currentMinutes) async {
@@ -500,13 +399,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
               );
             },
-          ),
-          const Divider(),
-          ListTile(
-            leading: const Icon(Icons.flag),
-            title: const Text('Wyzwanie: Czytaj całość'),
-            subtitle: const Text('Zresetuj postęp i zacznij od początku'),
-            onTap: () => _resetReadingChallenge(context),
           ),
           const Divider(),
           _buildFormationSettingsSection(context),
