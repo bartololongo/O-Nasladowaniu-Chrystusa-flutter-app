@@ -3,7 +3,6 @@ import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart'; // <- dla RenderBox
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
@@ -44,36 +43,44 @@ class _BackupScreenState extends State<BackupScreen> {
 
       await file.writeAsString(prettyJson, encoding: utf8);
 
-      // >>> FIX: obliczamy sharePositionOrigin na podstawie aktualnego kontekstu
+      if (!mounted) return;
+
       final box = context.findRenderObject() as RenderBox?;
       final origin = box != null
           ? box.localToGlobal(Offset.zero) & box.size
           : const Rect.fromLTWH(0, 0, 1, 1);
 
-      await Share.shareXFiles(
-        [
-          XFile(
-            file.path,
-            mimeType: 'application/json',
-            name: fileName,
-          ),
-        ],
-        subject: 'Kopia danych – O naśladowaniu Chrystusa',
-        text:
-            'Załączony plik zawiera kopię danych z aplikacji „O naśladowaniu Chrystusa”.',
-        sharePositionOrigin: origin,
+      await SharePlus.instance.share(
+        ShareParams(
+          files: [
+            XFile(
+              file.path,
+              mimeType: 'application/json',
+              name: fileName,
+            ),
+          ],
+          subject: 'Kopia danych – O naśladowaniu Chrystusa',
+          text:
+              'Załączony plik zawiera kopię danych z aplikacji „O naśladowaniu Chrystusa”.',
+          sharePositionOrigin: origin,
+        ),
       );
-      // <<< FIX KONIEC
+
+      if (!mounted) return;
 
       messenger.showSnackBar(
         const SnackBar(
           content: Text('Kopia danych została utworzona.'),
         ),
       );
-    } catch (e) {
+    } catch (_) {
+      if (!mounted) return;
+
       messenger.showSnackBar(
-        SnackBar(
-          content: Text('Nie udało się wyeksportować danych: $e'),
+        const SnackBar(
+          content: Text(
+            'Nie udało się udostępnić kopii zapasowej. Spróbuj ponownie.',
+          ),
         ),
       );
     } finally {
