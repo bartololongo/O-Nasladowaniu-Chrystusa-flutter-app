@@ -63,6 +63,11 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
     final lastCompletedDay = await _progressService.getLastCompletedDay();
     final completedDays = await _progressService.getCompletedDays();
     final isTodayCompleted = completedDays.contains(day.dayNumber);
+    final journalEntries = await _journalService.getEntries();
+    final reflectionsByChapterRef = _buildFormationReflectionsByChapterRef(
+      days,
+      journalEntries,
+    );
 
     return _FormationChallengeViewState(
       isStarted: true,
@@ -71,6 +76,7 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
       startDate: startDate,
       days: days,
       completedDays: completedDays,
+      reflectionsByChapterRef: reflectionsByChapterRef,
       lastCompletedDay: lastCompletedDay,
       isTodayCompleted: isTodayCompleted,
     );
@@ -110,9 +116,74 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
     );
 
     if (!mounted || !saved) return;
+    await _refresh();
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Refleksja dodana do dziennika.')),
     );
+  }
+
+  Future<void> _editFormationReflection(
+    _FormationReflection reflection,
+  ) async {
+    const marker = 'Moja refleksja:';
+    final entry = reflection.entry;
+    final markerIndex = entry.content.indexOf(marker);
+    if (markerIndex == -1) return;
+
+    final contentPrefix =
+        entry.content.substring(0, markerIndex + marker.length).trim();
+    final controller = TextEditingController(text: reflection.text);
+
+    try {
+      final updatedText = await showDialog<String>(
+        context: context,
+        builder: (dialogContext) {
+          return AlertDialog(
+            title: const Text('Edytuj refleksję'),
+            content: TextField(
+              controller: controller,
+              autofocus: true,
+              minLines: 4,
+              maxLines: 8,
+              decoration: const InputDecoration(
+                hintText: 'Wpisz swoją refleksję...',
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(),
+                child: const Text('Anuluj'),
+              ),
+              ElevatedButton(
+                onPressed: () =>
+                    Navigator.of(dialogContext).pop(controller.text.trim()),
+                child: const Text('Zapisz'),
+              ),
+            ],
+          );
+        },
+      );
+
+      if (updatedText == null) return;
+
+      final updatedContent = '$contentPrefix\n$updatedText';
+      if (updatedContent == entry.content) return;
+
+      await _journalService.updateEntryContent(
+        id: entry.id,
+        content: updatedContent,
+      );
+      if (!mounted) return;
+
+      await _refresh();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Refleksja zaktualizowana.')),
+      );
+    } finally {
+      controller.dispose();
+    }
   }
 
   Future<void> _openMeditation(
@@ -237,6 +308,8 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
       activeDay.dayNumber,
     );
     final isMakeUpDay = activeDay.dayNumber < day.dayNumber;
+    final activeReflection =
+        state.reflectionsByChapterRef[activeDay.chapterReference];
 
     return Column(
       children: [
@@ -286,6 +359,7 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
                 context,
                 activeDay,
                 totalDays,
+                reflection: activeReflection,
                 isMakeUpDay: isMakeUpDay,
                 isActiveDayCompleted: isActiveDayCompleted,
               ),
@@ -303,38 +377,25 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   ElevatedButton.icon(
-                    onPressed: () =>
-                        _addReflectionToJournal(activeDay, totalDays),
+                    onPressed: activeReflection == null
+                        ? () => _addReflectionToJournal(activeDay, totalDays)
+                        : () => _editFormationReflection(activeReflection),
                     icon: const Icon(Icons.edit_note),
-                    label: const Text('Dodaj refleksję do dziennika'),
-                  ),
-                  const SizedBox(height: 8),
-                  OutlinedButton.icon(
-                    onPressed: () => _openDayInReader(activeDay),
-                    icon: const Icon(Icons.menu_book),
-                    label: const Text('Zobacz w książce'),
-                  ),
-                  const SizedBox(height: 8),
-                  OutlinedButton.icon(
-                    onPressed: () => _openMeditation(activeDay, totalDays),
-                    icon: const Icon(Icons.self_improvement),
-                    label: const Text('Rozpocznij medytację'),
-                  ),
-                  const SizedBox(height: 8),
-                  FilledButton.tonalIcon(
-                    onPressed: isActiveDayCompleted
-                        ? null
-                        : () => _markDayCompleted(activeDay),
-                    icon: Icon(
-                      isActiveDayCompleted
-                          ? Icons.check_circle
-                          : Icons.check_circle_outline,
-                    ),
                     label: Text(
-                      isActiveDayCompleted
-                          ? 'Ten dzień jest ukończony'
-                          : 'Oznacz dzień jako ukończony',
+                      activeReflection == null
+                          ? 'Dodaj refleksję do dziennika'
+                          : 'Edytuj refleksję',
                     ),
+                  ),
+                  const SizedBox(height: 8),
+                  OutlinedButton.icon(
+                    onPressed: () => _showDayActionsSheet(
+                      activeDay,
+                      totalDays,
+                      isActiveDayCompleted: isActiveDayCompleted,
+                    ),
+                    icon: const Icon(Icons.more_horiz),
+                    label: const Text('Więcej opcji'),
                   ),
                 ],
               ),
@@ -348,6 +409,7 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
     BuildContext context,
     FormationChallengeDay day,
     int totalDays, {
+    required _FormationReflection? reflection,
     required bool isMakeUpDay,
     required bool isActiveDayCompleted,
   }) {
@@ -384,6 +446,16 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
             ),
           ),
         ],
+        if (isActiveDayCompleted) ...[
+          const SizedBox(height: 10),
+          Text(
+            'Ten dzień jest ukończony.',
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.primary,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
         const SizedBox(height: 20),
         Text(
           day.text,
@@ -392,7 +464,103 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
             height: 1.55,
           ),
         ),
+        if (reflection != null) ...[
+          const SizedBox(height: 24),
+          Text(
+            'Moja refleksja',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: Theme.of(context).colorScheme.primary,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            reflection.text,
+            style: const TextStyle(height: 1.45),
+          ),
+        ],
       ],
+    );
+  }
+
+  Future<void> _showDayActionsSheet(
+    FormationChallengeDay day,
+    int totalDays, {
+    required bool isActiveDayCompleted,
+  }) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      Icons.more_horiz,
+                      color: Theme.of(sheetContext).colorScheme.primary,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Akcje dnia',
+                      style: Theme.of(sheetContext).textTheme.titleMedium,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                ListTile(
+                  leading: const Icon(Icons.menu_book),
+                  title: const Text('Zobacz w książce'),
+                  onTap: () async {
+                    Navigator.of(sheetContext).pop();
+                    await _openDayInReader(day);
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.self_improvement),
+                  title: const Text('Rozpocznij medytację'),
+                  onTap: () async {
+                    Navigator.of(sheetContext).pop();
+                    await _openMeditation(day, totalDays);
+                  },
+                ),
+                ListTile(
+                  enabled: !isActiveDayCompleted,
+                  leading: Icon(
+                    isActiveDayCompleted
+                        ? Icons.check_circle
+                        : Icons.check_circle_outline,
+                  ),
+                  title: Text(
+                    isActiveDayCompleted
+                        ? 'Ten dzień jest ukończony'
+                        : 'Oznacz dzień jako ukończony',
+                  ),
+                  onTap: isActiveDayCompleted
+                      ? null
+                      : () async {
+                          Navigator.of(sheetContext).pop();
+                          await _markDayCompleted(day);
+                        },
+                ),
+                const SizedBox(height: 8),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton(
+                    onPressed: () => Navigator.of(sheetContext).pop(),
+                    child: const Text('Zamknij'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -646,6 +814,29 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
 
   Future<String?> _findFormationReflection(FormationChallengeDay day) async {
     final entries = await _journalService.getEntries();
+    return _findLatestFormationReflection(day, entries)?.text;
+  }
+
+  Map<String, _FormationReflection> _buildFormationReflectionsByChapterRef(
+    List<FormationChallengeDay> days,
+    List<JournalEntry> entries,
+  ) {
+    final reflections = <String, _FormationReflection>{};
+
+    for (final day in days) {
+      final reflection = _findLatestFormationReflection(day, entries);
+      if (reflection != null) {
+        reflections[day.chapterReference] = reflection;
+      }
+    }
+
+    return reflections;
+  }
+
+  _FormationReflection? _findLatestFormationReflection(
+    FormationChallengeDay day,
+    List<JournalEntry> entries,
+  ) {
     final matchingEntries = entries
         .where(
           (entry) =>
@@ -658,12 +849,11 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
     for (final entry in matchingEntries) {
       final reflection = _extractReflection(entry.content);
       if (reflection != null && reflection.isNotEmpty) {
-        return reflection;
+        return _FormationReflection(entry: entry, text: reflection);
       }
     }
 
-    if (matchingEntries.isEmpty) return null;
-    return _extractReflection(matchingEntries.first.content);
+    return null;
   }
 
   String? _extractReflection(String content) {
@@ -843,6 +1033,7 @@ class _FormationChallengeViewState {
   final DateTime? startDate;
   final List<FormationChallengeDay> days;
   final Set<int> completedDays;
+  final Map<String, _FormationReflection> reflectionsByChapterRef;
   final int lastCompletedDay;
   final bool isTodayCompleted;
 
@@ -850,11 +1041,22 @@ class _FormationChallengeViewState {
     required this.isStarted,
     this.days = const [],
     this.completedDays = const {},
+    this.reflectionsByChapterRef = const {},
     this.lastCompletedDay = 0,
     this.isTodayCompleted = false,
     this.day,
     this.totalDays,
     this.startDate,
+  });
+}
+
+class _FormationReflection {
+  final JournalEntry entry;
+  final String text;
+
+  const _FormationReflection({
+    required this.entry,
+    required this.text,
   });
 }
 
