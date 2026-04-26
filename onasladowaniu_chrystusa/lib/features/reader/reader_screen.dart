@@ -803,12 +803,17 @@ class _ReaderScreenState extends State<ReaderScreen> {
               foregroundColor: colorScheme.primary,
             ),
           ),
-          TextButton.icon(
+          TextButton(
             onPressed: _goToNextChapter,
-            icon: const Icon(Icons.chevron_right),
-            label: const Text('Następny'),
             style: TextButton.styleFrom(
               foregroundColor: colorScheme.primary,
+            ),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('Następny'),
+                Icon(Icons.chevron_right),
+              ],
             ),
           ),
         ],
