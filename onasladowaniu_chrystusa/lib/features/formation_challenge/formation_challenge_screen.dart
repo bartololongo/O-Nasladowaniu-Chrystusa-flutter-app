@@ -265,20 +265,32 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
                   });
                 },
               ),
+              const SizedBox(width: 8),
+              ChoiceChip(
+                label: const Text('Statystyki'),
+                selected: _selectedTab == _FormationChallengeTab.stats,
+                onSelected: (selected) {
+                  if (!selected) return;
+                  setState(() {
+                    _selectedTab = _FormationChallengeTab.stats;
+                  });
+                },
+              ),
             ],
           ),
         ),
         Expanded(
-          child: _selectedTab == _FormationChallengeTab.today
-              ? _buildTodayView(
-                  context,
-                  state,
-                  activeDay,
-                  totalDays,
-                  isMakeUpDay: isMakeUpDay,
-                  isActiveDayCompleted: isActiveDayCompleted,
-                )
-              : _buildDaysView(context, state),
+          child: switch (_selectedTab) {
+            _FormationChallengeTab.today => _buildTodayView(
+                context,
+                activeDay,
+                totalDays,
+                isMakeUpDay: isMakeUpDay,
+                isActiveDayCompleted: isActiveDayCompleted,
+              ),
+            _FormationChallengeTab.days => _buildDaysView(context, state),
+            _FormationChallengeTab.stats => _buildStatsView(context, state),
+          },
         ),
         if (_selectedTab == _FormationChallengeTab.today)
           SafeArea(
@@ -333,7 +345,6 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
 
   Widget _buildTodayView(
     BuildContext context,
-    _FormationChallengeViewState state,
     FormationChallengeDay day,
     int totalDays, {
     required bool isMakeUpDay,
@@ -373,20 +384,30 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
           ),
         ],
         const SizedBox(height: 20),
-        _buildProgressSection(
-          context,
-          state,
-          activeDayStatusText: _activeDayStatusText(
-            isMakeUpDay: isMakeUpDay,
-            isActiveDayCompleted: isActiveDayCompleted,
-          ),
-        ),
-        const SizedBox(height: 20),
         Text(
           day.text,
           style: const TextStyle(
             fontSize: 17,
             height: 1.55,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStatsView(
+    BuildContext context,
+    _FormationChallengeViewState state,
+  ) {
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+      children: [
+        _buildProgressSection(
+          context,
+          state,
+          activeDayStatusText: _activeDayStatusText(
+            isMakeUpDay: false,
+            isActiveDayCompleted: state.isTodayCompleted,
           ),
         ),
       ],
@@ -660,8 +681,19 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
   }) {
     final colorScheme = Theme.of(context).colorScheme;
     final totalDays = state.totalDays ?? 0;
-    final completedDays = state.completedDays.length.clamp(0, totalDays);
+    final currentDayNumber = state.day?.dayNumber ?? 0;
+    final completedDays = state.completedDays
+        .where((dayNumber) => dayNumber > 0 && dayNumber <= totalDays)
+        .length;
+    final catchUpDays = state.days
+        .where(
+          (day) =>
+              day.dayNumber < currentDayNumber &&
+              !state.completedDays.contains(day.dayNumber),
+        )
+        .length;
     final progress = totalDays == 0 ? 0.0 : completedDays / totalDays;
+    final progressPercent = (progress * 100).round();
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -675,13 +707,37 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          Text(
+            'Podsumowanie Drogi',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          const SizedBox(height: 12),
           LinearProgressIndicator(value: progress),
           const SizedBox(height: 12),
-          Text(
-            'Ukończono $completedDays z $totalDays dni',
-            style: Theme.of(context).textTheme.bodyMedium,
+          _buildSummaryRow(
+            context,
+            'Ukończono',
+            '$completedDays z $totalDays dni',
           ),
           const SizedBox(height: 6),
+          _buildSummaryRow(
+            context,
+            'Do nadrobienia',
+            '$catchUpDays',
+          ),
+          const SizedBox(height: 6),
+          _buildSummaryRow(
+            context,
+            'Aktualny dzień',
+            '$currentDayNumber',
+          ),
+          const SizedBox(height: 6),
+          _buildSummaryRow(
+            context,
+            'Postęp',
+            '$progressPercent%',
+          ),
+          const SizedBox(height: 12),
           Text(
             activeDayStatusText,
             style: TextStyle(
@@ -690,6 +746,31 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildSummaryRow(
+    BuildContext context,
+    String label,
+    String value,
+  ) {
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            label,
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurface.withValues(
+                    alpha: 0.75,
+                  ),
+            ),
+          ),
+        ),
+        Text(
+          value,
+          style: const TextStyle(fontWeight: FontWeight.w600),
+        ),
+      ],
     );
   }
 
@@ -753,4 +834,5 @@ class _FormationChallengeViewState {
 enum _FormationChallengeTab {
   today,
   days,
+  stats,
 }
