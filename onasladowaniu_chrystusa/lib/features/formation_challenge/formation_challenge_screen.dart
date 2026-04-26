@@ -11,10 +11,7 @@ import 'formation_meditation_screen.dart';
 class FormationChallengeScreen extends StatefulWidget {
   final void Function(int tabIndex)? onNavigateToTab;
 
-  const FormationChallengeScreen({
-    super.key,
-    this.onNavigateToTab,
-  });
+  const FormationChallengeScreen({super.key, this.onNavigateToTab});
 
   @override
   State<FormationChallengeScreen> createState() =>
@@ -28,6 +25,7 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
       FormationChallengeProgressService();
   final JournalService _journalService = JournalService();
   final PreferencesService _preferencesService = PreferencesService();
+  late final TextEditingController _reflectionEditorController;
 
   late Future<_FormationChallengeViewState> _stateFuture;
   _FormationChallengeTab _selectedTab = _FormationChallengeTab.today;
@@ -36,22 +34,25 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
   @override
   void initState() {
     super.initState();
+    _reflectionEditorController = TextEditingController();
     _stateFuture = _loadState();
+  }
+
+  @override
+  void dispose() {
+    _reflectionEditorController.dispose();
+    super.dispose();
   }
 
   Future<_FormationChallengeViewState> _loadState() async {
     final isStarted = await _progressService.isStarted();
     if (!isStarted) {
-      return _FormationChallengeViewState(
-        isStarted: false,
-      );
+      return _FormationChallengeViewState(isStarted: false);
     }
 
     final startDate = await _progressService.getStartDate();
     if (startDate == null) {
-      return _FormationChallengeViewState(
-        isStarted: false,
-      );
+      return _FormationChallengeViewState(isStarted: false);
     }
 
     final day = await _challengeService.getDayForDate(
@@ -123,80 +124,83 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
     );
   }
 
-  Future<void> _editFormationReflection(
-    _FormationReflection reflection,
-  ) async {
+  Future<void> _editFormationReflection(_FormationReflection reflection) async {
     const marker = 'Moja refleksja:';
     final entry = reflection.entry;
     final markerIndex = entry.content.indexOf(marker);
     if (markerIndex == -1) return;
 
-    final contentPrefix =
-        entry.content.substring(0, markerIndex + marker.length).trim();
-    final controller = TextEditingController(text: reflection.text);
+    final contentPrefix = entry.content
+        .substring(0, markerIndex + marker.length)
+        .trim();
+    _reflectionEditorController
+      ..text = reflection.text
+      ..selection = TextSelection.collapsed(offset: reflection.text.length);
 
-    try {
-      final updatedText = await showDialog<String>(
-        context: context,
-        builder: (dialogContext) {
-          return AlertDialog(
-            title: const Text('Edytuj refleksję'),
-            content: TextField(
-              controller: controller,
-              autofocus: true,
-              minLines: 4,
-              maxLines: 8,
-              decoration: const InputDecoration(
-                hintText: 'Wpisz swoją refleksję...',
-              ),
+    final updatedText = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Edytuj refleksję'),
+          content: TextField(
+            controller: _reflectionEditorController,
+            autofocus: true,
+            minLines: 4,
+            maxLines: 8,
+            decoration: const InputDecoration(
+              hintText: 'Wpisz swoją refleksję...',
             ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(dialogContext).pop(),
-                child: const Text('Anuluj'),
-              ),
-              ElevatedButton(
-                onPressed: () =>
-                    Navigator.of(dialogContext).pop(controller.text.trim()),
-                child: const Text('Zapisz'),
-              ),
-            ],
-          );
-        },
-      );
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Anuluj'),
+            ),
+            ValueListenableBuilder<TextEditingValue>(
+              valueListenable: _reflectionEditorController,
+              builder: (context, value, child) {
+                final canSave = value.text.trim().isNotEmpty;
 
-      if (updatedText == null) return;
+                return ElevatedButton(
+                  onPressed: canSave
+                      ? () => Navigator.of(
+                          dialogContext,
+                        ).pop(_reflectionEditorController.text.trim())
+                      : null,
+                  child: child,
+                );
+              },
+              child: const Text('Zapisz'),
+            ),
+          ],
+        );
+      },
+    );
 
-      final updatedContent = '$contentPrefix\n$updatedText';
-      if (updatedContent == entry.content) return;
+    if (!mounted || updatedText == null) return;
 
-      await _journalService.updateEntryContent(
-        id: entry.id,
-        content: updatedContent,
-      );
-      if (!mounted) return;
+    final updatedContent = '$contentPrefix\n$updatedText';
+    if (updatedContent == entry.content) return;
 
-      await _refresh();
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Refleksja zaktualizowana.')),
-      );
-    } finally {
-      controller.dispose();
-    }
+    await _journalService.updateEntryContent(
+      id: entry.id,
+      content: updatedContent,
+    );
+    if (!mounted) return;
+
+    await _refresh();
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Refleksja zaktualizowana.')));
   }
 
-  Future<void> _openMeditation(
-    FormationChallengeDay day,
-    int totalDays,
-  ) async {
+  Future<void> _openMeditation(FormationChallengeDay day, int totalDays) async {
     await Navigator.of(context).push(
       MaterialPageRoute(
         settings: const RouteSettings(name: '/formation-meditation'),
-        builder: (_) => FormationMeditationScreen(
-          day: day,
-          totalDays: totalDays,
-        ),
+        builder: (_) =>
+            FormationMeditationScreen(day: day, totalDays: totalDays),
       ),
     );
     if (!mounted) return;
@@ -218,9 +222,7 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Droga naśladowania'),
-      ),
+      appBar: AppBar(title: const Text('Droga naśladowania')),
       body: FutureBuilder<_FormationChallengeViewState>(
         future: _stateFuture,
         builder: (context, snapshot) {
@@ -262,10 +264,7 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
             const Text(
               'Codzienna medytacja z «O naśladowaniu Chrystusa»',
               textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.w600,
-              ),
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 12),
             Text(
@@ -356,13 +355,13 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
         Expanded(
           child: switch (_selectedTab) {
             _FormationChallengeTab.today => _buildTodayView(
-                context,
-                activeDay,
-                totalDays,
-                reflection: activeReflection,
-                isMakeUpDay: isMakeUpDay,
-                isActiveDayCompleted: isActiveDayCompleted,
-              ),
+              context,
+              activeDay,
+              totalDays,
+              reflection: activeReflection,
+              isMakeUpDay: isMakeUpDay,
+              isActiveDayCompleted: isActiveDayCompleted,
+            ),
             _FormationChallengeTab.days => _buildDaysView(context, state),
             _FormationChallengeTab.stats => _buildStatsView(context, state),
           },
@@ -437,9 +436,7 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
         if (isMakeUpDay) ...[
           const SizedBox(height: 10),
           Text(
-            isActiveDayCompleted
-                ? 'Dzień nadrobiony'
-                : 'Dzień do nadrobienia',
+            isActiveDayCompleted ? 'Dzień nadrobiony' : 'Dzień do nadrobienia',
             style: TextStyle(
               color: Theme.of(context).colorScheme.primary,
               fontWeight: FontWeight.w600,
@@ -457,13 +454,7 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
           ),
         ],
         const SizedBox(height: 20),
-        Text(
-          day.text,
-          style: const TextStyle(
-            fontSize: 17,
-            height: 1.55,
-          ),
-        ),
+        Text(day.text, style: const TextStyle(fontSize: 17, height: 1.55)),
         if (reflection != null) ...[
           const SizedBox(height: 24),
           Text(
@@ -475,10 +466,7 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
             ),
           ),
           const SizedBox(height: 8),
-          Text(
-            reflection.text,
-            style: const TextStyle(height: 1.45),
-          ),
+          Text(reflection.text, style: const TextStyle(height: 1.45)),
         ],
       ],
     );
@@ -592,9 +580,7 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
     final totalDays = state.totalDays ?? days.length;
 
     if (today == null || days.isEmpty) {
-      return const Center(
-        child: Text('Nie udało się wczytać listy dni.'),
-      );
+      return const Center(child: Text('Nie udało się wczytać listy dni.'));
     }
 
     return ListView.separated(
@@ -616,10 +602,10 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
         final icon = isCompleted
             ? Icons.check_circle
             : isToday
-                ? Icons.radio_button_checked
-                : isFuture
-                    ? Icons.lock_outline
-                    : Icons.history;
+            ? Icons.radio_button_checked
+            : isFuture
+            ? Icons.lock_outline
+            : Icons.history;
         final colorScheme = Theme.of(context).colorScheme;
         final iconColor = isUnlocked
             ? colorScheme.primary
@@ -706,11 +692,9 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
           ? 'Ten dzień jest jeszcze przed Tobą. Wróć jutro, aby kontynuować Drogę.'
           : 'Ten dzień jest jeszcze przed Tobą. Ukończ dzisiejszy dzień, aby kontynuować Drogę.';
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(message),
-        ),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
       return;
     }
 
@@ -760,10 +744,7 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
                   const SizedBox(height: 18),
                   Text(
                     day.text,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      height: 1.5,
-                    ),
+                    style: const TextStyle(fontSize: 16, height: 1.5),
                   ),
                   const SizedBox(height: 22),
                   Text(
@@ -837,14 +818,15 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
     FormationChallengeDay day,
     List<JournalEntry> entries,
   ) {
-    final matchingEntries = entries
-        .where(
-          (entry) =>
-              entry.quoteRef == day.chapterReference &&
-              entry.content.contains('Droga naśladowania'),
-        )
-        .toList()
-      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    final matchingEntries =
+        entries
+            .where(
+              (entry) =>
+                  entry.quoteRef == day.chapterReference &&
+                  entry.content.contains('Droga naśladowania'),
+            )
+            .toList()
+          ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
     for (final entry in matchingEntries) {
       final reflection = _extractReflection(entry.content);
@@ -895,9 +877,7 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
       decoration: BoxDecoration(
         color: colorScheme.surface.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: colorScheme.primary.withValues(alpha: 0.25),
-        ),
+        border: Border.all(color: colorScheme.primary.withValues(alpha: 0.25)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -915,23 +895,11 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
             '$completedDays z $totalDays dni',
           ),
           const SizedBox(height: 6),
-          _buildSummaryRow(
-            context,
-            'Do nadrobienia',
-            '$catchUpDays',
-          ),
+          _buildSummaryRow(context, 'Do nadrobienia', '$catchUpDays'),
           const SizedBox(height: 6),
-          _buildSummaryRow(
-            context,
-            'Aktualny dzień',
-            '$currentDayNumber',
-          ),
+          _buildSummaryRow(context, 'Aktualny dzień', '$currentDayNumber'),
           const SizedBox(height: 6),
-          _buildSummaryRow(
-            context,
-            'Postęp',
-            '$progressPercent%',
-          ),
+          _buildSummaryRow(context, 'Postęp', '$progressPercent%'),
           const SizedBox(height: 6),
           _buildSummaryRow(
             context,
@@ -964,27 +932,20 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
     return '$year-$month-$day';
   }
 
-  Widget _buildSummaryRow(
-    BuildContext context,
-    String label,
-    String value,
-  ) {
+  Widget _buildSummaryRow(BuildContext context, String label, String value) {
     return Row(
       children: [
         Expanded(
           child: Text(
             label,
             style: TextStyle(
-              color: Theme.of(context).colorScheme.onSurface.withValues(
-                    alpha: 0.75,
-                  ),
+              color: Theme.of(
+                context,
+              ).colorScheme.onSurface.withValues(alpha: 0.75),
             ),
           ),
         ),
-        Text(
-          value,
-          style: const TextStyle(fontWeight: FontWeight.w600),
-        ),
+        Text(value, style: const TextStyle(fontWeight: FontWeight.w600)),
       ],
     );
   }
@@ -1001,17 +962,11 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
             const Text(
               'Nie udało się wczytać Drogi naśladowania.',
               textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-              ),
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
             ),
             if (error != null) ...[
               const SizedBox(height: 8),
-              Text(
-                '$error',
-                textAlign: TextAlign.center,
-              ),
+              Text('$error', textAlign: TextAlign.center),
             ],
             const SizedBox(height: 16),
             TextButton.icon(
@@ -1054,14 +1009,7 @@ class _FormationReflection {
   final JournalEntry entry;
   final String text;
 
-  const _FormationReflection({
-    required this.entry,
-    required this.text,
-  });
+  const _FormationReflection({required this.entry, required this.text});
 }
 
-enum _FormationChallengeTab {
-  today,
-  days,
-  stats,
-}
+enum _FormationChallengeTab { today, days, stats }

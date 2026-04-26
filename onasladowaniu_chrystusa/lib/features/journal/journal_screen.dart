@@ -17,6 +17,7 @@ class JournalScreen extends StatefulWidget {
   final String? initialComposerHint;
   final String? initialContentPrefix;
   final String? initialEntryId;
+  final String? initialEntryIdToUpdate;
 
   const JournalScreen({
     super.key,
@@ -30,6 +31,7 @@ class JournalScreen extends StatefulWidget {
     this.initialComposerHint,
     this.initialContentPrefix,
     this.initialEntryId,
+    this.initialEntryIdToUpdate,
   });
 
   @override
@@ -444,11 +446,19 @@ class _JournalScreenState extends State<JournalScreen> {
                   final content = contentPrefix == null
                       ? text
                       : '$contentPrefix$text';
-                  await _journalService.addEntry(
-                    content: content,
-                    quoteText: quoteText,
-                    quoteRef: quoteRef,
-                  );
+                  final entryIdToUpdate = widget.initialEntryIdToUpdate;
+                  if (entryIdToUpdate == null || entryIdToUpdate.isEmpty) {
+                    await _journalService.addEntry(
+                      content: content,
+                      quoteText: quoteText,
+                      quoteRef: quoteRef,
+                    );
+                  } else {
+                    await _journalService.updateEntryContent(
+                      id: entryIdToUpdate,
+                      content: content,
+                    );
+                  }
                   await _refresh();
                 }
                 if (!dialogContext.mounted) return;
@@ -491,32 +501,40 @@ class _JournalScreenState extends State<JournalScreen> {
               onPressed: () => Navigator.of(dialogContext).pop(),
               child: const Text('Anuluj'),
             ),
-            TextButton(
-              onPressed: () async {
-                final text = controller.text.trim();
-                final updatedContent = contentPrefix == null
-                    ? text
-                    : '$contentPrefix\n$text';
+            ValueListenableBuilder<TextEditingValue>(
+              valueListenable: controller,
+              builder: (context, value, child) {
+                final canSave = value.text.trim().isNotEmpty;
 
-                // Jeśli nic się nie zmieniło – po prostu zamknij
-                if (text.isEmpty || updatedContent == entry.content) {
-                  Navigator.of(dialogContext).pop();
-                  return;
-                }
+                return TextButton(
+                  onPressed: canSave
+                      ? () async {
+                          final text = controller.text.trim();
+                          final updatedContent = contentPrefix == null
+                              ? text
+                              : '$contentPrefix\n$text';
 
-                // Aktualizacja istniejącego wpisu (bez zmiany id/createdAt/cytatu)
-                await _journalService.updateEntryContent(
-                  id: entry.id,
-                  content: updatedContent,
-                );
+                          if (updatedContent == entry.content) {
+                            Navigator.of(dialogContext).pop();
+                            return;
+                          }
 
-                await _refresh();
-                if (!mounted) return;
-                Navigator.of(dialogContext).pop();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Wpis dziennika zaktualizowany.'),
-                  ),
+                          await _journalService.updateEntryContent(
+                            id: entry.id,
+                            content: updatedContent,
+                          );
+
+                          await _refresh();
+                          if (!mounted || !dialogContext.mounted) return;
+                          Navigator.of(dialogContext).pop();
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Wpis dziennika zaktualizowany.'),
+                            ),
+                          );
+                        }
+                      : null,
+                  child: const Text('Zapisz'),
                 );
               },
               child: const Text('Zapisz'),
@@ -1411,7 +1429,7 @@ class _JournalEntryComposerDialogState
   }
 
   Future<void> _save() async {
-    if (_isSaving) return;
+    if (_isSaving || _controller.text.trim().isEmpty) return;
 
     setState(() {
       _isSaving = true;
@@ -1445,8 +1463,16 @@ class _JournalEntryComposerDialogState
           onPressed: _isSaving ? null : () => Navigator.of(context).pop(),
           child: const Text('Anuluj'),
         ),
-        TextButton(
-          onPressed: _isSaving ? null : _save,
+        ValueListenableBuilder<TextEditingValue>(
+          valueListenable: _controller,
+          builder: (context, value, child) {
+            final canSave = value.text.trim().isNotEmpty;
+
+            return TextButton(
+              onPressed: _isSaving || !canSave ? null : _save,
+              child: const Text('Zapisz'),
+            );
+          },
           child: const Text('Zapisz'),
         ),
       ],
