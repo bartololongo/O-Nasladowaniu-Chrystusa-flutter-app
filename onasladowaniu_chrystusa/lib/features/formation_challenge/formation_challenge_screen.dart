@@ -4,11 +4,17 @@ import '../../shared/models/formation_challenge_models.dart';
 import '../../shared/services/formation_challenge_progress_service.dart';
 import '../../shared/services/formation_challenge_service.dart';
 import '../../shared/services/journal_service.dart';
+import '../../shared/services/preferences_service.dart';
 import 'formation_journal_helpers.dart';
 import 'formation_meditation_screen.dart';
 
 class FormationChallengeScreen extends StatefulWidget {
-  const FormationChallengeScreen({super.key});
+  final void Function(int tabIndex)? onNavigateToTab;
+
+  const FormationChallengeScreen({
+    super.key,
+    this.onNavigateToTab,
+  });
 
   @override
   State<FormationChallengeScreen> createState() =>
@@ -21,6 +27,7 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
   final FormationChallengeProgressService _progressService =
       FormationChallengeProgressService();
   final JournalService _journalService = JournalService();
+  final PreferencesService _preferencesService = PreferencesService();
 
   late Future<_FormationChallengeViewState> _stateFuture;
   _FormationChallengeTab _selectedTab = _FormationChallengeTab.today;
@@ -122,6 +129,18 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
     );
     if (!mounted) return;
     await _refresh();
+  }
+
+  Future<void> _openDayInReader(FormationChallengeDay day) async {
+    await _preferencesService.setJumpChapterRef(day.chapterReference);
+    await _preferencesService.clearJumpParagraphNumber();
+
+    if (!mounted) return;
+    widget.onNavigateToTab?.call(1);
+
+    if (Navigator.of(context).canPop()) {
+      Navigator.of(context).pop();
+    }
   }
 
   @override
@@ -278,6 +297,12 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
                   ),
                   const SizedBox(height: 8),
                   OutlinedButton.icon(
+                    onPressed: () => _openDayInReader(activeDay),
+                    icon: const Icon(Icons.menu_book),
+                    label: const Text('Zobacz w książce'),
+                  ),
+                  const SizedBox(height: 8),
+                  OutlinedButton.icon(
                     onPressed: () => _openMeditation(activeDay, totalDays),
                     icon: const Icon(Icons.self_improvement),
                     label: const Text('Rozpocznij medytację'),
@@ -321,12 +346,12 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
           'Dzień ${day.dayNumber} z $totalDays',
           style: Theme.of(context).textTheme.titleMedium,
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 4),
         Text(
-          day.bookTitle,
+          _formatChapterReference(day.chapterReference),
           style: Theme.of(context).textTheme.bodyMedium,
         ),
-        const SizedBox(height: 4),
+        const SizedBox(height: 12),
         Text(
           day.chapterTitle,
           style: const TextStyle(
@@ -335,13 +360,6 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
             height: 1.2,
           ),
         ),
-        if (day.chapterReference.isNotEmpty) ...[
-          const SizedBox(height: 6),
-          Text(
-            day.chapterReference,
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
-        ],
         if (isMakeUpDay) ...[
           const SizedBox(height: 10),
           Text(
@@ -421,7 +439,7 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
           leading: Icon(icon, color: iconColor),
           title: Text('Dzień ${item.dayNumber}'),
           subtitle: Text(
-            '${item.chapterTitle}\n${item.chapterReference}',
+            '${item.chapterTitle}\n${_formatChapterReference(item.chapterReference)}',
           ),
           isThreeLine: true,
           trailing: Text(
@@ -474,6 +492,17 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
     return 'Przed Tobą';
   }
 
+  String _formatChapterReference(String reference) {
+    final parts = reference.split('-');
+    if (parts.length != 2) return reference;
+
+    final bookCode = parts[0];
+    final chapterNumber = int.tryParse(parts[1]);
+    if (bookCode.isEmpty || chapterNumber == null) return reference;
+
+    return 'Księga $bookCode, rozdział $chapterNumber';
+  }
+
   Future<void> _openDayPreview(
     FormationChallengeDay day,
     int totalDays, {
@@ -524,12 +553,12 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
                     'Dzień ${day.dayNumber} z $totalDays',
                     style: Theme.of(sheetContext).textTheme.titleMedium,
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 4),
                   Text(
-                    day.bookTitle,
+                    _formatChapterReference(day.chapterReference),
                     style: Theme.of(sheetContext).textTheme.bodyMedium,
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 12),
                   Text(
                     day.chapterTitle,
                     style: const TextStyle(
@@ -538,13 +567,6 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
                       height: 1.2,
                     ),
                   ),
-                  if (day.chapterReference.isNotEmpty) ...[
-                    const SizedBox(height: 6),
-                    Text(
-                      day.chapterReference,
-                      style: Theme.of(sheetContext).textTheme.bodySmall,
-                    ),
-                  ],
                   const SizedBox(height: 18),
                   Text(
                     day.text,
@@ -573,12 +595,23 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: TextButton(
-                      onPressed: () => Navigator.of(sheetContext).pop(),
-                      child: const Text('Zamknij'),
-                    ),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton(
+                        onPressed: () => Navigator.of(sheetContext).pop(),
+                        child: const Text('Zamknij'),
+                      ),
+                      const SizedBox(width: 8),
+                      ElevatedButton.icon(
+                        onPressed: () async {
+                          Navigator.of(sheetContext).pop();
+                          await _openDayInReader(day);
+                        },
+                        icon: const Icon(Icons.menu_book),
+                        label: const Text('Zobacz w książce'),
+                      ),
+                    ],
                   ),
                 ],
               ),
