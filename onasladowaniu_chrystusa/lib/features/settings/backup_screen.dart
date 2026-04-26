@@ -45,12 +45,15 @@ class _BackupScreenState extends State<BackupScreen> {
 
       if (!mounted) return;
 
-      final box = context.findRenderObject() as RenderBox?;
-      final origin = box != null
-          ? box.localToGlobal(Offset.zero) & box.size
+      final renderObject = context.findRenderObject();
+      final calculatedOrigin = renderObject is RenderBox && renderObject.hasSize
+          ? renderObject.localToGlobal(Offset.zero) & renderObject.size
           : const Rect.fromLTWH(0, 0, 1, 1);
+      final origin = calculatedOrigin.isEmpty
+          ? const Rect.fromLTWH(0, 0, 1, 1)
+          : calculatedOrigin;
 
-      await SharePlus.instance.share(
+      final result = await SharePlus.instance.share(
         ShareParams(
           files: [
             XFile(
@@ -68,12 +71,20 @@ class _BackupScreenState extends State<BackupScreen> {
 
       if (!mounted) return;
 
+      if (result.status == ShareResultStatus.dismissed) {
+        return;
+      }
+
       messenger.showSnackBar(
         const SnackBar(
           content: Text('Kopia danych została utworzona.'),
         ),
       );
-    } catch (_) {
+    } catch (e) {
+      assert(() {
+        debugPrint('Backup export failed: $e');
+        return true;
+      }());
       if (!mounted) return;
 
       messenger.showSnackBar(
@@ -194,8 +205,8 @@ class _BackupScreenState extends State<BackupScreen> {
             const SizedBox(height: 8),
             const Text(
               'Tutaj możesz wyeksportować swój dziennik, ulubione, zakładki, '
-              'postęp wyzwania „Czytaj całość”, Drogę naśladowania, czas '
-              'medytacji, przypomnienia oraz ustawienia czytnika do pliku JSON '
+              'postęp Drogi naśladowania, czas medytacji, przypomnienia oraz '
+              'ustawienia czytnika do pliku JSON '
               'i później je przywrócić (również na nowszej wersji aplikacji).',
               style: TextStyle(fontSize: 14, height: 1.4),
             ),
@@ -222,8 +233,8 @@ class _BackupScreenState extends State<BackupScreen> {
             const Spacer(),
             const Text(
               'Uwaga: import danych nadpisze aktualny dziennik, ulubione, '
-              'zakładki, postęp wyzwania, Drogę naśladowania, przypomnienia '
-              'i preferencje czytnika.',
+              'zakładki, postęp Drogi naśladowania, czas medytacji, '
+              'przypomnienia i preferencje czytnika.',
               style: TextStyle(fontSize: 12, height: 1.3),
             ),
           ],
