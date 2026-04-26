@@ -158,7 +158,9 @@ class _HomeScreenState extends State<HomeScreen>
     await Navigator.of(context).push(
       MaterialPageRoute(
         settings: const RouteSettings(name: '/formation-challenge'),
-        builder: (_) => const FormationChallengeScreen(),
+        builder: (_) => FormationChallengeScreen(
+          onNavigateToTab: widget.onNavigateToTab,
+        ),
       ),
     );
   }

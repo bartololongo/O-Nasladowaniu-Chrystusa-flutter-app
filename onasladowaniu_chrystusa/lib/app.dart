@@ -182,7 +182,9 @@ class _RootScreenState extends State<_RootScreen>
           .push(
             MaterialPageRoute(
               settings: const RouteSettings(name: '/formation-challenge'),
-              builder: (_) => const FormationChallengeScreen(),
+              builder: (_) => FormationChallengeScreen(
+                onNavigateToTab: _onTabSelected,
+              ),
             ),
           )
           .whenComplete(() {
