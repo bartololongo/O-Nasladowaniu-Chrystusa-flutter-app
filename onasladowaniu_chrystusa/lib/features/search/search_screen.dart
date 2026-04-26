@@ -85,6 +85,10 @@ class _SearchScreenState extends State<SearchScreen> {
     });
   }
 
+  void _hideKeyboard() {
+    FocusScope.of(context).unfocus();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -101,6 +105,7 @@ class _SearchScreenState extends State<SearchScreen> {
                 autofocus: true,
                 textInputAction: TextInputAction.search,
                 onChanged: _onQueryChanged,
+                onSubmitted: (_) => _hideKeyboard(),
                 decoration: InputDecoration(
                   prefixIcon: const Icon(Icons.search),
                   suffixIcon: _controller.text.isEmpty
@@ -118,7 +123,11 @@ class _SearchScreenState extends State<SearchScreen> {
               ),
             ),
             Expanded(
-              child: _buildBody(context),
+              child: GestureDetector(
+                behavior: HitTestBehavior.translucent,
+                onTap: _hideKeyboard,
+                child: _buildBody(context),
+              ),
             ),
           ],
         ),
@@ -183,6 +192,8 @@ class _SearchScreenState extends State<SearchScreen> {
         _buildFilterBar(),
         Expanded(
           child: ListView(
+            keyboardDismissBehavior:
+                ScrollViewKeyboardDismissBehavior.onDrag,
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
             children: [
               for (final type in GlobalSearchResultType.values)
@@ -248,6 +259,8 @@ class _SearchScreenState extends State<SearchScreen> {
     BuildContext context,
     GlobalSearchResult result,
   ) {
+    _hideKeyboard();
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
