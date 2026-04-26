@@ -77,8 +77,9 @@ class _RootScreenState extends State<_RootScreen>
   /// Aktualnie podświetlana zakładka w BottomNavigationBar (Start/Czytanie/Zakładki/Więcej).
   int _selectedIndex = 0;
 
-  /// ID instancji Readera – zmiana powoduje utworzenie nowej ReaderScreen.
-  int _readerInstanceId = 0;
+  /// ID instancji Readera.
+  final int _readerInstanceId = 0;
+  String? _activeMoreRouteName;
 
   /// Wewnętrzny Navigator, w którym renderujemy:
   /// - ekrany z bottom nav (Start, Czytanie, Zakładki),
@@ -201,27 +202,17 @@ class _RootScreenState extends State<_RootScreen>
     final nav = _innerNavigatorKey.currentState;
     final atRoot = !(nav?.canPop() ?? false);
 
-    // Jeśli jesteśmy już na bazowym ekranie tego taba
-    // i nie jest to "Czytanie", to nic nie rób – unikamy
-    // ponownej animacji/pushowania.
-    //
-    // Dla "Czytanie" (index == 1) zostawiamy specjalne
-    // zachowanie: ponowne kliknięcie tworzy nową instancję
-    // ReaderScreen, więc nie short-circuitujemy.
-    if (index == _baseTabIndex && atRoot && index != 1) {
+    // Jeśli jesteśmy już na bazowym ekranie tego taba,
+    // nic nie rób – unikamy ponownej animacji/pushowania.
+    if (index == _baseTabIndex && atRoot) {
       setState(() {
         _selectedIndex = index; // dla porządku, choć i tak już jest
       });
       return;
     }
 
-    final previousBase = _baseTabIndex;
-
     setState(() {
-      // Specjalny przypadek: Czytanie -> Czytanie.
-      if (index == 1 && previousBase == 1) {
-        _readerInstanceId++;
-      }
+      _activeMoreRouteName = null;
       _baseTabIndex = index;
       _selectedIndex = index;
     });
@@ -288,23 +279,48 @@ class _RootScreenState extends State<_RootScreen>
   /// Podświetla przycisk "Więcej", a po zamknięciu ekranu przywraca
   /// podświetlenie bazowej zakładki (_baseTabIndex).
   void _openMoreScreen(Widget screen) {
+    final routeName = _moreRouteNameFor(screen);
+    if (_selectedIndex == 3 && _activeMoreRouteName == routeName) {
+      return;
+    }
+
+    final navigator = _innerNavigatorKey.currentState;
+    if (navigator == null) return;
+
+    final replaceActiveMoreScreen =
+        _selectedIndex == 3 && _activeMoreRouteName != null;
+
     setState(() {
       _selectedIndex = 3; // podświetl "Więcej"
+      _activeMoreRouteName = routeName;
     });
 
-    _innerNavigatorKey.currentState
-        ?.push(
-      MaterialPageRoute(
-        builder: (_) => screen,
-      ),
-    )
-        .then((_) {
+    final route = MaterialPageRoute(
+      settings: RouteSettings(name: routeName),
+      builder: (_) => screen,
+    );
+    final navigationFuture = replaceActiveMoreScreen
+        ? navigator.pushReplacement(route)
+        : navigator.push(route);
+
+    navigationFuture.then((_) {
       if (!mounted) return;
       // Po powrocie z ekranu "Więcej" przywracamy podświetlenie bazowej zakładki.
       setState(() {
-        _selectedIndex = _baseTabIndex;
+        if (_activeMoreRouteName == routeName) {
+          _activeMoreRouteName = null;
+          _selectedIndex = _baseTabIndex;
+        }
       });
     });
+  }
+
+  String _moreRouteNameFor(Widget screen) {
+    if (screen is JournalScreen) return '/journal';
+    if (screen is FavoritesScreen) return '/favorites';
+    if (screen is SettingsScreen) return '/settings';
+
+    return '/more/${screen.runtimeType}';
   }
 
   /// Używane przez HomeScreen (szybkie akcje), żeby
