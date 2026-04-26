@@ -9,6 +9,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../../shared/services/backup_service.dart';
+import '../../shared/services/formation_notification_service.dart';
 
 class BackupScreen extends StatefulWidget {
   const BackupScreen({super.key});
@@ -128,6 +129,7 @@ class _BackupScreenState extends State<BackupScreen> {
       }
 
       await backupService.restoreFromBackupJson(decoded);
+      await _syncFormationReminderAfterRestore();
 
       messenger.showSnackBar(
         const SnackBar(
@@ -150,6 +152,15 @@ class _BackupScreenState extends State<BackupScreen> {
       if (mounted) {
         setState(() => _isBusy = false);
       }
+    }
+  }
+
+  Future<void> _syncFormationReminderAfterRestore() async {
+    final notificationService = FormationNotificationService.instance;
+    if (await notificationService.isReminderEnabled()) {
+      await notificationService.scheduleDailyReminder();
+    } else {
+      await notificationService.cancelDailyReminder();
     }
   }
 
@@ -176,8 +187,9 @@ class _BackupScreenState extends State<BackupScreen> {
             const SizedBox(height: 8),
             const Text(
               'Tutaj możesz wyeksportować swój dziennik, ulubione, zakładki, '
-              'postęp wyzwania „Czytaj całość” oraz ustawienia czytnika do '
-              'pliku JSON i później je przywrócić (również na nowszej wersji aplikacji).',
+              'postęp wyzwania „Czytaj całość”, Drogę naśladowania, czas '
+              'medytacji, przypomnienia oraz ustawienia czytnika do pliku JSON '
+              'i później je przywrócić (również na nowszej wersji aplikacji).',
               style: TextStyle(fontSize: 14, height: 1.4),
             ),
             const SizedBox(height: 24),
@@ -203,7 +215,8 @@ class _BackupScreenState extends State<BackupScreen> {
             const Spacer(),
             const Text(
               'Uwaga: import danych nadpisze aktualny dziennik, ulubione, '
-              'zakładki, postęp wyzwania i preferencje czytnika.',
+              'zakładki, postęp wyzwania, Drogę naśladowania, przypomnienia '
+              'i preferencje czytnika.',
               style: TextStyle(fontSize: 12, height: 1.3),
             ),
           ],

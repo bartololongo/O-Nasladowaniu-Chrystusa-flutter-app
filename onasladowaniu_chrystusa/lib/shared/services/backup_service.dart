@@ -24,6 +24,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 class BackupService {
   static const String appId = 'o_nasladowaniu_chrystusa';
   static const int schemaVersion = 1;
+  static const String _formationPendingPayloadKey =
+      'formation_pending_payload';
 
   /// Tworzy strukturę JSON do zapisania w pliku – na podstawie SharedPreferences.
   Future<Map<String, dynamic>> createBackupJson() async {
@@ -33,6 +35,10 @@ class BackupService {
     final Map<String, dynamic> prefsData = <String, dynamic>{};
 
     for (final key in keys) {
+      if (key == _formationPendingPayloadKey) {
+        continue;
+      }
+
       final value = prefs.get(key);
 
       if (value is bool ||
