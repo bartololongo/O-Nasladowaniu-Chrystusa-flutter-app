@@ -9,6 +9,7 @@ Future<void> main() async {
   final initialNotificationPayload = await FormationNotificationService.instance
       .initialize();
   try {
+    await FormationWidgetSnapshotService.configureAppGroup();
     await FormationWidgetSnapshotService().refresh();
   } catch (_) {
     // Widget data should never block app startup.
