@@ -12,8 +12,16 @@ import '../journal/journal_screen.dart';
 class SearchScreen extends StatefulWidget {
   final void Function(int tabIndex)? onNavigateToTab;
   final void Function(Widget screen)? onOpenMoreScreen;
+  final VoidCallback? onBookResultSelectedFromReader;
+  final String? initialQuery;
 
-  const SearchScreen({super.key, this.onNavigateToTab, this.onOpenMoreScreen});
+  const SearchScreen({
+    super.key,
+    this.onNavigateToTab,
+    this.onOpenMoreScreen,
+    this.onBookResultSelectedFromReader,
+    this.initialQuery,
+  });
 
   @override
   State<SearchScreen> createState() => _SearchScreenState();
@@ -37,6 +45,30 @@ class _SearchScreenState extends State<SearchScreen> {
     GlobalSearchResultType.bookmark,
     GlobalSearchResultType.favorite,
   ];
+
+  @override
+  void initState() {
+    super.initState();
+
+    final initialQuery = widget.initialQuery?.trim().replaceAll(
+      RegExp(r'\s+'),
+      ' ',
+    );
+    if (initialQuery == null || initialQuery.length < 2) {
+      return;
+    }
+
+    _controller.text = initialQuery;
+    _controller.selection = TextSelection.collapsed(
+      offset: initialQuery.length,
+    );
+    _query = initialQuery;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      unawaited(_runSearch(initialQuery));
+    });
+  }
 
   @override
   void dispose() {
@@ -83,6 +115,15 @@ class _SearchScreenState extends State<SearchScreen> {
 
   void _hideKeyboard() {
     FocusScope.of(context).unfocus();
+  }
+
+  String get _currentSearchQuery {
+    final stateQuery = _query.trim().replaceAll(RegExp(r'\s+'), ' ');
+    if (stateQuery.isNotEmpty) {
+      return stateQuery;
+    }
+
+    return _controller.text.trim().replaceAll(RegExp(r'\s+'), ' ');
   }
 
   @override
@@ -356,15 +397,25 @@ class _SearchScreenState extends State<SearchScreen> {
   Future<void> _openBookResult(GlobalSearchResult result) async {
     final chapterRef =
         result.chapterRef ?? _chapterRefFromParagraphRef(result.paragraphRef);
+    final searchQuery = _currentSearchQuery;
 
     if (chapterRef != null && chapterRef.isNotEmpty) {
       await _preferencesService.setJumpChapterRef(chapterRef);
-      await _preferencesService.setPendingReaderSearchQuery(_query);
+      if (searchQuery.length >= 2) {
+        await _preferencesService.setPendingReaderSearchQuery(searchQuery);
+      }
     }
 
     await _preferencesService.clearJumpParagraphNumber();
 
     if (!mounted) return;
+    final onBookResultSelectedFromReader =
+        widget.onBookResultSelectedFromReader;
+    if (onBookResultSelectedFromReader != null) {
+      onBookResultSelectedFromReader();
+      return;
+    }
+
     widget.onNavigateToTab?.call(1);
   }
 

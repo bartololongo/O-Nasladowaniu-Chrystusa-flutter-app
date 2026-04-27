@@ -6,6 +6,8 @@ class PreferencesService {
   static const String _keyReaderFontSize = 'reader_font_size';
   static const String _keyPendingReaderSearchQuery =
       'pending_reader_search_query';
+  static const String _keyPendingReaderSearchToken =
+      'pending_reader_search_token';
 
   // NOWE: numer akapitu, do którego mamy się „zbliżyć” przy skoku
   static const String _keyJumpParagraphNumber = 'jump_paragraph_number';
@@ -53,17 +55,37 @@ class PreferencesService {
     final normalizedQuery = query.trim().replaceAll(RegExp(r'\s+'), ' ');
     if (normalizedQuery.length < 2) {
       await prefs.remove(_keyPendingReaderSearchQuery);
+      await prefs.remove(_keyPendingReaderSearchToken);
       return;
     }
 
     await prefs.setString(_keyPendingReaderSearchQuery, normalizedQuery);
+    await prefs.setInt(
+      _keyPendingReaderSearchToken,
+      DateTime.now().millisecondsSinceEpoch,
+    );
   }
 
   Future<String?> takePendingReaderSearchQuery() async {
+    final request = await takePendingReaderSearchRequest();
+    return request?.query;
+  }
+
+  Future<PendingReaderSearchRequest?> takePendingReaderSearchRequest() async {
     final prefs = await SharedPreferences.getInstance();
     final query = prefs.getString(_keyPendingReaderSearchQuery);
+    final token = prefs.getInt(_keyPendingReaderSearchToken);
     await prefs.remove(_keyPendingReaderSearchQuery);
-    return query;
+    await prefs.remove(_keyPendingReaderSearchToken);
+
+    if (query == null || query.trim().length < 2) {
+      return null;
+    }
+
+    return PendingReaderSearchRequest(
+      query: query,
+      token: token ?? DateTime.now().millisecondsSinceEpoch,
+    );
   }
 
   /// NOWE: numer akapitu (1-based) do którego mamy się zbliżyć.
@@ -107,4 +129,11 @@ class PreferencesService {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getDouble(_scrollKeyForChapter(chapterRef));
   }
+}
+
+class PendingReaderSearchRequest {
+  final String query;
+  final int token;
+
+  const PendingReaderSearchRequest({required this.query, required this.token});
 }

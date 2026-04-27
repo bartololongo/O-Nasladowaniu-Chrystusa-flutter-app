@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import '../../shared/models/book_models.dart';
@@ -8,7 +9,14 @@ import '../../shared/services/favorites_service.dart';
 import '../../shared/services/journal_service.dart';
 
 class ReaderScreen extends StatefulWidget {
-  const ReaderScreen({super.key});
+  final void Function(String query)? onOpenSearchResults;
+  final ValueListenable<int>? pendingReaderRequestSignal;
+
+  const ReaderScreen({
+    super.key,
+    this.onOpenSearchResults,
+    this.pendingReaderRequestSignal,
+  });
 
   @override
   State<ReaderScreen> createState() => _ReaderScreenState();
@@ -40,7 +48,11 @@ class _ReaderScreenState extends State<ReaderScreen> {
   List<_ReaderSearchMatch> _chapterSearchMatches = [];
   int _activeChapterSearchIndex = 0;
   String? _pendingChapterSearchQuery;
+  int? _pendingChapterSearchToken;
+  int? _lastAppliedChapterSearchToken;
   bool _hasLoadedInitialChapter = false;
+  bool _chapterSearchOpenedFromGlobalSearch = false;
+  String? _globalSearchReturnQuery;
 
   // flaga, żeby nie odpalać wielu równoległych sprawdzeń jumpa
   bool _isCheckingJump = false;
@@ -65,6 +77,9 @@ class _ReaderScreenState extends State<ReaderScreen> {
     _chapterSearchController = TextEditingController();
     _chapterSearchFocusNode = FocusNode();
     _chapterSearchController.addListener(_onChapterSearchChanged);
+    widget.pendingReaderRequestSignal?.addListener(
+      _onPendingReaderRequestSignal,
+    );
 
     // Jedno źródło prawdy dla startowego rozdziału:
     // 1) jumpChapterRef (Zobacz w książce / zakładki / ulubione / losowy cytat)
@@ -78,12 +93,35 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
   @override
   void dispose() {
+    widget.pendingReaderRequestSignal?.removeListener(
+      _onPendingReaderRequestSignal,
+    );
     _scrollController.removeListener(_onScrollChanged);
     _chapterSearchController.removeListener(_onChapterSearchChanged);
     _chapterSearchController.dispose();
     _chapterSearchFocusNode.dispose();
     _scrollController.dispose();
     super.dispose();
+  }
+
+  @override
+  void didUpdateWidget(covariant ReaderScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.pendingReaderRequestSignal ==
+        widget.pendingReaderRequestSignal) {
+      return;
+    }
+
+    oldWidget.pendingReaderRequestSignal?.removeListener(
+      _onPendingReaderRequestSignal,
+    );
+    widget.pendingReaderRequestSignal?.addListener(
+      _onPendingReaderRequestSignal,
+    );
+  }
+
+  void _onPendingReaderRequestSignal() {
+    _maybeHandleExternalJump(force: true);
   }
 
   void _onScrollChanged() {
@@ -153,8 +191,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
     _paragraphKeys.clear();
     _selectedText = null;
     _resetChapterSearchForChapterChange();
-    final pendingSearchQuery = await _prefs.takePendingReaderSearchQuery();
-    _setPendingChapterSearchQuery(pendingSearchQuery);
+    final pendingSearchRequest = await _prefs.takePendingReaderSearchRequest();
+    _setPendingChapterSearchRequest(pendingSearchRequest);
 
     // Jeśli mamy jumpParagraph i dotyczy właśnie ładowanego rozdziału –
     // nie ładujemy offsetu scrolla, tylko planujemy skok do akapitu.
@@ -220,6 +258,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
     _chapterSearchFocusNode.unfocus();
     _chapterSearchMatches = [];
     _activeChapterSearchIndex = 0;
+    _chapterSearchOpenedFromGlobalSearch = false;
+    _globalSearchReturnQuery = null;
   }
 
   void _onChapterSearchChanged() {
@@ -701,31 +741,32 @@ class _ReaderScreenState extends State<ReaderScreen> {
   /// Sprawdza, czy z zewnątrz nie ustawiono nowego jumpChapterRef / jumpParagraphNumber
   /// (losowy cytat / zakładka / ulubione / dziennik) i jeśli tak – ładuje odpowiedni rozdział
   /// lub przewija w bieżącym, bez nadpisywania lastChapterRef.
-  void _maybeHandleExternalJump() {
+  void _maybeHandleExternalJump({bool force = false}) {
     if (!_hasLoadedInitialChapter) return;
-    if (_isCheckingJump) return;
+    if (_isCheckingJump && !force) return;
     _isCheckingJump = true;
 
     Future.microtask(() async {
       try {
         final jumpRef = await _prefs.getJumpChapterRef();
         final jumpParagraph = await _prefs.getJumpParagraphNumber();
-        final pendingSearchQuery = await _prefs.takePendingReaderSearchQuery();
+        final pendingSearchRequest = await _prefs
+            .takePendingReaderSearchRequest();
 
         if ((jumpRef == null || jumpRef.isEmpty) &&
             jumpParagraph == null &&
-            (pendingSearchQuery == null ||
-                pendingSearchQuery.trim().length < 2)) {
+            pendingSearchRequest == null) {
           return;
         }
 
-        _setPendingChapterSearchQuery(pendingSearchQuery);
+        final hasPendingSearchRequest = pendingSearchRequest != null;
 
         // Jeśli podano rozdział i różni się od bieżącego – przeładuj rozdział.
         if (jumpRef != null &&
             jumpRef.isNotEmpty &&
             jumpRef != _currentChapterRef) {
           await _prefs.clearJumpChapterRef();
+          _setPendingChapterSearchRequest(pendingSearchRequest);
           if (jumpParagraph != null) {
             _jumpParagraphNumber = jumpParagraph;
             _pendingJumpToParagraph = true;
@@ -740,7 +781,11 @@ class _ReaderScreenState extends State<ReaderScreen> {
             skipScrollOffset: jumpParagraph != null,
           );
         } else {
-          // Ten sam rozdział, ale np. inny akapit
+          // Ten sam rozdział, ale np. inny akapit albo nowe wyszukiwanie.
+          if (hasPendingSearchRequest) {
+            _resetChapterSearchForChapterChange();
+            _setPendingChapterSearchRequest(pendingSearchRequest);
+          }
           if (jumpParagraph != null) {
             _jumpParagraphNumber = jumpParagraph;
             _pendingJumpToParagraph = true;
@@ -752,7 +797,10 @@ class _ReaderScreenState extends State<ReaderScreen> {
           if (jumpRef != null && jumpRef.isNotEmpty) {
             await _prefs.clearJumpChapterRef();
           }
-          if (mounted && _pendingChapterSearchQuery != null) {
+          if (mounted &&
+              (_pendingChapterSearchQuery != null ||
+                  jumpParagraph != null ||
+                  jumpRef != null)) {
             setState(() {});
           }
         }
@@ -802,19 +850,33 @@ class _ReaderScreenState extends State<ReaderScreen> {
     _applyPendingChapterSearchQuery(chapter);
   }
 
-  void _setPendingChapterSearchQuery(String? query) {
-    final normalizedQuery = query?.trim().replaceAll(RegExp(r'\s+'), ' ');
+  void _setPendingChapterSearchRequest(PendingReaderSearchRequest? request) {
+    final normalizedQuery = request?.query.trim().replaceAll(
+      RegExp(r'\s+'),
+      ' ',
+    );
     _pendingChapterSearchQuery =
         normalizedQuery != null && normalizedQuery.length >= 2
         ? normalizedQuery
         : null;
+    _pendingChapterSearchToken = _pendingChapterSearchQuery == null
+        ? null
+        : request?.token;
   }
 
   void _applyPendingChapterSearchQuery(BookChapter chapter) {
     final query = _pendingChapterSearchQuery;
     if (query == null) return;
+    final token = _pendingChapterSearchToken;
+    if (token != null && token == _lastAppliedChapterSearchToken) {
+      _pendingChapterSearchQuery = null;
+      _pendingChapterSearchToken = null;
+      return;
+    }
 
     _pendingChapterSearchQuery = null;
+    _pendingChapterSearchToken = null;
+    _lastAppliedChapterSearchToken = token;
     _isUpdatingChapterSearchText = true;
     _chapterSearchController.text = query;
     _chapterSearchController.selection = TextSelection.collapsed(
@@ -827,10 +889,19 @@ class _ReaderScreenState extends State<ReaderScreen> {
       _selectedText = null;
       _chapterSearchMatches = _findChapterSearchMatches(chapter, query);
       _activeChapterSearchIndex = 0;
+      _chapterSearchOpenedFromGlobalSearch = true;
+      _globalSearchReturnQuery = query;
     });
 
     _chapterSearchFocusNode.unfocus();
     _scrollToActiveChapterSearchMatch();
+  }
+
+  void _openGlobalSearchResults() {
+    final query = _globalSearchReturnQuery?.trim();
+    if (query == null || query.length < 2) return;
+
+    widget.onOpenSearchResults?.call(query);
   }
 
   @override
@@ -982,42 +1053,65 @@ class _ReaderScreenState extends State<ReaderScreen> {
         ? '0/0'
         : '0/0';
 
+    final canReturnToSearch =
+        _chapterSearchOpenedFromGlobalSearch &&
+        (_globalSearchReturnQuery?.trim().isNotEmpty ?? false) &&
+        widget.onOpenSearchResults != null;
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 0, 8, 8),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Expanded(
-            child: TextField(
-              controller: _chapterSearchController,
-              focusNode: _chapterSearchFocusNode,
-              textInputAction: TextInputAction.search,
-              onSubmitted: (_) => _chapterSearchFocusNode.unfocus(),
-              decoration: InputDecoration(
-                isDense: true,
-                prefixIcon: const Icon(Icons.search),
-                hintText: 'Znajdź w rozdziale',
-                border: const OutlineInputBorder(),
-                suffixText: counterText,
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _chapterSearchController,
+                  focusNode: _chapterSearchFocusNode,
+                  textInputAction: TextInputAction.search,
+                  onSubmitted: (_) => _chapterSearchFocusNode.unfocus(),
+                  decoration: InputDecoration(
+                    isDense: true,
+                    prefixIcon: const Icon(Icons.search),
+                    hintText: 'Znajdź w rozdziale',
+                    border: const OutlineInputBorder(),
+                    suffixText: counterText,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 4),
+              IconButton(
+                tooltip: 'Poprzednie trafienie',
+                icon: const Icon(Icons.keyboard_arrow_up_rounded),
+                onPressed: hasMatches ? _goToPreviousChapterSearchMatch : null,
+              ),
+              IconButton(
+                tooltip: 'Następne trafienie',
+                icon: const Icon(Icons.keyboard_arrow_down_rounded),
+                onPressed: hasMatches ? _goToNextChapterSearchMatch : null,
+              ),
+              IconButton(
+                tooltip: 'Zamknij wyszukiwanie',
+                icon: const Icon(Icons.close),
+                color: colorScheme.onSurface.withValues(alpha: 0.8),
+                onPressed: _closeChapterSearch,
+              ),
+            ],
+          ),
+          if (canReturnToSearch)
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: _openGlobalSearchResults,
+                icon: const Icon(Icons.arrow_back, size: 18),
+                label: const Text('Wróć do wyników'),
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  visualDensity: VisualDensity.compact,
+                ),
               ),
             ),
-          ),
-          const SizedBox(width: 4),
-          IconButton(
-            tooltip: 'Poprzednie trafienie',
-            icon: const Icon(Icons.keyboard_arrow_up_rounded),
-            onPressed: hasMatches ? _goToPreviousChapterSearchMatch : null,
-          ),
-          IconButton(
-            tooltip: 'Następne trafienie',
-            icon: const Icon(Icons.keyboard_arrow_down_rounded),
-            onPressed: hasMatches ? _goToNextChapterSearchMatch : null,
-          ),
-          IconButton(
-            tooltip: 'Zamknij wyszukiwanie',
-            icon: const Icon(Icons.close),
-            color: colorScheme.onSurface.withValues(alpha: 0.8),
-            onPressed: _closeChapterSearch,
-          ),
         ],
       ),
     );

@@ -10,6 +10,7 @@ import 'features/journal/journal_screen.dart';
 import 'features/settings/settings_screen.dart';
 import 'features/favorites/favorites_screen.dart';
 import 'features/formation_challenge/formation_challenge_screen.dart';
+import 'features/search/search_screen.dart';
 import 'shared/services/formation_notification_service.dart';
 import 'shared/services/formation_widget_snapshot_service.dart';
 import 'app_route_observer.dart';
@@ -72,6 +73,7 @@ class _RootScreenState extends State<_RootScreen> with WidgetsBindingObserver {
 
   /// ID instancji Readera.
   final int _readerInstanceId = 0;
+  final ValueNotifier<int> _pendingReaderRequestSignal = ValueNotifier<int>(0);
   String? _activeMoreRouteName;
 
   /// Wewnętrzny Navigator, w którym renderujemy:
@@ -116,6 +118,7 @@ class _RootScreenState extends State<_RootScreen> with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     _notificationSubscription?.cancel();
     _widgetClickSubscription?.cancel();
+    _pendingReaderRequestSignal.dispose();
     super.dispose();
   }
 
@@ -348,6 +351,26 @@ class _RootScreenState extends State<_RootScreen> with WidgetsBindingObserver {
     _openMoreScreen(screen);
   }
 
+  void _openSearchResultsFromReader(String query) {
+    final navigator = _innerNavigatorKey.currentState;
+    if (navigator == null) return;
+
+    navigator.push(
+      MaterialPageRoute(
+        settings: const RouteSettings(name: '/search/from-reader'),
+        builder: (_) => SearchScreen(
+          initialQuery: query,
+          onNavigateToTab: _onTabSelected,
+          onOpenMoreScreen: _openMoreScreenFromHome,
+          onBookResultSelectedFromReader: () {
+            navigator.pop();
+            _pendingReaderRequestSignal.value++;
+          },
+        ),
+      ),
+    );
+  }
+
   /// Buduje ekran odpowiadający aktualnie wybranemu bazowemu tabowi
   /// (Start/Czytanie/Zakładki).
   Widget _buildTabBody() {
@@ -360,7 +383,11 @@ class _RootScreenState extends State<_RootScreen> with WidgetsBindingObserver {
       case 1:
         // ValueKey na podstawie _readerInstanceId wymusza nową instancję,
         // gdy ten licznik się zmieni.
-        return ReaderScreen(key: ValueKey(_readerInstanceId));
+        return ReaderScreen(
+          key: ValueKey(_readerInstanceId),
+          onOpenSearchResults: _openSearchResultsFromReader,
+          pendingReaderRequestSignal: _pendingReaderRequestSignal,
+        );
       case 2:
         return BookmarksScreen(onNavigateToTab: _onTabSelected);
       default:
