@@ -4,6 +4,8 @@ class PreferencesService {
   static const String _keyLastChapterRef = 'last_chapter_ref';
   static const String _keyJumpChapterRef = 'jump_chapter_ref';
   static const String _keyReaderFontSize = 'reader_font_size';
+  static const String _keyPendingReaderSearchQuery =
+      'pending_reader_search_query';
 
   // NOWE: numer akapitu, do którego mamy się „zbliżyć” przy skoku
   static const String _keyJumpParagraphNumber = 'jump_paragraph_number';
@@ -43,6 +45,25 @@ class PreferencesService {
   Future<void> clearJumpChapterRef() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_keyJumpChapterRef);
+  }
+
+  /// Jednorazowa fraza do lokalnego "Znajdź w rozdziale" po skoku do czytnika.
+  Future<void> setPendingReaderSearchQuery(String query) async {
+    final prefs = await SharedPreferences.getInstance();
+    final normalizedQuery = query.trim().replaceAll(RegExp(r'\s+'), ' ');
+    if (normalizedQuery.length < 2) {
+      await prefs.remove(_keyPendingReaderSearchQuery);
+      return;
+    }
+
+    await prefs.setString(_keyPendingReaderSearchQuery, normalizedQuery);
+  }
+
+  Future<String?> takePendingReaderSearchQuery() async {
+    final prefs = await SharedPreferences.getInstance();
+    final query = prefs.getString(_keyPendingReaderSearchQuery);
+    await prefs.remove(_keyPendingReaderSearchQuery);
+    return query;
   }
 
   /// NOWE: numer akapitu (1-based) do którego mamy się zbliżyć.

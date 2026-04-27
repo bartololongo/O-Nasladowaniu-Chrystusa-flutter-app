@@ -39,6 +39,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
   bool _isUpdatingChapterSearchText = false;
   List<_ReaderSearchMatch> _chapterSearchMatches = [];
   int _activeChapterSearchIndex = 0;
+  String? _pendingChapterSearchQuery;
+  bool _hasLoadedInitialChapter = false;
 
   // flaga, żeby nie odpalać wielu równoległych sprawdzeń jumpa
   bool _isCheckingJump = false;
@@ -151,6 +153,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
     _paragraphKeys.clear();
     _selectedText = null;
     _resetChapterSearchForChapterChange();
+    final pendingSearchQuery = await _prefs.takePendingReaderSearchQuery();
+    _setPendingChapterSearchQuery(pendingSearchQuery);
 
     // Jeśli mamy jumpParagraph i dotyczy właśnie ładowanego rozdziału –
     // nie ładujemy offsetu scrolla, tylko planujemy skok do akapitu.
@@ -167,6 +171,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
     }
 
     await _refreshBookmarkStatus();
+    _hasLoadedInitialChapter = true;
 
     return chapter;
   }
@@ -697,6 +702,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
   /// (losowy cytat / zakładka / ulubione / dziennik) i jeśli tak – ładuje odpowiedni rozdział
   /// lub przewija w bieżącym, bez nadpisywania lastChapterRef.
   void _maybeHandleExternalJump() {
+    if (!_hasLoadedInitialChapter) return;
     if (_isCheckingJump) return;
     _isCheckingJump = true;
 
@@ -704,10 +710,16 @@ class _ReaderScreenState extends State<ReaderScreen> {
       try {
         final jumpRef = await _prefs.getJumpChapterRef();
         final jumpParagraph = await _prefs.getJumpParagraphNumber();
+        final pendingSearchQuery = await _prefs.takePendingReaderSearchQuery();
 
-        if ((jumpRef == null || jumpRef.isEmpty) && jumpParagraph == null) {
+        if ((jumpRef == null || jumpRef.isEmpty) &&
+            jumpParagraph == null &&
+            (pendingSearchQuery == null ||
+                pendingSearchQuery.trim().length < 2)) {
           return;
         }
+
+        _setPendingChapterSearchQuery(pendingSearchQuery);
 
         // Jeśli podano rozdział i różni się od bieżącego – przeładuj rozdział.
         if (jumpRef != null &&
@@ -739,6 +751,9 @@ class _ReaderScreenState extends State<ReaderScreen> {
           }
           if (jumpRef != null && jumpRef.isNotEmpty) {
             await _prefs.clearJumpChapterRef();
+          }
+          if (mounted && _pendingChapterSearchQuery != null) {
+            setState(() {});
           }
         }
       } finally {
@@ -783,6 +798,39 @@ class _ReaderScreenState extends State<ReaderScreen> {
         );
       }
     }
+
+    _applyPendingChapterSearchQuery(chapter);
+  }
+
+  void _setPendingChapterSearchQuery(String? query) {
+    final normalizedQuery = query?.trim().replaceAll(RegExp(r'\s+'), ' ');
+    _pendingChapterSearchQuery =
+        normalizedQuery != null && normalizedQuery.length >= 2
+        ? normalizedQuery
+        : null;
+  }
+
+  void _applyPendingChapterSearchQuery(BookChapter chapter) {
+    final query = _pendingChapterSearchQuery;
+    if (query == null) return;
+
+    _pendingChapterSearchQuery = null;
+    _isUpdatingChapterSearchText = true;
+    _chapterSearchController.text = query;
+    _chapterSearchController.selection = TextSelection.collapsed(
+      offset: query.length,
+    );
+    _isUpdatingChapterSearchText = false;
+
+    setState(() {
+      _isChapterSearchVisible = true;
+      _selectedText = null;
+      _chapterSearchMatches = _findChapterSearchMatches(chapter, query);
+      _activeChapterSearchIndex = 0;
+    });
+
+    _chapterSearchFocusNode.unfocus();
+    _scrollToActiveChapterSearchMatch();
   }
 
   @override

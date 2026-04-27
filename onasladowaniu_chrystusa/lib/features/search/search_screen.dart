@@ -13,11 +13,7 @@ class SearchScreen extends StatefulWidget {
   final void Function(int tabIndex)? onNavigateToTab;
   final void Function(Widget screen)? onOpenMoreScreen;
 
-  const SearchScreen({
-    super.key,
-    this.onNavigateToTab,
-    this.onOpenMoreScreen,
-  });
+  const SearchScreen({super.key, this.onNavigateToTab, this.onOpenMoreScreen});
 
   @override
   State<SearchScreen> createState() => _SearchScreenState();
@@ -92,9 +88,7 @@ class _SearchScreenState extends State<SearchScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Szukaj'),
-      ),
+      appBar: AppBar(title: const Text('Szukaj')),
       body: SafeArea(
         child: Column(
           children: [
@@ -152,9 +146,7 @@ class _SearchScreenState extends State<SearchScreen> {
       return Column(
         children: [
           _buildFilterBar(),
-          const Expanded(
-            child: Center(child: CircularProgressIndicator()),
-          ),
+          const Expanded(child: Center(child: CircularProgressIndicator())),
         ],
       );
     }
@@ -163,9 +155,7 @@ class _SearchScreenState extends State<SearchScreen> {
       return Column(
         children: [
           _buildFilterBar(),
-          const Expanded(
-            child: Center(child: Text('Brak wyników.')),
-          ),
+          const Expanded(child: Center(child: Text('Brak wyników.'))),
         ],
       );
     }
@@ -192,8 +182,7 @@ class _SearchScreenState extends State<SearchScreen> {
         _buildFilterBar(),
         Expanded(
           child: ListView(
-            keyboardDismissBehavior:
-                ScrollViewKeyboardDismissBehavior.onDrag,
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
             children: [
               for (final type in GlobalSearchResultType.values)
@@ -255,10 +244,7 @@ class _SearchScreenState extends State<SearchScreen> {
     );
   }
 
-  void _showResultDetails(
-    BuildContext context,
-    GlobalSearchResult result,
-  ) {
+  void _showResultDetails(BuildContext context, GlobalSearchResult result) {
     _hideKeyboard();
 
     showModalBottomSheet(
@@ -302,10 +288,7 @@ class _SearchScreenState extends State<SearchScreen> {
                     ),
                   ],
                   const SizedBox(height: 16),
-                  Text(
-                    result.snippet,
-                    style: const TextStyle(height: 1.45),
-                  ),
+                  Text(result.snippet, style: const TextStyle(height: 1.45)),
                   const SizedBox(height: 16),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.end,
@@ -371,12 +354,12 @@ class _SearchScreenState extends State<SearchScreen> {
   }
 
   Future<void> _openBookResult(GlobalSearchResult result) async {
-    final chapterRef = result.chapterRef ?? _chapterRefFromParagraphRef(
-      result.paragraphRef,
-    );
+    final chapterRef =
+        result.chapterRef ?? _chapterRefFromParagraphRef(result.paragraphRef);
 
     if (chapterRef != null && chapterRef.isNotEmpty) {
       await _preferencesService.setJumpChapterRef(chapterRef);
+      await _preferencesService.setPendingReaderSearchQuery(_query);
     }
 
     await _preferencesService.clearJumpParagraphNumber();
@@ -400,9 +383,7 @@ class _SearchScreenState extends State<SearchScreen> {
   }
 
   void _openFavoritesResult() {
-    final screen = FavoritesScreen(
-      onNavigateToTab: widget.onNavigateToTab,
-    );
+    final screen = FavoritesScreen(onNavigateToTab: widget.onNavigateToTab);
 
     if (widget.onOpenMoreScreen != null) {
       widget.onOpenMoreScreen!(screen);
@@ -464,9 +445,7 @@ class _SearchScreenState extends State<SearchScreen> {
 class _SectionHeader extends StatelessWidget {
   final String title;
 
-  const _SectionHeader({
-    required this.title,
-  });
+  const _SectionHeader({required this.title});
 
   @override
   Widget build(BuildContext context) {
@@ -474,10 +453,7 @@ class _SectionHeader extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(0, 12, 0, 6),
       child: Text(
         title,
-        style: const TextStyle(
-          fontSize: 13,
-          fontWeight: FontWeight.w600,
-        ),
+        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
       ),
     );
   }
@@ -527,11 +503,7 @@ class _SearchResultTile extends StatelessWidget {
           children: [
             Text(result.subtitle),
             const SizedBox(height: 4),
-            Text(
-              result.snippet,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
+            Text(result.snippet, maxLines: 2, overflow: TextOverflow.ellipsis),
           ],
         ),
         onTap: onTap,
