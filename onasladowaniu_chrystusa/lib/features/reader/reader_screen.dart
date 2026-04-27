@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import '../../shared/models/book_models.dart';
 import '../../shared/services/book_repository.dart';
 import '../../shared/services/preferences_service.dart';
@@ -21,6 +22,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
   final JournalService _journalService = JournalService();
 
   late final ScrollController _scrollController;
+  late final TextEditingController _chapterSearchController;
+  late final FocusNode _chapterSearchFocusNode;
 
   double _fontSize = 18.0;
   double _lineHeight = 1.5;
@@ -28,9 +31,14 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
   late Future<BookChapter> _chapterFuture;
   String _currentChapterRef = 'I-1'; // fallback
+  BookChapter? _visibleChapter;
 
   double? _pendingScrollOffset;
   bool _isCurrentBookmarked = false;
+  bool _isChapterSearchVisible = false;
+  bool _isUpdatingChapterSearchText = false;
+  List<_ReaderSearchMatch> _chapterSearchMatches = [];
+  int _activeChapterSearchIndex = 0;
 
   // flaga, żeby nie odpalać wielu równoległych sprawdzeń jumpa
   bool _isCheckingJump = false;
@@ -52,6 +60,9 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
     _scrollController = ScrollController();
     _scrollController.addListener(_onScrollChanged);
+    _chapterSearchController = TextEditingController();
+    _chapterSearchFocusNode = FocusNode();
+    _chapterSearchController.addListener(_onChapterSearchChanged);
 
     // Jedno źródło prawdy dla startowego rozdziału:
     // 1) jumpChapterRef (Zobacz w książce / zakładki / ulubione / losowy cytat)
@@ -66,6 +77,9 @@ class _ReaderScreenState extends State<ReaderScreen> {
   @override
   void dispose() {
     _scrollController.removeListener(_onScrollChanged);
+    _chapterSearchController.removeListener(_onChapterSearchChanged);
+    _chapterSearchController.dispose();
+    _chapterSearchFocusNode.dispose();
     _scrollController.dispose();
     super.dispose();
   }
@@ -133,8 +147,10 @@ class _ReaderScreenState extends State<ReaderScreen> {
     }
 
     _currentChapterRef = chapter!.reference;
+    _visibleChapter = chapter;
     _paragraphKeys.clear();
     _selectedText = null;
+    _resetChapterSearchForChapterChange();
 
     // Jeśli mamy jumpParagraph i dotyczy właśnie ładowanego rozdziału –
     // nie ładujemy offsetu scrolla, tylko planujemy skok do akapitu.
@@ -164,12 +180,181 @@ class _ReaderScreenState extends State<ReaderScreen> {
   }
 
   Future<void> _refreshBookmarkStatus() async {
-    final isBookmarked =
-        await _bookmarksService.isChapterBookmarked(_currentChapterRef);
+    final isBookmarked = await _bookmarksService.isChapterBookmarked(
+      _currentChapterRef,
+    );
     if (!mounted) return;
     setState(() {
       _isCurrentBookmarked = isBookmarked;
     });
+  }
+
+  void _openChapterSearch() {
+    setState(() {
+      _isChapterSearchVisible = true;
+      _selectedText = null;
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _chapterSearchFocusNode.requestFocus();
+    });
+  }
+
+  void _closeChapterSearch() {
+    _chapterSearchFocusNode.unfocus();
+    _resetChapterSearchForChapterChange();
+    setState(() {
+      _isChapterSearchVisible = false;
+    });
+  }
+
+  void _resetChapterSearchForChapterChange() {
+    _isUpdatingChapterSearchText = true;
+    _chapterSearchController.clear();
+    _isUpdatingChapterSearchText = false;
+    _chapterSearchFocusNode.unfocus();
+    _chapterSearchMatches = [];
+    _activeChapterSearchIndex = 0;
+  }
+
+  void _onChapterSearchChanged() {
+    if (_isUpdatingChapterSearchText) return;
+
+    final chapter = _visibleChapter;
+    final query = _chapterSearchController.text.trim();
+
+    setState(() {
+      _chapterSearchMatches = chapter == null || query.length < 2
+          ? []
+          : _findChapterSearchMatches(chapter, query);
+      _activeChapterSearchIndex = 0;
+    });
+
+    _scrollToActiveChapterSearchMatch();
+  }
+
+  List<_ReaderSearchMatch> _findChapterSearchMatches(
+    BookChapter chapter,
+    String query,
+  ) {
+    final normalizedQuery = query.toLowerCase();
+    final matches = <_ReaderSearchMatch>[];
+
+    for (
+      var paragraphIndex = 0;
+      paragraphIndex < chapter.paragraphs.length;
+      paragraphIndex++
+    ) {
+      final text = chapter.paragraphs[paragraphIndex].text;
+      final normalizedText = text.toLowerCase();
+      var start = 0;
+
+      while (start < normalizedText.length) {
+        final matchStart = normalizedText.indexOf(normalizedQuery, start);
+        if (matchStart == -1) break;
+
+        matches.add(
+          _ReaderSearchMatch(
+            paragraphIndex: paragraphIndex,
+            start: matchStart,
+            end: matchStart + normalizedQuery.length,
+          ),
+        );
+        start = matchStart + normalizedQuery.length;
+      }
+    }
+
+    return matches;
+  }
+
+  void _goToPreviousChapterSearchMatch() {
+    if (_chapterSearchMatches.isEmpty) return;
+
+    _chapterSearchFocusNode.unfocus();
+    setState(() {
+      _activeChapterSearchIndex =
+          (_activeChapterSearchIndex - 1) % _chapterSearchMatches.length;
+    });
+    _scrollToActiveChapterSearchMatch();
+  }
+
+  void _goToNextChapterSearchMatch() {
+    if (_chapterSearchMatches.isEmpty) return;
+
+    _chapterSearchFocusNode.unfocus();
+    setState(() {
+      _activeChapterSearchIndex =
+          (_activeChapterSearchIndex + 1) % _chapterSearchMatches.length;
+    });
+    _scrollToActiveChapterSearchMatch();
+  }
+
+  void _scrollToActiveChapterSearchMatch() {
+    if (_chapterSearchMatches.isEmpty) return;
+
+    final match = _chapterSearchMatches[_activeChapterSearchIndex];
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final context = _paragraphKeys[match.paragraphIndex]?.currentContext;
+      final renderObject = context?.findRenderObject();
+      if (renderObject == null || !_scrollController.hasClients) return;
+
+      final viewport = RenderAbstractViewport.maybeOf(renderObject);
+      if (viewport == null) return;
+
+      final paragraphOffset = viewport
+          .getOffsetToReveal(renderObject, 0)
+          .offset;
+      final matchLocalOffset = _calculateSearchMatchLocalOffset(
+        match: match,
+        renderObject: renderObject,
+      );
+      final targetOffset = paragraphOffset + matchLocalOffset - 140;
+      final position = _scrollController.position;
+      final clampedOffset = targetOffset
+          .clamp(position.minScrollExtent, position.maxScrollExtent)
+          .toDouble();
+
+      _scrollController.animateTo(
+        clampedOffset,
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOut,
+      );
+    });
+  }
+
+  double _calculateSearchMatchLocalOffset({
+    required _ReaderSearchMatch match,
+    required RenderObject renderObject,
+  }) {
+    final chapter = _visibleChapter;
+    if (chapter == null ||
+        match.paragraphIndex < 0 ||
+        match.paragraphIndex >= chapter.paragraphs.length ||
+        renderObject is! RenderBox) {
+      return 0;
+    }
+
+    final paragraphText = chapter.paragraphs[match.paragraphIndex].text;
+    final maxWidth = renderObject.size.width;
+    if (maxWidth <= 0 ||
+        match.start < 0 ||
+        match.start > paragraphText.length) {
+      return 0;
+    }
+
+    final textPainter = TextPainter(
+      text: TextSpan(
+        text: paragraphText,
+        style: TextStyle(fontSize: _fontSize, height: _lineHeight),
+      ),
+      textAlign: _isJustified ? TextAlign.justify : TextAlign.left,
+      textDirection: Directionality.of(context),
+    )..layout(maxWidth: maxWidth);
+
+    return textPainter
+        .getOffsetForCaret(TextPosition(offset: match.start), Rect.zero)
+        .dy;
   }
 
   /// Ładowanie rozdziału – opcjonalnie bez przywracania offsetu scrolla
@@ -181,8 +366,10 @@ class _ReaderScreenState extends State<ReaderScreen> {
   }) {
     setState(() {
       _currentChapterRef = reference;
-      _chapterFuture =
-          _bookRepository.getChapterByReference(reference).then((chapter) {
+      _visibleChapter = null;
+      _chapterFuture = _bookRepository.getChapterByReference(reference).then((
+        chapter,
+      ) {
         if (chapter == null) {
           throw Exception('Nie znaleziono rozdziału $reference');
         }
@@ -191,6 +378,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
       _pendingScrollOffset = null;
       _selectedText = null;
       _paragraphKeys.clear();
+      _resetChapterSearchForChapterChange();
       // _jumpParagraphNumber / _pendingJumpToParagraph ustawiamy
       // z zewnątrz, np. w _maybeHandleExternalJump
     });
@@ -234,9 +422,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
               if (!snapshot.hasData) {
                 return const SizedBox(
                   height: 200,
-                  child: Center(
-                    child: Text('Brak danych książki'),
-                  ),
+                  child: Center(child: Text('Brak danych książki')),
                 );
               }
 
@@ -247,9 +433,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
               if (books.isEmpty) {
                 return const SizedBox(
                   height: 200,
-                  child: Center(
-                    child: Text('Brak ksiąg w kolekcji'),
-                  ),
+                  child: Center(child: Text('Brak ksiąg w kolekcji')),
                 );
               }
 
@@ -316,16 +500,16 @@ class _ReaderScreenState extends State<ReaderScreen> {
                             SizedBox(
                               height: 48,
                               child: ListView.separated(
-                                padding:
-                                    const EdgeInsets.symmetric(horizontal: 16),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                ),
                                 scrollDirection: Axis.horizontal,
                                 itemCount: books.length,
                                 separatorBuilder: (_, __) =>
                                     const SizedBox(width: 8),
                                 itemBuilder: (context, index) {
                                   final book = books[index];
-                                  final isSelected =
-                                      index == selectedBookIndex;
+                                  final isSelected = index == selectedBookIndex;
 
                                   return ChoiceChip(
                                     label: Text(
@@ -350,15 +534,17 @@ class _ReaderScreenState extends State<ReaderScreen> {
                               child: ListView.builder(
                                 controller: scrollController,
                                 padding: const EdgeInsets.fromLTRB(
-                                    16, 0, 16, 16),
+                                  16,
+                                  0,
+                                  16,
+                                  16,
+                                ),
                                 itemCount: selectedBook.chapters.length,
                                 itemBuilder: (context, index) {
-                                  final chapter =
-                                      selectedBook.chapters[index];
+                                  final chapter = selectedBook.chapters[index];
 
                                   return ListTile(
-                                    contentPadding:
-                                        const EdgeInsets.symmetric(
+                                    contentPadding: const EdgeInsets.symmetric(
                                       horizontal: 0,
                                       vertical: 0,
                                     ),
@@ -367,13 +553,12 @@ class _ReaderScreenState extends State<ReaderScreen> {
                                       'Rozdział ${chapter.number} • ${chapter.reference}',
                                     ),
                                     trailing:
-                                        _currentChapterRef ==
-                                                chapter.reference
-                                            ? Icon(
-                                                Icons.check,
-                                                color: colorScheme.primary,
-                                              )
-                                            : null,
+                                        _currentChapterRef == chapter.reference
+                                        ? Icon(
+                                            Icons.check,
+                                            color: colorScheme.primary,
+                                          )
+                                        : null,
                                     onTap: () {
                                       Navigator.of(context).pop();
                                       _jumpParagraphNumber = null;
@@ -402,14 +587,11 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
   Future<void> _goToNextChapter() async {
     try {
-      final next =
-          await _bookRepository.getNextChapter(_currentChapterRef);
+      final next = await _bookRepository.getNextChapter(_currentChapterRef);
       if (!mounted) return;
       if (next == null) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('To jest ostatni rozdział.'),
-          ),
+          const SnackBar(content: Text('To jest ostatni rozdział.')),
         );
         return;
       }
@@ -420,8 +602,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content:
-              Text('Nie udało się przejść do następnego rozdziału: $e'),
+          content: Text('Nie udało się przejść do następnego rozdziału: $e'),
         ),
       );
     }
@@ -429,14 +610,13 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
   Future<void> _goToPreviousChapter() async {
     try {
-      final previous =
-          await _bookRepository.getPreviousChapter(_currentChapterRef);
+      final previous = await _bookRepository.getPreviousChapter(
+        _currentChapterRef,
+      );
       if (!mounted) return;
       if (previous == null) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('To jest pierwszy rozdział.'),
-          ),
+          const SnackBar(content: Text('To jest pierwszy rozdział.')),
         );
         return;
       }
@@ -447,8 +627,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content:
-              Text('Nie udało się przejść do poprzedniego rozdziału: $e'),
+          content: Text('Nie udało się przejść do poprzedniego rozdziału: $e'),
         ),
       );
     }
@@ -457,32 +636,28 @@ class _ReaderScreenState extends State<ReaderScreen> {
   Future<void> _toggleBookmarkForCurrentChapter() async {
     try {
       if (_isCurrentBookmarked) {
-        await _bookmarksService
-            .removeBookmarkForChapterRef(_currentChapterRef);
+        await _bookmarksService.removeBookmarkForChapterRef(_currentChapterRef);
         if (!mounted) return;
         setState(() {
           _isCurrentBookmarked = false;
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Zakładka usunięta.')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Zakładka usunięta.')));
       } else {
-        await _bookmarksService
-            .addBookmarkForChapterRef(_currentChapterRef);
+        await _bookmarksService.addBookmarkForChapterRef(_currentChapterRef);
         if (!mounted) return;
         setState(() {
           _isCurrentBookmarked = true;
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Zakładka dodana.')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Zakładka dodana.')));
       }
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Nie udało się zaktualizować zakładki: $e'),
-        ),
+        SnackBar(content: Text('Nie udało się zaktualizować zakładki: $e')),
       );
     }
   }
@@ -513,9 +688,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Nie udało się dodać zakładki: $e'),
-        ),
+        SnackBar(content: Text('Nie udało się dodać zakładki: $e')),
       );
     }
   }
@@ -532,8 +705,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
         final jumpRef = await _prefs.getJumpChapterRef();
         final jumpParagraph = await _prefs.getJumpParagraphNumber();
 
-        if ((jumpRef == null || jumpRef.isEmpty) &&
-            jumpParagraph == null) {
+        if ((jumpRef == null || jumpRef.isEmpty) && jumpParagraph == null) {
           return;
         }
 
@@ -594,8 +766,10 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
     // 2) Skok do konkretnego akapitu – akapit ma być na górze ekranu
     if (_pendingJumpToParagraph && _jumpParagraphNumber != null) {
-      final targetIndex =
-          (_jumpParagraphNumber! - 1).clamp(0, chapter.paragraphs.length - 1);
+      final targetIndex = (_jumpParagraphNumber! - 1).clamp(
+        0,
+        chapter.paragraphs.length - 1,
+      );
       final key = _paragraphKeys[targetIndex];
       final ctx = key?.currentContext;
       if (ctx != null) {
@@ -622,13 +796,15 @@ class _ReaderScreenState extends State<ReaderScreen> {
         actions: [
           IconButton(
             icon: Icon(
-              _isCurrentBookmarked
-                  ? Icons.bookmark
-                  : Icons.bookmark_border,
+              _isCurrentBookmarked ? Icons.bookmark : Icons.bookmark_border,
             ),
-            tooltip:
-                _isCurrentBookmarked ? 'Usuń zakładkę' : 'Dodaj zakładkę',
+            tooltip: _isCurrentBookmarked ? 'Usuń zakładkę' : 'Dodaj zakładkę',
             onPressed: _toggleBookmarkForCurrentChapter,
+          ),
+          IconButton(
+            icon: const Icon(Icons.search),
+            tooltip: 'Znajdź w rozdziale',
+            onPressed: _openChapterSearch,
           ),
           IconButton(
             icon: const Icon(Icons.menu_book_outlined),
@@ -640,16 +816,14 @@ class _ReaderScreenState extends State<ReaderScreen> {
       body: Column(
         children: [
           _buildControls(),
+          if (_isChapterSearchVisible) _buildChapterSearchBar(),
           const Divider(height: 1),
           Expanded(
             child: FutureBuilder<BookChapter>(
               future: _chapterFuture,
               builder: (context, snapshot) {
-                if (snapshot.connectionState ==
-                    ConnectionState.waiting) {
-                  return const Center(
-                    child: CircularProgressIndicator(),
-                  );
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
                 }
                 if (snapshot.hasError) {
                   return Center(
@@ -660,12 +834,13 @@ class _ReaderScreenState extends State<ReaderScreen> {
                   );
                 }
                 if (!snapshot.hasData) {
-                  return const Center(
-                    child: Text('Brak danych rozdziału'),
-                  );
+                  return const Center(child: Text('Brak danych rozdziału'));
                 }
 
                 final chapter = snapshot.data!;
+                if (_visibleChapter?.reference != chapter.reference) {
+                  _visibleChapter = chapter;
+                }
 
                 // Po złożeniu drzewa spróbuj przywrócić scroll / skoczyć do akapitu
                 WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -741,8 +916,59 @@ class _ReaderScreenState extends State<ReaderScreen> {
                   ? Icons.format_align_justify
                   : Icons.format_align_left,
             ),
-            tooltip:
-                _isJustified ? 'Wyrównaj do lewej' : 'Wyjustuj tekst',
+            tooltip: _isJustified ? 'Wyrównaj do lewej' : 'Wyjustuj tekst',
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildChapterSearchBar() {
+    final colorScheme = Theme.of(context).colorScheme;
+    final query = _chapterSearchController.text.trim();
+    final hasSearchQuery = query.length >= 2;
+    final hasMatches = _chapterSearchMatches.isNotEmpty;
+    final counterText = hasMatches
+        ? '${_activeChapterSearchIndex + 1}/${_chapterSearchMatches.length}'
+        : hasSearchQuery
+        ? '0/0'
+        : '0/0';
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 0, 8, 8),
+      child: Row(
+        children: [
+          Expanded(
+            child: TextField(
+              controller: _chapterSearchController,
+              focusNode: _chapterSearchFocusNode,
+              textInputAction: TextInputAction.search,
+              onSubmitted: (_) => _chapterSearchFocusNode.unfocus(),
+              decoration: InputDecoration(
+                isDense: true,
+                prefixIcon: const Icon(Icons.search),
+                hintText: 'Znajdź w rozdziale',
+                border: const OutlineInputBorder(),
+                suffixText: counterText,
+              ),
+            ),
+          ),
+          const SizedBox(width: 4),
+          IconButton(
+            tooltip: 'Poprzednie trafienie',
+            icon: const Icon(Icons.keyboard_arrow_up_rounded),
+            onPressed: hasMatches ? _goToPreviousChapterSearchMatch : null,
+          ),
+          IconButton(
+            tooltip: 'Następne trafienie',
+            icon: const Icon(Icons.keyboard_arrow_down_rounded),
+            onPressed: hasMatches ? _goToNextChapterSearchMatch : null,
+          ),
+          IconButton(
+            tooltip: 'Zamknij wyszukiwanie',
+            icon: const Icon(Icons.close),
+            color: colorScheme.onSurface.withValues(alpha: 0.8),
+            onPressed: _closeChapterSearch,
           ),
         ],
       ),
@@ -799,21 +1025,14 @@ class _ReaderScreenState extends State<ReaderScreen> {
             onPressed: _goToPreviousChapter,
             icon: const Icon(Icons.chevron_left),
             label: const Text('Poprzedni'),
-            style: TextButton.styleFrom(
-              foregroundColor: colorScheme.primary,
-            ),
+            style: TextButton.styleFrom(foregroundColor: colorScheme.primary),
           ),
           TextButton(
             onPressed: _goToNextChapter,
-            style: TextButton.styleFrom(
-              foregroundColor: colorScheme.primary,
-            ),
+            style: TextButton.styleFrom(foregroundColor: colorScheme.primary),
             child: const Row(
               mainAxisSize: MainAxisSize.min,
-              children: [
-                Text('Następny'),
-                Icon(Icons.chevron_right),
-              ],
+              children: [Text('Następny'), Icon(Icons.chevron_right)],
             ),
           ),
         ],
@@ -831,21 +1050,26 @@ class _ReaderScreenState extends State<ReaderScreen> {
               if (!mounted) return;
               setState(() {
                 final trimmed = text?.trim();
-                _selectedText =
-                    (trimmed != null && trimmed.isNotEmpty) ? trimmed : null;
+                _selectedText = (trimmed != null && trimmed.isNotEmpty)
+                    ? trimmed
+                    : null;
               });
             },
             child: SingleChildScrollView(
               controller: _scrollController,
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  for (int i = 0; i < chapter.paragraphs.length; i++) ...[
-                    _buildParagraphText(chapter.paragraphs[i].text, i),
-                    const SizedBox(height: 12),
+              child: GestureDetector(
+                behavior: HitTestBehavior.translucent,
+                onTap: _chapterSearchFocusNode.unfocus,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    for (int i = 0; i < chapter.paragraphs.length; i++) ...[
+                      _buildParagraphText(chapter.paragraphs[i].text, i),
+                      const SizedBox(height: 12),
+                    ],
                   ],
-                ],
+                ),
               ),
             ),
           ),
@@ -865,18 +1089,70 @@ class _ReaderScreenState extends State<ReaderScreen> {
   /// dokładnie do jego pozycji (na górę ekranu).
   Widget _buildParagraphText(String text, int index) {
     final key = _paragraphKeys.putIfAbsent(index, () => GlobalKey());
+    final style = TextStyle(fontSize: _fontSize, height: _lineHeight);
 
     return KeyedSubtree(
       key: key,
-      child: Text(
-        text,
+      child: Text.rich(
+        TextSpan(children: _buildParagraphSearchSpans(text, index, style)),
         textAlign: _isJustified ? TextAlign.justify : TextAlign.left,
-        style: TextStyle(
-          fontSize: _fontSize,
-          height: _lineHeight,
-        ),
+        style: style,
       ),
     );
+  }
+
+  List<TextSpan> _buildParagraphSearchSpans(
+    String text,
+    int paragraphIndex,
+    TextStyle baseStyle,
+  ) {
+    if (!_isChapterSearchVisible || _chapterSearchMatches.isEmpty) {
+      return [TextSpan(text: text)];
+    }
+
+    final colorScheme = Theme.of(context).colorScheme;
+    final paragraphMatches = <MapEntry<int, _ReaderSearchMatch>>[
+      for (var i = 0; i < _chapterSearchMatches.length; i++)
+        if (_chapterSearchMatches[i].paragraphIndex == paragraphIndex)
+          MapEntry(i, _chapterSearchMatches[i]),
+    ];
+
+    if (paragraphMatches.isEmpty) {
+      return [TextSpan(text: text)];
+    }
+
+    final spans = <TextSpan>[];
+    var cursor = 0;
+
+    for (final matchEntry in paragraphMatches) {
+      final matchIndex = matchEntry.key;
+      final match = matchEntry.value;
+
+      if (cursor < match.start) {
+        spans.add(TextSpan(text: text.substring(cursor, match.start)));
+      }
+
+      final isActive = matchIndex == _activeChapterSearchIndex;
+      spans.add(
+        TextSpan(
+          text: text.substring(match.start, match.end),
+          style: baseStyle.copyWith(
+            color: isActive ? colorScheme.onPrimary : colorScheme.onSurface,
+            backgroundColor: isActive
+                ? colorScheme.primary.withValues(alpha: 0.82)
+                : colorScheme.primary.withValues(alpha: 0.26),
+            fontWeight: isActive ? FontWeight.w700 : FontWeight.w600,
+          ),
+        ),
+      );
+      cursor = match.end;
+    }
+
+    if (cursor < text.length) {
+      spans.add(TextSpan(text: text.substring(cursor)));
+    }
+
+    return spans;
   }
 
   Widget _buildSelectionToolbar(BookChapter chapter) {
@@ -971,9 +1247,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Nie udało się dodać do ulubionych: $e'),
-        ),
+        SnackBar(content: Text('Nie udało się dodać do ulubionych: $e')),
       );
     }
   }
@@ -994,10 +1268,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  text,
-                  style: const TextStyle(fontSize: 14),
-                ),
+                Text(text, style: const TextStyle(fontSize: 14)),
                 const SizedBox(height: 16),
                 const Text(
                   'Twoja notatka:',
@@ -1035,9 +1306,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
                 if (!mounted) return;
                 Navigator.of(ctx).pop();
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Dodano wpis do dziennika.'),
-                  ),
+                  const SnackBar(content: Text('Dodano wpis do dziennika.')),
                 );
               },
               child: const Text('Zapisz'),
@@ -1052,4 +1321,16 @@ class _ReaderScreenState extends State<ReaderScreen> {
       _selectedText = null;
     });
   }
+}
+
+class _ReaderSearchMatch {
+  final int paragraphIndex;
+  final int start;
+  final int end;
+
+  const _ReaderSearchMatch({
+    required this.paragraphIndex,
+    required this.start,
+    required this.end,
+  });
 }
