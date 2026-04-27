@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../shared/models/formation_challenge_models.dart';
@@ -5,6 +7,7 @@ import '../../shared/services/formation_challenge_progress_service.dart';
 import '../../shared/services/formation_challenge_service.dart';
 import '../../shared/services/journal_service.dart';
 import '../../shared/services/preferences_service.dart';
+import '../../shared/services/formation_widget_snapshot_service.dart';
 import 'formation_journal_helpers.dart';
 import 'formation_meditation_screen.dart';
 
@@ -25,6 +28,8 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
       FormationChallengeProgressService();
   final JournalService _journalService = JournalService();
   final PreferencesService _preferencesService = PreferencesService();
+  final FormationWidgetSnapshotService _widgetSnapshotService =
+      FormationWidgetSnapshotService();
   late final TextEditingController _reflectionEditorController;
 
   late Future<_FormationChallengeViewState> _stateFuture;
@@ -36,6 +41,7 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
     super.initState();
     _reflectionEditorController = TextEditingController();
     _stateFuture = _loadState();
+    unawaited(_widgetSnapshotService.refresh());
   }
 
   @override
@@ -91,12 +97,14 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
 
   Future<void> _startChallenge() async {
     await _progressService.startChallenge();
+    await _widgetSnapshotService.refresh();
     if (!mounted) return;
     await _refresh();
   }
 
   Future<void> _markDayCompleted(FormationChallengeDay day) async {
     await _progressService.markDayCompleted(day.dayNumber);
+    await _widgetSnapshotService.refresh();
     if (!mounted) return;
 
     await _refresh();

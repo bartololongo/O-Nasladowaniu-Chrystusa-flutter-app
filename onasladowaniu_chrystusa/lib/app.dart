@@ -10,6 +10,7 @@ import 'features/settings/settings_screen.dart';
 import 'features/favorites/favorites_screen.dart';
 import 'features/formation_challenge/formation_challenge_screen.dart';
 import 'shared/services/formation_notification_service.dart';
+import 'shared/services/formation_widget_snapshot_service.dart';
 import 'app_route_observer.dart';
 
 final GlobalKey<NavigatorState> appNavigatorKey = GlobalKey<NavigatorState>();
@@ -17,10 +18,7 @@ final GlobalKey<NavigatorState> appNavigatorKey = GlobalKey<NavigatorState>();
 class ImitationOfChristApp extends StatelessWidget {
   final String? initialNotificationPayload;
 
-  const ImitationOfChristApp({
-    super.key,
-    this.initialNotificationPayload,
-  });
+  const ImitationOfChristApp({super.key, this.initialNotificationPayload});
 
   @override
   Widget build(BuildContext context) {
@@ -41,17 +39,14 @@ class ImitationOfChristApp extends StatelessWidget {
         bottomNavigationBarTheme: BottomNavigationBarThemeData(
           backgroundColor: backgroundColor,
           selectedItemColor: colorScheme.secondary,
-          unselectedItemColor:
-              colorScheme.onSurface.withOpacity(0.7),
+          unselectedItemColor: colorScheme.onSurface.withOpacity(0.7),
         ),
         appBarTheme: const AppBarTheme(
           centerTitle: false,
           backgroundColor: backgroundColor,
         ),
       ),
-      home: _RootScreen(
-        initialNotificationPayload: initialNotificationPayload,
-      ),
+      home: _RootScreen(initialNotificationPayload: initialNotificationPayload),
       debugShowCheckedModeBanner: false,
       // RouteObserver podpinamy do wewnętrznego Navigatora, nie tutaj.
     );
@@ -61,16 +56,13 @@ class ImitationOfChristApp extends StatelessWidget {
 class _RootScreen extends StatefulWidget {
   final String? initialNotificationPayload;
 
-  const _RootScreen({
-    this.initialNotificationPayload,
-  });
+  const _RootScreen({this.initialNotificationPayload});
 
   @override
   State<_RootScreen> createState() => _RootScreenState();
 }
 
-class _RootScreenState extends State<_RootScreen>
-    with WidgetsBindingObserver {
+class _RootScreenState extends State<_RootScreen> with WidgetsBindingObserver {
   /// Bazowa zakładka (Start / Czytanie / Zakładki).
   int _baseTabIndex = 0;
 
@@ -97,7 +89,8 @@ class _RootScreenState extends State<_RootScreen>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _notificationSubscription = FormationNotificationService
-        .instance.payloadStream
+        .instance
+        .payloadStream
         .listen(_handleNotificationPayload);
 
     final initialPayload = widget.initialNotificationPayload;
@@ -131,8 +124,8 @@ class _RootScreenState extends State<_RootScreen>
   Future<void> _checkPendingNotificationPayload(String source) async {
     if (!mounted) return;
 
-    final pendingPayload =
-        await FormationNotificationService.instance.takePendingPayload();
+    final pendingPayload = await FormationNotificationService.instance
+        .takePendingPayload();
     if (!mounted) return;
 
     if (pendingPayload != null && pendingPayload.isNotEmpty) {
@@ -141,12 +134,17 @@ class _RootScreenState extends State<_RootScreen>
   }
 
   void _handleNotificationPayload(String payload) {
-    if (payload != FormationNotificationService.formationPayload) {
+    if (!_isFormationOpenPayload(payload)) {
       return;
     }
 
     _pendingNotificationPayload = payload;
     _openPendingNotificationPayload();
+  }
+
+  bool _isFormationOpenPayload(String? payload) {
+    return payload == FormationNotificationService.formationPayload ||
+        payload == FormationWidgetSnapshotService.widgetPayload;
   }
 
   void _openPendingNotificationPayload() {
@@ -156,7 +154,7 @@ class _RootScreenState extends State<_RootScreen>
       }
 
       final payload = _pendingNotificationPayload;
-      if (payload != FormationNotificationService.formationPayload) {
+      if (!_isFormationOpenPayload(payload)) {
         return;
       }
 
@@ -177,19 +175,20 @@ class _RootScreenState extends State<_RootScreen>
         _selectedIndex = _baseTabIndex;
       });
 
-      unawaited(FormationNotificationService.instance.clearPendingPayload());
+      if (payload == FormationNotificationService.formationPayload) {
+        unawaited(FormationNotificationService.instance.clearPendingPayload());
+      }
       navigator
           .push(
             MaterialPageRoute(
               settings: const RouteSettings(name: '/formation-challenge'),
-              builder: (_) => FormationChallengeScreen(
-                onNavigateToTab: _onTabSelected,
-              ),
+              builder: (_) =>
+                  FormationChallengeScreen(onNavigateToTab: _onTabSelected),
             ),
           )
           .whenComplete(() {
-        _isOpeningFormationFromNotification = false;
-      });
+            _isOpeningFormationFromNotification = false;
+          });
     });
   }
 
@@ -221,9 +220,7 @@ class _RootScreenState extends State<_RootScreen>
 
     // Resetujemy stos wewnętrznego Navigatora do bazowego ekranu taba.
     nav?.pushAndRemoveUntil(
-      MaterialPageRoute(
-        builder: (_) => _buildTabBody(),
-      ),
+      MaterialPageRoute(builder: (_) => _buildTabBody()),
       (route) => false,
     );
   }
@@ -242,9 +239,7 @@ class _RootScreenState extends State<_RootScreen>
                 onTap: () {
                   Navigator.of(ctx).pop(); // zamknij bottom sheet
                   _openMoreScreen(
-                    JournalScreen(
-                      onNavigateToTab: _onTabSelected,
-                    ),
+                    JournalScreen(onNavigateToTab: _onTabSelected),
                   );
                 },
               ),
@@ -254,9 +249,7 @@ class _RootScreenState extends State<_RootScreen>
                 onTap: () {
                   Navigator.of(ctx).pop();
                   _openMoreScreen(
-                    FavoritesScreen(
-                      onNavigateToTab: _onTabSelected,
-                    ),
+                    FavoritesScreen(onNavigateToTab: _onTabSelected),
                   );
                 },
               ),
@@ -265,9 +258,7 @@ class _RootScreenState extends State<_RootScreen>
                 title: const Text('Ustawienia'),
                 onTap: () {
                   Navigator.of(ctx).pop();
-                  _openMoreScreen(
-                    const SettingsScreen(),
-                  );
+                  _openMoreScreen(const SettingsScreen());
                 },
               ),
             ],
@@ -374,10 +365,7 @@ class _RootScreenState extends State<_RootScreen>
         onTap: _onTabSelected,
         type: BottomNavigationBarType.fixed,
         items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.home),
-            label: 'Start',
-          ),
+          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Start'),
           BottomNavigationBarItem(
             icon: Icon(Icons.menu_book),
             label: 'Czytanie',

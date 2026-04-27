@@ -4,6 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../shared/services/formation_challenge_progress_service.dart';
 import '../../shared/services/formation_meditation_settings_service.dart';
 import '../../shared/services/formation_notification_service.dart';
+import '../../shared/services/formation_widget_snapshot_service.dart';
 import '../../shared/widgets/section_header.dart';
 import 'backup_screen.dart';
 
@@ -17,8 +18,7 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   static const String _projectUrl =
       'https://bartololongo.pl/blog/o-nasladowaniu-chrystusa/';
-  static const String _supportUrl =
-      'https://www.buymeacoffee.com/bartololongo';
+  static const String _supportUrl = 'https://www.buymeacoffee.com/bartololongo';
 
   final FormationMeditationSettingsService _meditationSettingsService =
       FormationMeditationSettingsService();
@@ -26,6 +26,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       FormationNotificationService.instance;
   final FormationChallengeProgressService _formationProgressService =
       FormationChallengeProgressService();
+  final FormationWidgetSnapshotService _formationWidgetSnapshotService =
+      FormationWidgetSnapshotService();
 
   late Future<_FormationSettingsState> _formationSettingsFuture;
 
@@ -36,10 +38,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<_FormationSettingsState> _loadFormationSettings() async {
-    final durationMinutes =
-        await _meditationSettingsService.getDurationMinutes();
-    final reminderEnabled =
-        await _formationNotificationService.isReminderEnabled();
+    final durationMinutes = await _meditationSettingsService
+        .getDurationMinutes();
+    final reminderEnabled = await _formationNotificationService
+        .isReminderEnabled();
     final reminderTime = await _formationNotificationService.getReminderTime();
 
     return _FormationSettingsState(
@@ -111,7 +113,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _resetFormationChallenge() async {
-    final confirmed = await showModalBottomSheet<bool>(
+    final confirmed =
+        await showModalBottomSheet<bool>(
           context: context,
           isScrollControlled: false,
           builder: (sheetContext) {
@@ -161,8 +164,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         ),
                         const SizedBox(width: 8),
                         ElevatedButton.icon(
-                          onPressed: () =>
-                              Navigator.of(sheetContext).pop(true),
+                          onPressed: () => Navigator.of(sheetContext).pop(true),
                           icon: const Icon(Icons.refresh),
                           label: const Text('Resetuj'),
                         ),
@@ -179,6 +181,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (!confirmed) return;
 
     await _formationProgressService.resetChallenge();
+    await _formationWidgetSnapshotService.refresh();
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Droga naśladowania została zresetowana.')),
@@ -191,17 +194,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
     String? failMessage,
   }) async {
     final uri = Uri.parse(url);
-    final ok = await launchUrl(
-      uri,
-      mode: LaunchMode.externalApplication,
-    );
+    final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
     if (!ok && context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            failMessage ?? 'Nie udało się otworzyć linku.',
-          ),
-        ),
+        SnackBar(content: Text(failMessage ?? 'Nie udało się otworzyć linku.')),
       );
     }
   }
@@ -332,10 +328,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               padding: EdgeInsets.fromLTRB(16, 8, 16, 4),
               child: Text(
                 'Droga naśladowania',
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                ),
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
               ),
             ),
             ListTile(
@@ -396,16 +389,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   //   subtitle: Text('Ustawienia rozmiaru i stylu czcionki'),
                   // ),
                   // const Divider(),
-
                   ListTile(
                     leading: const Icon(Icons.cloud_download_outlined),
                     title: const Text('Kopia danych (eksport/import)'),
                     subtitle: const Text('Zapisz lub przywróć dane aplikacji'),
                     onTap: () {
                       Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => const BackupScreen(),
-                        ),
+                        MaterialPageRoute(builder: (_) => const BackupScreen()),
                       );
                     },
                   ),
@@ -421,13 +411,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         context: context,
                         isScrollControlled: false,
                         builder: (sheetContext) {
-                          final colorScheme =
-                              Theme.of(sheetContext).colorScheme;
+                          final colorScheme = Theme.of(
+                            sheetContext,
+                          ).colorScheme;
 
                           return SafeArea(
                             child: Padding(
-                              padding:
-                                  const EdgeInsets.fromLTRB(16, 16, 16, 24),
+                              padding: const EdgeInsets.fromLTRB(
+                                16,
+                                16,
+                                16,
+                                24,
+                              ),
                               child: SingleChildScrollView(
                                 child: Column(
                                   mainAxisSize: MainAxisSize.min,
@@ -586,10 +581,7 @@ class _WhatsNewItem extends StatelessWidget {
   final String title;
   final String description;
 
-  const _WhatsNewItem({
-    required this.title,
-    required this.description,
-  });
+  const _WhatsNewItem({required this.title, required this.description});
 
   @override
   Widget build(BuildContext context) {
@@ -602,10 +594,7 @@ class _WhatsNewItem extends StatelessWidget {
         children: [
           Text(
             title,
-            style: const TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w600,
-            ),
+            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
           ),
           const SizedBox(height: 4),
           Text(

@@ -40,6 +40,8 @@ PODS:
     - Flutter
   - flutter_timezone (0.0.1):
     - Flutter
+  - home_widget (0.0.1):
+    - Flutter
   - SDWebImage (5.21.4):
     - SDWebImage/Core (= 5.21.4)
   - SDWebImage/Core (5.21.4)
@@ -58,6 +60,7 @@ DEPENDENCIES:
   - flutter_local_notifications (from `.symlinks/plugins/flutter_local_notifications/ios`)
   - flutter_native_splash (from `.symlinks/plugins/flutter_native_splash/ios`)
   - flutter_timezone (from `.symlinks/plugins/flutter_timezone/ios`)
+  - home_widget (from `.symlinks/plugins/home_widget/ios`)
   - share_plus (from `.symlinks/plugins/share_plus/ios`)
   - shared_preferences_foundation (from `.symlinks/plugins/shared_preferences_foundation/darwin`)
   - url_launcher_ios (from `.symlinks/plugins/url_launcher_ios/ios`)
@@ -80,6 +83,8 @@ EXTERNAL SOURCES:
     :path: ".symlinks/plugins/flutter_native_splash/ios"
   flutter_timezone:
     :path: ".symlinks/plugins/flutter_timezone/ios"
+  home_widget:
+    :path: ".symlinks/plugins/home_widget/ios"
   share_plus:
     :path: ".symlinks/plugins/share_plus/ios"
   shared_preferences_foundation:
@@ -95,12 +100,13 @@ SPEC CHECKSUMS:
   flutter_local_notifications: eda81afddbf18f8589f6ec069ce593c4c6378769
   flutter_native_splash: df59bb2e1421aa0282cb2e95618af4dcb0c56c29
   flutter_timezone: ac3da59ac941ff1c98a2e1f0293420e020120282
+  home_widget: fdbbfaa90f06f3022cb57f79678d4d58b9c5e140
   SDWebImage: d0184764be51240d49c761c37f53dd017e1ccaaf
   share_plus: 8b6f8b3447e494cca5317c8c3073de39b3600d1f
   shared_preferences_foundation: 5086985c1d43c5ba4d5e69a4e8083a389e2909e6
   SwiftyGif: 706c60cf65fa2bc5ee0313beece843c8eb8194d4
   url_launcher_ios: bb13df5870e8c4234ca12609d04010a21be43dfa
 
-PODFILE CHECKSUM: 873f2f6a6e6c071a1fd126b7fcb29d81d5ced545
+PODFILE CHECKSUM: 0b45051e2ba31d28a5ba5e0808822ab83abb5d31
 
 COCOAPODS: 1.16.2

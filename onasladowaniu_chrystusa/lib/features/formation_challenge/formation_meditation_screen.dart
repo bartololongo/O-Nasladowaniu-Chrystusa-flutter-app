@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../shared/models/formation_challenge_models.dart';
 import '../../shared/services/formation_challenge_progress_service.dart';
 import '../../shared/services/formation_meditation_settings_service.dart';
+import '../../shared/services/formation_widget_snapshot_service.dart';
 import 'formation_journal_helpers.dart';
 
 class FormationMeditationScreen extends StatefulWidget {
@@ -27,6 +28,8 @@ class _FormationMeditationScreenState extends State<FormationMeditationScreen> {
       FormationMeditationSettingsService();
   final FormationChallengeProgressService _progressService =
       FormationChallengeProgressService();
+  final FormationWidgetSnapshotService _widgetSnapshotService =
+      FormationWidgetSnapshotService();
 
   Timer? _timer;
   Duration? _remaining;
@@ -109,6 +112,7 @@ class _FormationMeditationScreenState extends State<FormationMeditationScreen> {
 
     if (_completionSaved) return;
     await _progressService.markDayCompleted(widget.day.dayNumber);
+    await _widgetSnapshotService.refresh();
     _completionSaved = true;
 
     if (!mounted) return;
@@ -184,78 +188,83 @@ class _FormationMeditationScreenState extends State<FormationMeditationScreen> {
     final colorScheme = Theme.of(context).colorScheme;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Medytacja'),
-      ),
+      appBar: AppBar(title: const Text('Medytacja')),
       body: _isLoadingSettings
           ? const Center(child: CircularProgressIndicator())
           : SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
-          children: [
-            Text(
-              'Dzień ${widget.day.dayNumber} z ${widget.totalDays}',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              widget.day.chapterTitle,
-              style: const TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.w600,
-                height: 1.2,
-              ),
-            ),
-            const SizedBox(height: 16),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: TextButton.icon(
-                onPressed: _isRunning || _isFinished ? null : _chooseDuration,
-                icon: const Icon(Icons.timer_outlined),
-                label: Text('Czas medytacji: $_durationMinutes min'),
-              ),
-            ),
-            const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
-              decoration: BoxDecoration(
-                color: colorScheme.surface.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: colorScheme.primary.withValues(alpha: 0.25),
-                ),
-              ),
-              constraints: const BoxConstraints(maxHeight: 220),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
                 children: [
                   Text(
-                    'Przewiń fragment',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: colorScheme.onSurface.withValues(alpha: 0.65),
+                    'Dzień ${widget.day.dayNumber} z ${widget.totalDays}',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    widget.day.chapterTitle,
+                    style: const TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w600,
+                      height: 1.2,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: TextButton.icon(
+                      onPressed: _isRunning || _isFinished
+                          ? null
+                          : _chooseDuration,
+                      icon: const Icon(Icons.timer_outlined),
+                      label: Text('Czas medytacji: $_durationMinutes min'),
                     ),
                   ),
                   const SizedBox(height: 8),
-                  Expanded(
-                    child: SingleChildScrollView(
-                      child: Text(
-                        widget.day.text,
-                        style: const TextStyle(fontSize: 15, height: 1.45),
+                  Container(
+                    padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+                    decoration: BoxDecoration(
+                      color: colorScheme.surface.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: colorScheme.primary.withValues(alpha: 0.25),
                       ),
                     ),
+                    constraints: const BoxConstraints(maxHeight: 220),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Text(
+                          'Przewiń fragment',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: colorScheme.onSurface.withValues(
+                              alpha: 0.65,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Expanded(
+                          child: SingleChildScrollView(
+                            child: Text(
+                              widget.day.text,
+                              style: const TextStyle(
+                                fontSize: 15,
+                                height: 1.45,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
+                  const SizedBox(height: 32),
+                  if (_isFinished)
+                    _buildFinishedSection(context)
+                  else
+                    _buildTimerSection(context),
                 ],
               ),
             ),
-            const SizedBox(height: 32),
-            if (_isFinished)
-              _buildFinishedSection(context)
-            else
-              _buildTimerSection(context),
-          ],
-        ),
-      ),
     );
   }
 
@@ -318,26 +327,17 @@ class _FormationMeditationScreenState extends State<FormationMeditationScreen> {
       decoration: BoxDecoration(
         color: colorScheme.surface.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: colorScheme.primary.withValues(alpha: 0.3),
-        ),
+        border: Border.all(color: colorScheme.primary.withValues(alpha: 0.3)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Icon(
-            Icons.check_circle,
-            size: 42,
-            color: colorScheme.primary,
-          ),
+          Icon(Icons.check_circle, size: 42, color: colorScheme.primary),
           const SizedBox(height: 14),
           const Text(
             'Medytacja zakończona',
             textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.w600,
-            ),
+            style: TextStyle(fontSize: 22, fontWeight: FontWeight.w600),
           ),
           const SizedBox(height: 10),
           const Text(
