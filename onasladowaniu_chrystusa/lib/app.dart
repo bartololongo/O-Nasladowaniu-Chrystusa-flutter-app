@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:home_widget/home_widget.dart';
 
 import 'features/home/home_screen.dart';
 import 'features/reader/reader_screen.dart';
@@ -81,6 +82,7 @@ class _RootScreenState extends State<_RootScreen> with WidgetsBindingObserver {
   final GlobalKey<NavigatorState> _innerNavigatorKey =
       GlobalKey<NavigatorState>();
   StreamSubscription<String>? _notificationSubscription;
+  StreamSubscription<Uri?>? _widgetClickSubscription;
   String? _pendingNotificationPayload;
   bool _isOpeningFormationFromNotification = false;
 
@@ -92,6 +94,9 @@ class _RootScreenState extends State<_RootScreen> with WidgetsBindingObserver {
         .instance
         .payloadStream
         .listen(_handleNotificationPayload);
+    _widgetClickSubscription = HomeWidget.widgetClicked.listen(
+      _handleWidgetUri,
+    );
 
     final initialPayload = widget.initialNotificationPayload;
     if (initialPayload != null && initialPayload.isNotEmpty) {
@@ -102,6 +107,7 @@ class _RootScreenState extends State<_RootScreen> with WidgetsBindingObserver {
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _checkPendingNotificationPayload('initState');
+      _checkInitialWidgetUri();
     });
   }
 
@@ -109,6 +115,7 @@ class _RootScreenState extends State<_RootScreen> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _notificationSubscription?.cancel();
+    _widgetClickSubscription?.cancel();
     super.dispose();
   }
 
@@ -131,6 +138,24 @@ class _RootScreenState extends State<_RootScreen> with WidgetsBindingObserver {
     if (pendingPayload != null && pendingPayload.isNotEmpty) {
       _handleNotificationPayload(pendingPayload);
     }
+  }
+
+  Future<void> _checkInitialWidgetUri() async {
+    try {
+      await FormationWidgetSnapshotService.configureAppGroup();
+      final uri = await HomeWidget.initiallyLaunchedFromHomeWidget();
+      if (!mounted) return;
+      _handleWidgetUri(uri);
+    } catch (_) {
+      // Widget launch handling should not block app startup.
+    }
+  }
+
+  void _handleWidgetUri(Uri? uri) {
+    if (!FormationWidgetSnapshotService.isFormationWidgetUri(uri)) {
+      return;
+    }
+    _handleNotificationPayload(FormationWidgetSnapshotService.widgetPayload);
   }
 
   void _handleNotificationPayload(String payload) {

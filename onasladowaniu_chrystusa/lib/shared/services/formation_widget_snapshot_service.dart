@@ -5,6 +5,8 @@ import 'formation_challenge_service.dart';
 
 class FormationWidgetSnapshotService {
   static const String widgetPayload = 'formation_widget';
+  static const String appGroupId =
+      'group.pl.bartololongo.onasladowaniuChrystusa';
 
   static const String keyIsStarted = 'formation_widget_is_started';
   static const String keyDayNumber = 'formation_widget_day_number';
@@ -17,6 +19,7 @@ class FormationWidgetSnapshotService {
   static const String keyUpdatedAt = 'formation_widget_updated_at';
 
   static const String _widgetName = 'FormationWidget';
+  static const String _widgetScheme = 'onasladowaniu';
 
   final FormationChallengeProgressService _progressService;
   final FormationChallengeService _challengeService;
@@ -28,8 +31,18 @@ class FormationWidgetSnapshotService {
            progressService ?? FormationChallengeProgressService(),
        _challengeService = challengeService ?? FormationChallengeService();
 
+  static Future<void> configureAppGroup() async {
+    await HomeWidget.setAppGroupId(appGroupId);
+  }
+
+  static bool isFormationWidgetUri(Uri? uri) {
+    if (uri == null) return false;
+    return uri.scheme == _widgetScheme && uri.host == widgetPayload;
+  }
+
   Future<void> refresh() async {
     try {
+      await configureAppGroup();
       final snapshot = await _buildSnapshot();
       await _saveSnapshot(snapshot);
       await updateWidget();
@@ -42,7 +55,7 @@ class FormationWidgetSnapshotService {
 
   Future<void> updateWidget() async {
     try {
-      await HomeWidget.updateWidget(name: _widgetName);
+      await HomeWidget.updateWidget(name: _widgetName, iOSName: _widgetName);
     } catch (_) {
       // Native widget targets are not present yet. Snapshot saving should still
       // work, so updating the widget is best-effort in this preparation stage.

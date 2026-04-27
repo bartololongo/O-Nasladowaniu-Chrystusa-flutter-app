@@ -18,6 +18,17 @@
 	<string>onasladowaniu_chrystusa</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>pl.bartololongo.onasladowaniuChrystusa</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>onasladowaniu</string>
+			</array>
+		</dict>
+	</array>
 	<key>CFBundleShortVersionString</key>
 	<string>$(FLUTTER_BUILD_NAME)</string>
 	<key>CFBundleSignature</key>
