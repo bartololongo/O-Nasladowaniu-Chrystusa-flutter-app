@@ -238,7 +238,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             ),
                             const SizedBox(height: 2),
                             Text(
-                              'Wersja 1.0.0',
+                              'Wersja 1.5.0',
                               style: TextStyle(
                                 fontSize: 12,
                                 color: colorScheme.onSurface.withValues(
@@ -255,28 +255,48 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   const _WhatsNewItem(
                     title: 'Droga naśladowania',
                     description:
-                        'Codzienna ścieżka formacyjna z fragmentem dnia, medytacją, postępem i dziennikiem refleksji.',
+                        'Dodano zakładkę "Dni" oraz "Statystyki".\nUproszczono nawigowanie.',
                   ),
                   const _WhatsNewItem(
-                    title: 'Medytacja',
+                    title: 'Dziennik',
                     description:
-                        'Dodano timer medytacji z możliwością ustawienia czasu.',
+                        'Posty w dzienniku mogą być teraz sortowane, grupowane oraz filtrowane.',
+                  ),   
+                  const _WhatsNewItem(
+                    title: 'Wyszukiwanie w czytniku',
+                    description:
+                        'Dodano wyszukiwanie w czytniku typu "Znajdź na stronie".',
+                  ),                                 
+                  const _WhatsNewItem(
+                    title: 'Wyszukiwanie globalne',
+                    description:
+                        'Wyszukiwanie globalne zintegrowano ze "Znajdź na stronie".',
+                  ),  
+                  const _WhatsNewItem(
+                    title: 'Widget',
+                    description:
+                        'Dodano widget w dwóch rozmiarach, który z łatwością dodasz do pulpitu.',
+                  ),   
+                  const _WhatsNewItem(
+                    title: 'Co nowego',
+                    description:
+                        'Dodano Release Notesy widoczne dla uzytkownika\n(Ustawienia --> O aplikacji --> Co nowego)',
+                  ),                                                           
+                  const _WhatsNewItem(
+                    title: 'Elementy wyglądu',
+                    description:
+                        'Zmieniono nagłówki poszczególnych ekranów',
                   ),
                   const _WhatsNewItem(
-                    title: 'Przypomnienia',
+                    title: 'Poziome kafelki na HomeScreen',
                     description:
-                        'Możesz ustawić codzienne przypomnienie o Drodze naśladowania.',
+                        'Zmieniono kolejność poziomych kafelków na HomeScreen.',
                   ),
                   const _WhatsNewItem(
-                    title: 'Wyszukiwanie',
+                    title: 'Poprawki błędów',
                     description:
-                        'Dodano globalne wyszukiwanie w książce, zakładkach, ulubionych cytatach i dzienniku.',
-                  ),
-                  const _WhatsNewItem(
-                    title: 'Kopie zapasowe',
-                    description:
-                        'Kopie zapasowe obejmują teraz także dane Drogi naśladowania.',
-                  ),
+                        'Naprawiono kilka drobnych błędów.',
+                  ),                                       
                   const SizedBox(height: 8),
                   Align(
                     alignment: Alignment.centerRight,
