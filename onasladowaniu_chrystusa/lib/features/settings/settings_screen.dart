@@ -470,7 +470,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                     ),
                                     const SizedBox(height: 8),
                                     Text(
-                                      'Wersja 1.0.0',
+                                      'Wersja 1.5.0',
                                       style: TextStyle(
                                         fontSize: 13,
                                         color: colorScheme.onSurface
