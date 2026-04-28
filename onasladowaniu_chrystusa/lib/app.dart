@@ -301,12 +301,15 @@ class _RootScreenState extends State<_RootScreen> with WidgetsBindingObserver {
   /// podświetlenie bazowej zakładki (_baseTabIndex).
   void _openMoreScreen(Widget screen) {
     final routeName = _moreRouteNameFor(screen);
-    if (_selectedIndex == 3 && _activeMoreRouteName == routeName) {
-      return;
-    }
-
     final navigator = _innerNavigatorKey.currentState;
     if (navigator == null) return;
+
+    if (_selectedIndex == 3 && _activeMoreRouteName == routeName) {
+      if (routeName == '/settings') {
+        navigator.popUntil((route) => route.settings.name == routeName);
+      }
+      return;
+    }
 
     final replaceActiveMoreScreen =
         _selectedIndex == 3 && _activeMoreRouteName != null;
