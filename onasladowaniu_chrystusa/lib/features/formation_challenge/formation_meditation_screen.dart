@@ -97,6 +97,27 @@ class _FormationMeditationScreenState extends State<FormationMeditationScreen> {
     });
   }
 
+  void _toggleTimer() {
+    if (_isRunning) {
+      _pause();
+    } else {
+      _start();
+    }
+  }
+
+  void _stop() {
+    final durationMinutes = _durationMinutes;
+    if (durationMinutes == null) return;
+
+    _timer?.cancel();
+    _timer = null;
+
+    setState(() {
+      _isRunning = false;
+      _remaining = Duration(minutes: durationMinutes);
+    });
+  }
+
   Future<void> _finish() async {
     if (_isFinished) return;
 
@@ -111,6 +132,15 @@ class _FormationMeditationScreenState extends State<FormationMeditationScreen> {
     });
 
     if (_completionSaved) return;
+
+    final wasAlreadyCompleted = await _progressService.isDayCompleted(
+      widget.day.dayNumber,
+    );
+    if (wasAlreadyCompleted) {
+      _completionSaved = true;
+      return;
+    }
+
     await _progressService.markDayCompleted(widget.day.dayNumber);
     await _widgetSnapshotService.refresh();
     _completionSaved = true;
@@ -183,10 +213,35 @@ class _FormationMeditationScreenState extends State<FormationMeditationScreen> {
     return '$minutes:$seconds';
   }
 
+  bool get _hasTimerStarted {
+    final durationMinutes = _durationMinutes;
+    final remaining = _remaining;
+    if (durationMinutes == null || remaining == null || _isFinished) {
+      return false;
+    }
+
+    return remaining < Duration(minutes: durationMinutes);
+  }
+
+  String get _primaryTimerActionLabel {
+    if (_isRunning) return 'Pauza';
+    if (_hasTimerStarted) return 'Wznów';
+    return 'Start';
+  }
+
+  IconData get _primaryTimerActionIcon {
+    if (_isRunning) return Icons.pause;
+    return Icons.play_arrow;
+  }
+
+  String get _timerStatusText {
+    if (_isRunning) return 'Medytacja trwa';
+    if (_hasTimerStarted) return 'Medytacja wstrzymana';
+    return 'Gotowe do rozpoczęcia';
+  }
+
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
     return Scaffold(
       appBar: AppBar(title: const Text('Medytacja')),
       body: _isLoadingSettings
@@ -220,51 +275,51 @@ class _FormationMeditationScreenState extends State<FormationMeditationScreen> {
                     ),
                   ),
                   const SizedBox(height: 8),
-                  Container(
-                    padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
-                    decoration: BoxDecoration(
-                      color: colorScheme.surface.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: colorScheme.primary.withValues(alpha: 0.25),
-                      ),
-                    ),
-                    constraints: const BoxConstraints(maxHeight: 220),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Text(
-                          'Przewiń fragment',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: colorScheme.onSurface.withValues(
-                              alpha: 0.65,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Expanded(
-                          child: SingleChildScrollView(
-                            child: Text(
-                              widget.day.text,
-                              style: const TextStyle(
-                                fontSize: 15,
-                                height: 1.45,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 32),
-                  if (_isFinished)
-                    _buildFinishedSection(context)
-                  else
+                  if (_isFinished) ...[
+                    _buildFinishedSection(context),
+                  ] else ...[
+                    _buildReadingSection(context),
+                    const SizedBox(height: 32),
                     _buildTimerSection(context),
+                  ],
                 ],
               ),
             ),
+    );
+  }
+
+  Widget _buildReadingSection(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+      decoration: BoxDecoration(
+        color: colorScheme.surface.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: colorScheme.primary.withValues(alpha: 0.25)),
+      ),
+      constraints: const BoxConstraints(maxHeight: 220),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'Przewiń fragment',
+            style: TextStyle(
+              fontSize: 12,
+              color: colorScheme.onSurface.withValues(alpha: 0.65),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Expanded(
+            child: SingleChildScrollView(
+              child: Text(
+                widget.day.text,
+                style: const TextStyle(fontSize: 15, height: 1.45),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -286,7 +341,7 @@ class _FormationMeditationScreenState extends State<FormationMeditationScreen> {
         const SizedBox(height: 8),
         Center(
           child: Text(
-            _isRunning ? 'Medytacja trwa' : 'Gotowe do rozpoczęcia',
+            _timerStatusText,
             style: TextStyle(
               color: colorScheme.onSurface.withValues(alpha: 0.75),
             ),
@@ -299,20 +354,16 @@ class _FormationMeditationScreenState extends State<FormationMeditationScreen> {
           runSpacing: 8,
           children: [
             ElevatedButton.icon(
-              onPressed: _start,
-              icon: const Icon(Icons.play_arrow),
-              label: const Text('Start'),
+              onPressed: _toggleTimer,
+              icon: Icon(_primaryTimerActionIcon),
+              label: Text(_primaryTimerActionLabel),
             ),
-            OutlinedButton.icon(
-              onPressed: _isRunning ? _pause : null,
-              icon: const Icon(Icons.pause),
-              label: const Text('Pauza'),
-            ),
-            TextButton.icon(
-              onPressed: () => unawaited(_finish()),
-              icon: const Icon(Icons.stop),
-              label: const Text('Zakończ'),
-            ),
+            if (_hasTimerStarted || _isRunning)
+              TextButton.icon(
+                onPressed: _stop,
+                icon: const Icon(Icons.stop),
+                label: const Text('Stop'),
+              ),
           ],
         ),
       ],
