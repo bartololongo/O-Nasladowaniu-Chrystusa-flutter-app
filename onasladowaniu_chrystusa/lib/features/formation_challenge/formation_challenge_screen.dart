@@ -8,6 +8,9 @@ import '../../shared/services/formation_challenge_service.dart';
 import '../../shared/services/journal_service.dart';
 import '../../shared/services/preferences_service.dart';
 import '../../shared/services/formation_widget_snapshot_service.dart';
+import '../audio/data/audio_catalog.dart';
+import '../audio/data/audio_track.dart';
+import '../audio/ui/audio_player_screen.dart';
 import 'formation_journal_helpers.dart';
 import 'formation_meditation_screen.dart';
 
@@ -227,6 +230,15 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
     }
   }
 
+  Future<void> _openAudioPlayer(AudioTrack track) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        settings: const RouteSettings(name: '/audio-player'),
+        builder: (_) => AudioPlayerScreen(track: track),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -420,6 +432,8 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
     required bool isMakeUpDay,
     required bool isActiveDayCompleted,
   }) {
+    final audioTrack = _audioTrackForDay(day);
+
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
       children: [
@@ -462,6 +476,10 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
           ),
         ],
         const SizedBox(height: 20),
+        if (audioTrack != null) ...[
+          _buildAudioSection(context, audioTrack),
+          const SizedBox(height: 22),
+        ],
         Text(day.text, style: const TextStyle(fontSize: 17, height: 1.55)),
         if (reflection != null) ...[
           const SizedBox(height: 24),
@@ -477,6 +495,58 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
           Text(reflection.text, style: const TextStyle(height: 1.45)),
         ],
       ],
+    );
+  }
+
+  Widget _buildAudioSection(BuildContext context, AudioTrack track) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+      decoration: BoxDecoration(
+        color: colorScheme.surface.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: colorScheme.primary.withValues(alpha: 0.25)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Container(
+            width: 46,
+            height: 46,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: colorScheme.primary.withValues(alpha: 0.14),
+            ),
+            child: Icon(Icons.headphones_rounded, color: colorScheme.primary),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Nagranie lektorskie',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Księga ${track.bookNumber} · Rozdział ${track.chapterNumber}',
+                  style: TextStyle(
+                    color: colorScheme.onSurface.withValues(alpha: 0.72),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  onPressed: () => unawaited(_openAudioPlayer(track)),
+                  icon: const Icon(Icons.play_arrow),
+                  label: const Text('Posłuchaj rozdziału'),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -685,6 +755,14 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
     if (bookCode.isEmpty || chapterNumber == null) return reference;
 
     return 'Księga $bookCode, rozdział $chapterNumber';
+  }
+
+  AudioTrack? _audioTrackForDay(FormationChallengeDay day) {
+    return AudioCatalog.trackForChapter(
+      chapterReference: day.chapterReference,
+      title: day.chapterTitle,
+      subtitle: day.bookTitle,
+    );
   }
 
   Future<void> _openDayPreview(

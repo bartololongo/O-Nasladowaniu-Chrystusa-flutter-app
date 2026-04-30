@@ -2,11 +2,18 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../audio/data/audio_catalog.dart';
+import '../audio/data/audio_track.dart';
+import '../audio/ui/inline_audio_player_card.dart';
 import '../../shared/models/formation_challenge_models.dart';
 import '../../shared/services/formation_challenge_progress_service.dart';
 import '../../shared/services/formation_meditation_settings_service.dart';
 import '../../shared/services/formation_widget_snapshot_service.dart';
 import 'formation_journal_helpers.dart';
+
+enum _MeditationContentMode { read, listen }
+
+const double _meditationContentHeight = 312;
 
 class FormationMeditationScreen extends StatefulWidget {
   final FormationChallengeDay day;
@@ -38,6 +45,7 @@ class _FormationMeditationScreenState extends State<FormationMeditationScreen> {
   bool _isRunning = false;
   bool _isFinished = false;
   bool _completionSaved = false;
+  _MeditationContentMode _contentMode = _MeditationContentMode.read;
 
   @override
   void initState() {
@@ -97,6 +105,27 @@ class _FormationMeditationScreenState extends State<FormationMeditationScreen> {
     });
   }
 
+  void _toggleTimer() {
+    if (_isRunning) {
+      _pause();
+    } else {
+      _start();
+    }
+  }
+
+  void _stop() {
+    final durationMinutes = _durationMinutes;
+    if (durationMinutes == null) return;
+
+    _timer?.cancel();
+    _timer = null;
+
+    setState(() {
+      _isRunning = false;
+      _remaining = Duration(minutes: durationMinutes);
+    });
+  }
+
   Future<void> _finish() async {
     if (_isFinished) return;
 
@@ -111,6 +140,15 @@ class _FormationMeditationScreenState extends State<FormationMeditationScreen> {
     });
 
     if (_completionSaved) return;
+
+    final wasAlreadyCompleted = await _progressService.isDayCompleted(
+      widget.day.dayNumber,
+    );
+    if (wasAlreadyCompleted) {
+      _completionSaved = true;
+      return;
+    }
+
     await _progressService.markDayCompleted(widget.day.dayNumber);
     await _widgetSnapshotService.refresh();
     _completionSaved = true;
@@ -183,9 +221,36 @@ class _FormationMeditationScreenState extends State<FormationMeditationScreen> {
     return '$minutes:$seconds';
   }
 
+  bool get _hasTimerStarted {
+    final durationMinutes = _durationMinutes;
+    final remaining = _remaining;
+    if (durationMinutes == null || remaining == null || _isFinished) {
+      return false;
+    }
+
+    return remaining < Duration(minutes: durationMinutes);
+  }
+
+  String get _primaryTimerActionLabel {
+    if (_isRunning) return 'Pauza';
+    if (_hasTimerStarted) return 'Wznów';
+    return 'Start';
+  }
+
+  IconData get _primaryTimerActionIcon {
+    if (_isRunning) return Icons.pause;
+    return Icons.play_arrow;
+  }
+
+  String get _timerStatusText {
+    if (_isRunning) return 'Medytacja trwa';
+    if (_hasTimerStarted) return 'Medytacja wstrzymana';
+    return 'Gotowe do rozpoczęcia';
+  }
+
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
+    final audioTrack = _audioTrackForDay(widget.day);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Medytacja')),
@@ -193,7 +258,7 @@ class _FormationMeditationScreenState extends State<FormationMeditationScreen> {
           ? const Center(child: CircularProgressIndicator())
           : SafeArea(
               child: ListView(
-                padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
                 children: [
                   Text(
                     'Dzień ${widget.day.dayNumber} z ${widget.totalDays}',
@@ -208,7 +273,7 @@ class _FormationMeditationScreenState extends State<FormationMeditationScreen> {
                       height: 1.2,
                     ),
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 14),
                   Align(
                     alignment: Alignment.centerLeft,
                     child: TextButton.icon(
@@ -219,52 +284,149 @@ class _FormationMeditationScreenState extends State<FormationMeditationScreen> {
                       label: Text('Czas medytacji: $_durationMinutes min'),
                     ),
                   ),
-                  const SizedBox(height: 8),
-                  Container(
-                    padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
-                    decoration: BoxDecoration(
-                      color: colorScheme.surface.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: colorScheme.primary.withValues(alpha: 0.25),
-                      ),
-                    ),
-                    constraints: const BoxConstraints(maxHeight: 220),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Text(
-                          'Przewiń fragment',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: colorScheme.onSurface.withValues(
-                              alpha: 0.65,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Expanded(
-                          child: SingleChildScrollView(
-                            child: Text(
-                              widget.day.text,
-                              style: const TextStyle(
-                                fontSize: 15,
-                                height: 1.45,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 32),
-                  if (_isFinished)
-                    _buildFinishedSection(context)
-                  else
+                  if (_isFinished) ...[
+                    const SizedBox(height: 14),
+                    _buildFinishedSection(context),
+                  ] else ...[
+                    const SizedBox(height: 10),
+                    _buildContentModeSelector(context, audioTrack),
+                    const SizedBox(height: 12),
+                    _buildContentSection(context, audioTrack),
+                    const SizedBox(height: 24),
                     _buildTimerSection(context),
+                  ],
                 ],
               ),
             ),
+    );
+  }
+
+  Widget _buildContentModeSelector(
+    BuildContext context,
+    AudioTrack? audioTrack,
+  ) {
+    return Row(
+      children: [
+        Expanded(
+          child: _buildContentModeButton(
+            context: context,
+            mode: _MeditationContentMode.read,
+            icon: Icons.menu_book_rounded,
+            label: 'Czytaj',
+          ),
+        ),
+        if (audioTrack != null) ...[
+          const SizedBox(width: 8),
+          Expanded(
+            child: _buildContentModeButton(
+              context: context,
+              mode: _MeditationContentMode.listen,
+              icon: Icons.headphones_rounded,
+              label: 'Słuchaj',
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildContentModeButton({
+    required BuildContext context,
+    required _MeditationContentMode mode,
+    required IconData icon,
+    required String label,
+  }) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final isSelected = _contentMode == mode;
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(999),
+      onTap: () {
+        setState(() {
+          _contentMode = mode;
+        });
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? colorScheme.primary.withValues(alpha: 0.16)
+              : colorScheme.surface.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(
+            color: isSelected
+                ? colorScheme.primary.withValues(alpha: 0.58)
+                : colorScheme.onSurface.withValues(alpha: 0.18),
+          ),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 18,
+              color: isSelected
+                  ? colorScheme.primary
+                  : colorScheme.onSurface.withValues(alpha: 0.64),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              label,
+              style: TextStyle(
+                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                color: isSelected
+                    ? colorScheme.primary
+                    : colorScheme.onSurface.withValues(alpha: 0.72),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildContentSection(BuildContext context, AudioTrack? audioTrack) {
+    return SizedBox(
+      height: _meditationContentHeight,
+      child: _contentMode == _MeditationContentMode.listen && audioTrack != null
+          ? InlineAudioPlayerCard(track: audioTrack)
+          : _buildReadingSection(context),
+    );
+  }
+
+  Widget _buildReadingSection(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+      decoration: BoxDecoration(
+        color: colorScheme.surface.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: colorScheme.primary.withValues(alpha: 0.25)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'Przewiń fragment',
+            style: TextStyle(
+              fontSize: 12,
+              color: colorScheme.onSurface.withValues(alpha: 0.65),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Expanded(
+            child: SingleChildScrollView(
+              child: Text(
+                widget.day.text,
+                style: const TextStyle(fontSize: 15, height: 1.45),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -277,7 +439,7 @@ class _FormationMeditationScreenState extends State<FormationMeditationScreen> {
           child: Text(
             _timerText,
             style: const TextStyle(
-              fontSize: 56,
+              fontSize: 52,
               fontWeight: FontWeight.w600,
               letterSpacing: 0,
             ),
@@ -286,33 +448,29 @@ class _FormationMeditationScreenState extends State<FormationMeditationScreen> {
         const SizedBox(height: 8),
         Center(
           child: Text(
-            _isRunning ? 'Medytacja trwa' : 'Gotowe do rozpoczęcia',
+            _timerStatusText,
             style: TextStyle(
               color: colorScheme.onSurface.withValues(alpha: 0.75),
             ),
           ),
         ),
-        const SizedBox(height: 24),
+        const SizedBox(height: 22),
         Wrap(
           alignment: WrapAlignment.center,
-          spacing: 8,
+          spacing: 10,
           runSpacing: 8,
           children: [
             ElevatedButton.icon(
-              onPressed: _start,
-              icon: const Icon(Icons.play_arrow),
-              label: const Text('Start'),
+              onPressed: _toggleTimer,
+              icon: Icon(_primaryTimerActionIcon),
+              label: Text(_primaryTimerActionLabel),
             ),
-            OutlinedButton.icon(
-              onPressed: _isRunning ? _pause : null,
-              icon: const Icon(Icons.pause),
-              label: const Text('Pauza'),
-            ),
-            TextButton.icon(
-              onPressed: () => unawaited(_finish()),
-              icon: const Icon(Icons.stop),
-              label: const Text('Zakończ'),
-            ),
+            if (_hasTimerStarted || _isRunning)
+              TextButton.icon(
+                onPressed: _stop,
+                icon: const Icon(Icons.stop),
+                label: const Text('Stop'),
+              ),
           ],
         ),
       ],
@@ -367,6 +525,14 @@ class _FormationMeditationScreenState extends State<FormationMeditationScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  AudioTrack? _audioTrackForDay(FormationChallengeDay day) {
+    return AudioCatalog.trackForChapter(
+      chapterReference: day.chapterReference,
+      title: day.chapterTitle,
+      subtitle: day.bookTitle,
     );
   }
 }
