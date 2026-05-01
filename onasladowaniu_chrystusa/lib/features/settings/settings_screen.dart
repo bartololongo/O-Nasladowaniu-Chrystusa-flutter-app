@@ -238,7 +238,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             ),
                             const SizedBox(height: 2),
                             Text(
-                              'Wersja 1.5.0',
+                              'Wersja 1.5.1',
                               style: TextStyle(
                                 fontSize: 12,
                                 color: colorScheme.onSurface.withValues(
@@ -253,50 +253,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                   const SizedBox(height: 16),
                   const _WhatsNewItem(
-                    title: 'Droga naśladowania',
+                    title: 'Ekran Medytacji',
                     description:
-                        'Dodano zakładkę "Dni" oraz "Statystyki".\nUproszczono nawigowanie.',
-                  ),
-                  const _WhatsNewItem(
-                    title: 'Dziennik',
-                    description:
-                        'Posty w dzienniku mogą być teraz sortowane, grupowane oraz filtrowane.',
-                  ),   
-                  const _WhatsNewItem(
-                    title: 'Wyszukiwanie w czytniku',
-                    description:
-                        'Dodano wyszukiwanie w czytniku typu "Znajdź na stronie".',
-                  ),                                 
-                  const _WhatsNewItem(
-                    title: 'Wyszukiwanie globalne',
-                    description:
-                        'Wyszukiwanie globalne zintegrowano ze "Znajdź na stronie".',
-                  ),  
-                  const _WhatsNewItem(
-                    title: 'Widget',
-                    description:
-                        'Dodano widget w dwóch rozmiarach, który z łatwością dodasz do pulpitu.',
-                  ),   
-                  const _WhatsNewItem(
-                    title: 'Co nowego',
-                    description:
-                        'Dodano Release Notesy widoczne dla uzytkownika\n(Ustawienia --> O aplikacji --> Co nowego)',
-                  ),                                                           
-                  const _WhatsNewItem(
-                    title: 'Elementy wyglądu',
-                    description:
-                        'Zmieniono nagłówki poszczególnych ekranów',
-                  ),
-                  const _WhatsNewItem(
-                    title: 'Poziome kafelki na HomeScreen',
-                    description:
-                        'Zmieniono kolejność poziomych kafelków na HomeScreen.',
+                        'Udoskonalono ekran medytacji',
                   ),
                   const _WhatsNewItem(
                     title: 'Poprawki błędów',
                     description:
-                        'Naprawiono kilka drobnych błędów.',
-                  ),                                       
+                        'Poprawiono kilka drobnych niespójności interfejsu',
+                  ),                                      
                   const SizedBox(height: 8),
                   Align(
                     alignment: Alignment.centerRight,
@@ -470,7 +435,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                     ),
                                     const SizedBox(height: 8),
                                     Text(
-                                      'Wersja 1.5.0',
+                                      'Wersja 1.5.1',
                                       style: TextStyle(
                                         fontSize: 13,
                                         color: colorScheme.onSurface
