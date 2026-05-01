@@ -778,9 +778,14 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
           ? 'Ten dzień jest jeszcze przed Tobą. Wróć jutro, aby kontynuować Drogę.'
           : 'Ten dzień jest jeszcze przed Tobą. Ukończ dzisiejszy dzień, aby kontynuować Drogę.';
 
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(message)));
+      ScaffoldMessenger.of(context)
+        ..clearSnackBars()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(message),
+            duration: const Duration(seconds: 2),
+          ),
+        );
       return;
     }
 
