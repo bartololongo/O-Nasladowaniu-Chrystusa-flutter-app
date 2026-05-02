@@ -1,5 +1,3 @@
-import 'package:flutter/foundation.dart';
-
 import 'audio_track.dart';
 
 class AudioCatalog {
@@ -25,11 +23,11 @@ class AudioCatalog {
     final url = audioUrlForReference(chapterReference);
     if (url == null) return null;
 
-    final id = 'book_${bookNumber}_chapter_$chapterNumber';
+    final chapterPath = chapterNumber.toString().padLeft(2, '0');
+    final id = 'book_${bookNumber}_chapter_$chapterPath';
     final trackTitle = title.trim().isNotEmpty
         ? title.trim()
         : 'Rozdział $chapterNumber';
-    debugPrint('AudioCatalog: $chapterReference -> $url');
 
     return AudioTrack(
       id: id,
@@ -45,7 +43,8 @@ class AudioCatalog {
     final parsed = _parseChapterReference(chapterReference);
     if (parsed == null) return null;
 
-    return '$baseUrl/book_${parsed.bookNumber}/chapter_${parsed.chapterNumber}.m4a';
+    final chapterPath = parsed.chapterNumber.toString().padLeft(2, '0');
+    return '$baseUrl/book_${parsed.bookNumber}/chapter_$chapterPath.m4a';
   }
 
   static Map<String, String?> previewUrlsForReferences(

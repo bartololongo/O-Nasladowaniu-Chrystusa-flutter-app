@@ -24,8 +24,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 class BackupService {
   static const String appId = 'o_nasladowaniu_chrystusa';
   static const int schemaVersion = 1;
-  static const String _formationPendingPayloadKey =
-      'formation_pending_payload';
+  static const String _formationPendingPayloadKey = 'formation_pending_payload';
+  static const String _audioPositionKeyPrefix = 'audio_position_ms_';
+  static const String _audioLastTrackKey = 'audio_last_track_id';
 
   /// Tworzy strukturę JSON do zapisania w pliku – na podstawie SharedPreferences.
   Future<Map<String, dynamic>> createBackupJson() async {
@@ -33,6 +34,8 @@ class BackupService {
     final keys = prefs.getKeys();
 
     final Map<String, dynamic> prefsData = <String, dynamic>{};
+    final Map<String, int> audioPositionsMs = <String, int>{};
+    String? audioLastTrackId;
 
     for (final key in keys) {
       if (key == _formationPendingPayloadKey) {
@@ -41,10 +44,20 @@ class BackupService {
 
       final value = prefs.get(key);
 
-      if (value is bool ||
-          value is int ||
-          value is double ||
-          value is String) {
+      if (key.startsWith(_audioPositionKeyPrefix)) {
+        if (value is int && value >= 0) {
+          final trackId = key.substring(_audioPositionKeyPrefix.length);
+          if (trackId.isNotEmpty) {
+            audioPositionsMs[trackId] = value;
+          }
+        }
+      } else if (key == _audioLastTrackKey &&
+          value is String &&
+          value.trim().isNotEmpty) {
+        audioLastTrackId = value;
+      }
+
+      if (value is bool || value is int || value is double || value is String) {
         prefsData[key] = value;
       } else if (value is List<String>) {
         prefsData[key] = value;
@@ -53,12 +66,19 @@ class BackupService {
       }
     }
 
+    final Map<String, dynamic> audioPlaybackData = <String, dynamic>{
+      'positionsMs': audioPositionsMs,
+    };
+    if (audioLastTrackId != null) {
+      audioPlaybackData['lastTrackId'] = audioLastTrackId;
+    }
     return <String, dynamic>{
       'app_id': appId,
       'schema_version': schemaVersion,
       'created_at': DateTime.now().toUtc().toIso8601String(),
       'data': <String, dynamic>{
         'shared_preferences': prefsData,
+        'audioPlayback': audioPlaybackData,
       },
     };
   }
@@ -108,8 +128,10 @@ class BackupService {
       );
     }
 
-    final prefsData =
-        Map<String, dynamic>.from(rawPrefsSection as Map<Object?, Object?>);
+    final prefsData = Map<String, dynamic>.from(
+      rawPrefsSection as Map<Object?, Object?>,
+    );
+    final audioPlaybackData = dataMap['audioPlayback'];
 
     final prefs = await SharedPreferences.getInstance();
 
@@ -120,6 +142,10 @@ class BackupService {
     for (final entry in prefsData.entries) {
       final key = entry.key;
       final value = entry.value;
+
+      if (!_isValidSharedPreferenceEntry(key, value)) {
+        continue;
+      }
 
       if (value is bool) {
         await prefs.setBool(key, value);
@@ -136,6 +162,55 @@ class BackupService {
       } else {
         // Nietypowy typ – pomijamy.
       }
+    }
+
+    await _restoreAudioPlaybackSection(prefs, audioPlaybackData);
+  }
+
+  bool _isValidSharedPreferenceEntry(String key, Object? value) {
+    if (key.startsWith(_audioPositionKeyPrefix)) {
+      final trackId = key.substring(_audioPositionKeyPrefix.length);
+      return trackId.isNotEmpty && value is int && value >= 0;
+    }
+
+    if (key == _audioLastTrackKey) {
+      return value is String && value.trim().isNotEmpty;
+    }
+
+    return true;
+  }
+
+  Future<void> _restoreAudioPlaybackSection(
+    SharedPreferences prefs,
+    Object? rawAudioPlaybackSection,
+  ) async {
+    if (rawAudioPlaybackSection is! Map) return;
+
+    final audioPlaybackSection = Map<String, dynamic>.from(
+      rawAudioPlaybackSection as Map<Object?, Object?>,
+    );
+    final rawPositions = audioPlaybackSection['positionsMs'];
+
+    if (rawPositions is Map) {
+      final positions = Map<String, dynamic>.from(
+        rawPositions as Map<Object?, Object?>,
+      );
+
+      for (final entry in positions.entries) {
+        final trackId = entry.key.trim();
+        final milliseconds = entry.value;
+
+        if (trackId.isEmpty || milliseconds is! int || milliseconds < 0) {
+          continue;
+        }
+
+        await prefs.setInt('$_audioPositionKeyPrefix$trackId', milliseconds);
+      }
+    }
+
+    final lastTrackId = audioPlaybackSection['lastTrackId'];
+    if (lastTrackId is String && lastTrackId.trim().isNotEmpty) {
+      await prefs.setString(_audioLastTrackKey, lastTrackId);
     }
   }
 }

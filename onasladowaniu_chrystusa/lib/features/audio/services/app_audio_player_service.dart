@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -31,21 +32,29 @@ class AppAudioPlayerService {
   Stream<PlaybackEvent> get playbackEventStream => _player.playbackEventStream;
 
   Future<void> playTrack(AudioTrack track) async {
-    if (_currentTrack?.id != track.id) {
-      await _saveCurrentPosition();
-      _currentTrack = track;
-      _currentTrackController.add(track);
-      await _player.setUrl(track.url);
-      final savedPosition = await _getSavedPosition(track);
-      final duration = _player.duration;
-      if (_isRestorablePosition(savedPosition, duration)) {
-        await _player.seek(savedPosition);
+    try {
+      if (_currentTrack?.id != track.id) {
+        await _saveCurrentPosition();
+        _currentTrack = track;
+        _currentTrackController.add(track);
+        await _player.setUrl(track.url);
+        await _restoreSavedPosition(track);
+      } else {
+        await _restoreSavedPositionIfPlayerIsAtStart(track);
       }
-    }
 
-    await _saveLastTrack(track);
-    _startPositionPersistence();
-    await _player.play();
+      await _saveLastTrack(track);
+      _startPositionPersistence();
+      await _player.play();
+    } catch (error, stackTrace) {
+      _logPlaybackError(
+        action: 'playTrack',
+        track: track,
+        error: error,
+        stackTrace: stackTrace,
+      );
+      rethrow;
+    }
   }
 
   Future<void> pause() async {
@@ -54,9 +63,20 @@ class AppAudioPlayerService {
   }
 
   Future<void> resume() async {
-    await _saveLastTrack(_currentTrack);
-    _startPositionPersistence();
-    await _player.play();
+    final track = _currentTrack;
+    try {
+      await _saveLastTrack(track);
+      _startPositionPersistence();
+      await _player.play();
+    } catch (error, stackTrace) {
+      _logPlaybackError(
+        action: 'resume',
+        track: track,
+        error: error,
+        stackTrace: stackTrace,
+      );
+      rethrow;
+    }
   }
 
   Future<void> seek(Duration position) async {
@@ -105,6 +125,13 @@ class AppAudioPlayerService {
     }
   }
 
+  Future<void> reloadCurrentTrackSavedPosition() async {
+    final track = _currentTrack;
+    if (track == null) return;
+
+    await _restoreSavedPosition(track);
+  }
+
   void _startPositionPersistence() {
     _positionSubscription ??= _player.positionStream.listen((_) {
       _saveTimer ??= Timer(const Duration(seconds: 5), () {
@@ -123,8 +150,28 @@ class AppAudioPlayerService {
 
   Future<Duration> _getSavedPosition(AudioTrack track) async {
     final preferences = await SharedPreferences.getInstance();
-    final milliseconds = preferences.getInt(_positionKey(track.id)) ?? 0;
+    final key = _positionKey(track.id);
+    final milliseconds = preferences.getInt(key) ?? 0;
     return Duration(milliseconds: milliseconds);
+  }
+
+  Future<void> _restoreSavedPosition(AudioTrack track) async {
+    final savedPosition = await _getSavedPosition(track);
+    final duration = _player.duration;
+    if (_isRestorablePosition(savedPosition, duration)) {
+      await _player.seek(savedPosition);
+    }
+  }
+
+  Future<void> _restoreSavedPositionIfPlayerIsAtStart(AudioTrack track) async {
+    final savedPosition = await _getSavedPosition(track);
+    final duration = _player.duration;
+    final currentPosition = _player.position;
+
+    if (currentPosition >= const Duration(seconds: 5)) return;
+    if (!_isRestorablePosition(savedPosition, duration)) return;
+
+    await _player.seek(savedPosition);
   }
 
   Future<void> _saveCurrentPosition() async {
@@ -147,6 +194,23 @@ class AppAudioPlayerService {
   }
 
   String _positionKey(String trackId) => '$_positionKeyPrefix$trackId';
+
+  void _logPlaybackError({
+    required String action,
+    required AudioTrack? track,
+    required Object error,
+    required StackTrace stackTrace,
+  }) {
+    debugPrint(
+      'AppAudioPlayerService: $action failed. '
+      'trackId=${track?.id}, url=${track?.url}, '
+      'errorType=${error.runtimeType}, error=$error',
+    );
+    debugPrintStack(
+      label: 'AppAudioPlayerService: $action stackTrace',
+      stackTrace: stackTrace,
+    );
+  }
 
   static const String _positionKeyPrefix = 'audio_position_ms_';
   static const String _lastTrackKey = 'audio_last_track_id';

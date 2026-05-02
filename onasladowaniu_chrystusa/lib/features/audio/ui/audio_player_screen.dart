@@ -26,7 +26,16 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
     super.initState();
     _playbackErrorSubscription = _audioService.playbackEventStream.listen(
       (_) {},
-      onError: (_) {
+      onError: (Object error, StackTrace stackTrace) {
+        debugPrint(
+          'AudioPlayerScreen: playbackEventStream error. '
+          'trackId=${widget.track.id}, url=${widget.track.url}, '
+          'errorType=${error.runtimeType}, error=$error',
+        );
+        debugPrintStack(
+          label: 'AudioPlayerScreen: playbackEventStream stackTrace',
+          stackTrace: stackTrace,
+        );
         if (!mounted) return;
         setState(() {
           _errorMessage =
@@ -46,8 +55,20 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
 
   Future<void> _startPlayback() async {
     try {
+      setState(() {
+        _errorMessage = null;
+      });
       await _audioService.playTrack(widget.track);
-    } catch (_) {
+    } catch (error, stackTrace) {
+      debugPrint(
+        'AudioPlayerScreen: startPlayback failed. '
+        'trackId=${widget.track.id}, url=${widget.track.url}, '
+        'errorType=${error.runtimeType}, error=$error',
+      );
+      debugPrintStack(
+        label: 'AudioPlayerScreen: startPlayback stackTrace',
+        stackTrace: stackTrace,
+      );
       if (!mounted) return;
       setState(() {
         _errorMessage =
@@ -278,12 +299,24 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
 
   Future<void> _togglePlay() async {
     try {
+      setState(() {
+        _errorMessage = null;
+      });
       if (_audioService.currentTrack?.id == widget.track.id) {
         await _audioService.resume();
       } else {
         await _audioService.playTrack(widget.track);
       }
-    } catch (_) {
+    } catch (error, stackTrace) {
+      debugPrint(
+        'AudioPlayerScreen: togglePlay failed. '
+        'trackId=${widget.track.id}, url=${widget.track.url}, '
+        'errorType=${error.runtimeType}, error=$error',
+      );
+      debugPrintStack(
+        label: 'AudioPlayerScreen: togglePlay stackTrace',
+        stackTrace: stackTrace,
+      );
       if (!mounted) return;
       setState(() {
         _errorMessage =
