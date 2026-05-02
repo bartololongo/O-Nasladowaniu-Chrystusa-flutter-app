@@ -31,6 +31,24 @@ class AppAudioPlayerService {
 
   Stream<PlaybackEvent> get playbackEventStream => _player.playbackEventStream;
 
+  Future<bool> getAutoAdvanceEnabled() async {
+    final preferences = await SharedPreferences.getInstance();
+    return preferences.getBool(_autoAdvanceEnabledKey) ?? false;
+  }
+
+  Future<void> setAutoAdvanceEnabled(bool enabled) async {
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.setBool(_autoAdvanceEnabledKey, enabled);
+  }
+
+  Future<String?> getLastTrackId() async {
+    final preferences = await SharedPreferences.getInstance();
+    final trackId = preferences.getString(_lastTrackKey);
+    if (trackId == null || trackId.trim().isEmpty) return null;
+
+    return trackId;
+  }
+
   Future<void> playTrack(AudioTrack track) async {
     try {
       if (_currentTrack?.id != track.id) {
@@ -214,4 +232,5 @@ class AppAudioPlayerService {
 
   static const String _positionKeyPrefix = 'audio_position_ms_';
   static const String _lastTrackKey = 'audio_last_track_id';
+  static const String _autoAdvanceEnabledKey = 'audio_auto_advance_enabled';
 }

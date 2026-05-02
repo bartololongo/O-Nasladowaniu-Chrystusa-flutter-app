@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -13,6 +15,10 @@ import '../favorites/favorites_screen.dart';
 import '../bookmarks/bookmarks_screen.dart';
 import '../settings/settings_screen.dart';
 import '../search/search_screen.dart';
+import '../audio/data/audio_catalog.dart';
+import '../audio/data/audio_track.dart';
+import '../audio/services/app_audio_player_service.dart';
+import '../audio/ui/audio_player_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   final void Function(int tabIndex)? onNavigateToTab;
@@ -34,8 +40,13 @@ class _HomeScreenState extends State<HomeScreen>
   final FavoritesService _favoritesService = FavoritesService();
   final JournalService _journalService = JournalService();
   final BookRepository _bookRepository = BookRepository();
+  final AppAudioPlayerService _audioService = AppAudioPlayerService.instance;
 
   String? _lastChapterRef;
+  String? _lastAudioTrackId;
+  String _audioChapterMeta = 'Księga I, rozdział 1';
+  String? _lastAudioChapterTitle;
+  StreamSubscription<AudioTrack?>? _audioTrackSubscription;
 
   // --- Wsparcie / BuyMeACoffee ---
   static const String _supportUrl = 'https://www.buymeacoffee.com/bartololongo';
@@ -47,6 +58,10 @@ class _HomeScreenState extends State<HomeScreen>
   void initState() {
     super.initState();
     _loadLastChapterRef();
+    _loadLastAudioTrack();
+    _audioTrackSubscription = _audioService.currentTrackStream.listen((_) {
+      unawaited(_loadLastAudioTrack());
+    });
 
     _supportAnimController = AnimationController(
       vsync: this,
@@ -62,6 +77,7 @@ class _HomeScreenState extends State<HomeScreen>
 
   @override
   void dispose() {
+    _audioTrackSubscription?.cancel();
     _supportAnimController.dispose();
     super.dispose();
   }
@@ -71,6 +87,27 @@ class _HomeScreenState extends State<HomeScreen>
     if (!mounted) return;
     setState(() {
       _lastChapterRef = ref;
+    });
+  }
+
+  Future<void> _loadLastAudioTrack() async {
+    final trackId = await _audioService.getLastTrackId();
+    final lastChapterReference = trackId == null
+        ? null
+        : AudioCatalog.chapterReferenceForTrackId(trackId);
+    final chapterReference = lastChapterReference ?? 'I-1';
+    final chapter = await _bookRepository.getChapterByReference(
+      chapterReference,
+    );
+    final title = chapter?.title.trim();
+
+    if (!mounted) return;
+    setState(() {
+      _lastAudioTrackId = lastChapterReference == null ? null : trackId;
+      _audioChapterMeta = _chapterMetaForReference(chapterReference);
+      _lastAudioChapterTitle = title != null && title.isNotEmpty
+          ? title
+          : _fallbackChapterTitleForReference(chapterReference);
     });
   }
 
@@ -105,6 +142,88 @@ class _HomeScreenState extends State<HomeScreen>
     }
 
     return 'Rozdział $_lastChapterRef';
+  }
+
+  String get _continueListeningTitle {
+    if (_lastAudioTrackId == null || _lastAudioTrackId!.isEmpty) {
+      return 'Rozpocznij słuchanie';
+    }
+
+    return 'Kontynuuj słuchanie';
+  }
+
+  Future<void> _openAudioQuick() async {
+    final track = await _lastAudioTrack() ?? await _firstAudioTrack();
+    if (track == null || !mounted) return;
+
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        settings: const RouteSettings(name: '/audio-player'),
+        builder: (_) => AudioPlayerScreen(track: track),
+      ),
+    );
+
+    if (!mounted) return;
+    await _loadLastAudioTrack();
+  }
+
+  Future<AudioTrack?> _lastAudioTrack() async {
+    final trackId = await _audioService.getLastTrackId();
+    if (trackId == null) return null;
+
+    final chapterReference = AudioCatalog.chapterReferenceForTrackId(trackId);
+    if (chapterReference == null) return null;
+
+    return _audioTrackForChapterReference(chapterReference);
+  }
+
+  Future<AudioTrack?> _firstAudioTrack() {
+    return _audioTrackForChapterReference('I-1');
+  }
+
+  Future<AudioTrack?> _audioTrackForChapterReference(
+    String chapterReference,
+  ) async {
+    final chapter = await _bookRepository.getChapterByReference(
+      chapterReference,
+    );
+    if (chapter == null) return null;
+
+    return AudioCatalog.trackForChapter(
+      chapterReference: chapter.reference,
+      title: chapter.title,
+      subtitle: _bookTitleForReference(chapter.reference),
+    );
+  }
+
+  String _bookTitleForReference(String chapterReference) {
+    final bookCode = chapterReference.split('-').first;
+
+    return switch (bookCode) {
+      'I' => 'Księga pierwsza',
+      'II' => 'Księga druga',
+      'III' => 'Księga trzecia',
+      'IV' => 'Księga czwarta',
+      _ => 'Księga $bookCode',
+    };
+  }
+
+  String _chapterMetaForReference(String chapterReference) {
+    final parts = chapterReference.split('-');
+    if (parts.length == 2) {
+      return 'Księga ${parts[0]}, rozdział ${parts[1]}';
+    }
+
+    return 'Rozdział $chapterReference';
+  }
+
+  String _fallbackChapterTitleForReference(String chapterReference) {
+    final parts = chapterReference.split('-');
+    if (parts.length == 2) {
+      return 'Rozdział ${parts[1]}';
+    }
+
+    return 'Rozdział';
   }
 
   Future<void> _showRandomQuoteBottomSheet() async {
@@ -437,6 +556,8 @@ class _HomeScreenState extends State<HomeScreen>
             const SizedBox(height: 16),
             _buildContinueReadingCard(context),
             const SizedBox(height: 12),
+            _buildContinueListeningCard(context),
+            const SizedBox(height: 12),
             _buildFormationChallengeCard(context),
             const SizedBox(height: 12),
             _buildRandomQuoteCard(context),
@@ -538,6 +659,70 @@ class _HomeScreenState extends State<HomeScreen>
                     style: TextStyle(
                       fontSize: 14,
                       color: colorScheme.onSurface.withValues(alpha: 0.7),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildContinueListeningCard(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(16),
+      onTap: () => unawaited(_openAudioQuick()),
+      child: Container(
+        decoration: BoxDecoration(
+          color: colorScheme.surface.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: colorScheme.primary.withValues(alpha: 0.3)),
+        ),
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.headphones_rounded,
+              size: 32,
+              color: colorScheme.primary,
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _continueListeningTitle,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    _audioChapterMeta,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: colorScheme.onSurface.withValues(alpha: 0.7),
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    _lastAudioChapterTitle ?? 'Rozdział 1',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: colorScheme.onSurface.withValues(alpha: 0.86),
                     ),
                   ),
                 ],

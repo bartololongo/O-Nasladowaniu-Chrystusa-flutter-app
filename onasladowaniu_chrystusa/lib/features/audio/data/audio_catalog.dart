@@ -23,8 +23,8 @@ class AudioCatalog {
     final url = audioUrlForReference(chapterReference);
     if (url == null) return null;
 
-    final chapterPath = chapterNumber.toString().padLeft(2, '0');
-    final id = 'book_${bookNumber}_chapter_$chapterPath';
+    final chapterCode = _chapterCode(chapterNumber);
+    final id = 'book_${bookNumber}_chapter_$chapterCode';
     final trackTitle = title.trim().isNotEmpty
         ? title.trim()
         : 'Rozdział $chapterNumber';
@@ -43,8 +43,8 @@ class AudioCatalog {
     final parsed = _parseChapterReference(chapterReference);
     if (parsed == null) return null;
 
-    final chapterPath = parsed.chapterNumber.toString().padLeft(2, '0');
-    return '$baseUrl/book_${parsed.bookNumber}/chapter_$chapterPath.m4a';
+    final chapterCode = _chapterCode(parsed.chapterNumber);
+    return '$baseUrl/book_${parsed.bookNumber}/chapter_$chapterCode.m4a';
   }
 
   static Map<String, String?> previewUrlsForReferences(
@@ -54,6 +54,20 @@ class AudioCatalog {
       for (final reference in chapterReferences)
         reference: audioUrlForReference(reference),
     };
+  }
+
+  static String? chapterReferenceForTrackId(String trackId) {
+    final match = RegExp(r'^book_(\d+)_chapter_(\d+)$').firstMatch(trackId);
+    if (match == null) return null;
+
+    final bookNumber = int.tryParse(match.group(1)!);
+    final chapterNumber = int.tryParse(match.group(2)!);
+    if (bookNumber == null || chapterNumber == null) return null;
+
+    final bookCode = _bookCodesByNumber[bookNumber];
+    if (bookCode == null) return null;
+
+    return '$bookCode-$chapterNumber';
   }
 
   static ({int bookNumber, int chapterNumber})? _parseChapterReference(
@@ -69,4 +83,16 @@ class AudioCatalog {
 
     return (bookNumber: bookNumber, chapterNumber: chapterNumber);
   }
+
+  static String _chapterCode(int chapterNumber) {
+    // Hosting audio używa formatu chapter_XX.m4a dla wszystkich ksiąg.
+    return chapterNumber.toString().padLeft(2, '0');
+  }
+
+  static const Map<int, String> _bookCodesByNumber = {
+    1: 'I',
+    2: 'II',
+    3: 'III',
+    4: 'IV',
+  };
 }
