@@ -238,7 +238,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             ),
                             const SizedBox(height: 2),
                             Text(
-                              'Wersja 1.5.1',
+                              'Wersja 1.5.2',
                               style: TextStyle(
                                 fontSize: 12,
                                 color: colorScheme.onSurface.withValues(
@@ -253,14 +253,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                   const SizedBox(height: 16),
                   const _WhatsNewItem(
-                    title: 'Ekran Medytacji',
+                    title: 'qwerty',
                     description:
-                        'Udoskonalono ekran medytacji',
+                        'qwerty',
                   ),
                   const _WhatsNewItem(
                     title: 'Poprawki błędów',
                     description:
-                        'Poprawiono kilka drobnych niespójności interfejsu',
+                        'Poprawiono kilka drobnych błędów',
                   ),                                      
                   const SizedBox(height: 8),
                   Align(
@@ -435,7 +435,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                     ),
                                     const SizedBox(height: 8),
                                     Text(
-                                      'Wersja 1.5.1',
+                                      'Wersja 1.5.2',
                                       style: TextStyle(
                                         fontSize: 13,
                                         color: colorScheme.onSurface
