@@ -82,6 +82,29 @@ class AppAudioPlayerService {
     await _player.stop();
   }
 
+  Future<void> clearSavedPlaybackProgress() async {
+    _saveTimer?.cancel();
+    _saveTimer = null;
+    await _positionSubscription?.cancel();
+    _positionSubscription = null;
+
+    final preferences = await SharedPreferences.getInstance();
+    final audioKeys = preferences
+        .getKeys()
+        .where(
+          (key) => key.startsWith(_positionKeyPrefix) || key == _lastTrackKey,
+        )
+        .toList();
+
+    for (final key in audioKeys) {
+      await preferences.remove(key);
+    }
+
+    if (_currentTrack != null) {
+      await _player.seek(Duration.zero);
+    }
+  }
+
   void _startPositionPersistence() {
     _positionSubscription ??= _player.positionStream.listen((_) {
       _saveTimer ??= Timer(const Duration(seconds: 5), () {
@@ -123,7 +146,8 @@ class AppAudioPlayerService {
     await preferences.setString(_lastTrackKey, track.id);
   }
 
-  String _positionKey(String trackId) => 'audio_position_ms_$trackId';
+  String _positionKey(String trackId) => '$_positionKeyPrefix$trackId';
 
+  static const String _positionKeyPrefix = 'audio_position_ms_';
   static const String _lastTrackKey = 'audio_last_track_id';
 }

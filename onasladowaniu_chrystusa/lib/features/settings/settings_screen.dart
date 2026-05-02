@@ -6,6 +6,7 @@ import '../../shared/services/formation_meditation_settings_service.dart';
 import '../../shared/services/formation_notification_service.dart';
 import '../../shared/services/formation_widget_snapshot_service.dart';
 import '../../shared/widgets/section_header.dart';
+import '../audio/services/app_audio_player_service.dart';
 import 'backup_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -28,6 +29,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       FormationChallengeProgressService();
   final FormationWidgetSnapshotService _formationWidgetSnapshotService =
       FormationWidgetSnapshotService();
+  final AppAudioPlayerService _audioPlayerService =
+      AppAudioPlayerService.instance;
 
   late Future<_FormationSettingsState> _formationSettingsFuture;
 
@@ -188,6 +191,80 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
+  Future<void> _clearAudioPlaybackProgress() async {
+    final confirmed =
+        await showModalBottomSheet<bool>(
+          context: context,
+          isScrollControlled: false,
+          builder: (sheetContext) {
+            final colorScheme = Theme.of(sheetContext).colorScheme;
+
+            return SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.headphones_rounded,
+                          size: 32,
+                          color: colorScheme.primary,
+                        ),
+                        const SizedBox(width: 12),
+                        const Expanded(
+                          child: Text(
+                            'Wyczyścić postęp słuchania?',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    const Text(
+                      'Usunie to zapamiętane miejsca odtwarzania rozdziałów '
+                      'audio. Nagrania będą uruchamiać się od początku.',
+                      style: TextStyle(fontSize: 14, height: 1.4),
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        TextButton(
+                          onPressed: () =>
+                              Navigator.of(sheetContext).pop(false),
+                          child: const Text('Anuluj'),
+                        ),
+                        const SizedBox(width: 8),
+                        ElevatedButton.icon(
+                          onPressed: () => Navigator.of(sheetContext).pop(true),
+                          icon: const Icon(Icons.delete_sweep_outlined),
+                          label: const Text('Wyczyść'),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        ) ??
+        false;
+
+    if (!confirmed) return;
+
+    await _audioPlayerService.clearSavedPlaybackProgress();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Postęp słuchania został wyczyszczony.')),
+    );
+  }
+
   Future<void> _launchUrl(
     BuildContext context,
     String url, {
@@ -261,31 +338,30 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     title: 'Dziennik',
                     description:
                         'Posty w dzienniku mogą być teraz sortowane, grupowane oraz filtrowane.',
-                  ),   
+                  ),
                   const _WhatsNewItem(
                     title: 'Wyszukiwanie w czytniku',
                     description:
                         'Dodano wyszukiwanie w czytniku typu "Znajdź na stronie".',
-                  ),                                 
+                  ),
                   const _WhatsNewItem(
                     title: 'Wyszukiwanie globalne',
                     description:
                         'Wyszukiwanie globalne zintegrowano ze "Znajdź na stronie".',
-                  ),  
+                  ),
                   const _WhatsNewItem(
                     title: 'Widget',
                     description:
                         'Dodano widget w dwóch rozmiarach, który z łatwością dodasz do pulpitu.',
-                  ),   
+                  ),
                   const _WhatsNewItem(
                     title: 'Co nowego',
                     description:
                         'Dodano Release Notesy widoczne dla uzytkownika\n(Ustawienia --> O aplikacji --> Co nowego)',
-                  ),                                                           
+                  ),
                   const _WhatsNewItem(
                     title: 'Elementy wyglądu',
-                    description:
-                        'Zmieniono nagłówki poszczególnych ekranów',
+                    description: 'Zmieniono nagłówki poszczególnych ekranów',
                   ),
                   const _WhatsNewItem(
                     title: 'Poziome kafelki na HomeScreen',
@@ -294,9 +370,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                   const _WhatsNewItem(
                     title: 'Poprawki błędów',
-                    description:
-                        'Naprawiono kilka drobnych błędów.',
-                  ),                                       
+                    description: 'Naprawiono kilka drobnych błędów.',
+                  ),
                   const SizedBox(height: 8),
                   Align(
                     alignment: Alignment.centerRight,
@@ -418,6 +493,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         MaterialPageRoute(builder: (_) => const BackupScreen()),
                       );
                     },
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.headphones_rounded),
+                    title: const Text('Wyczyść postęp słuchania'),
+                    subtitle: const Text(
+                      'Rozdziały audio będą odtwarzane od początku.',
+                    ),
+                    onTap: _clearAudioPlaybackProgress,
                   ),
                   const Divider(),
                   _buildFormationSettingsSection(context),
