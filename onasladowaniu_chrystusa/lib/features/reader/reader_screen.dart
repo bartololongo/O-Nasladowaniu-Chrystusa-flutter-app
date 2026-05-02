@@ -753,7 +753,10 @@ class _ReaderScreenState extends State<ReaderScreen> {
     return 'Rozdział';
   }
 
-  Future<void> _openAudioPlayer(AudioTrack track) async {
+  Future<void> _openAudioPlayerForCurrentChapter() async {
+    final track = _audioTrackForCurrentChapter();
+    if (track == null) return;
+
     await Navigator.of(
       context,
     ).push(MaterialPageRoute(builder: (_) => AudioPlayerScreen(track: track)));
@@ -960,7 +963,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
   Widget build(BuildContext context) {
     // Przy każdym buildzie sprawdzamy, czy nie ma nowego "skoku" z zewnątrz
     _maybeHandleExternalJump();
-    final currentAudioTrack = _audioTrackForCurrentChapter();
+    final hasAudioForCurrentChapter =
+        AudioCatalog.audioUrlForReference(_currentChapterRef) != null;
 
     return Scaffold(
       appBar: AppBar(
@@ -973,11 +977,11 @@ class _ReaderScreenState extends State<ReaderScreen> {
             tooltip: _isCurrentBookmarked ? 'Usuń zakładkę' : 'Dodaj zakładkę',
             onPressed: _toggleBookmarkForCurrentChapter,
           ),
-          if (currentAudioTrack != null)
+          if (hasAudioForCurrentChapter)
             IconButton(
               icon: const Icon(Icons.headphones_rounded),
               tooltip: 'Posłuchaj rozdziału',
-              onPressed: () => _openAudioPlayer(currentAudioTrack),
+              onPressed: _openAudioPlayerForCurrentChapter,
             ),
           IconButton(
             icon: const Icon(Icons.search),

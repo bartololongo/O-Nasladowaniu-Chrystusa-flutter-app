@@ -1,8 +1,10 @@
+import 'package:flutter/foundation.dart';
+
 import 'audio_track.dart';
 
 class AudioCatalog {
   static const String baseUrl =
-      'https://TWOJA_DOMENA/uploads/audio/o-nasladowaniu/v1';
+      'https://bartololongo.pl/uploads/audio/o-nasladowaniu/v1';
 
   static const Map<String, int> _bookNumbersByCode = {
     'I': 1,
@@ -16,23 +18,56 @@ class AudioCatalog {
     required String title,
     required String subtitle,
   }) {
-    final parts = chapterReference.split('-');
-    if (parts.length != 2) return null;
+    final parsed = _parseChapterReference(chapterReference);
+    if (parsed == null) return null;
 
-    final bookNumber = _bookNumbersByCode[parts[0]];
-    final chapterNumber = int.tryParse(parts[1]);
-    if (bookNumber == null || chapterNumber == null) return null;
+    final (:bookNumber, :chapterNumber) = parsed;
+    final url = audioUrlForReference(chapterReference);
+    if (url == null) return null;
 
-    final chapterPath = chapterNumber.toString().padLeft(2, '0');
-    final id = 'book_${bookNumber}_chapter_$chapterPath';
+    final id = 'book_${bookNumber}_chapter_$chapterNumber';
+    final trackTitle = title.trim().isNotEmpty
+        ? title.trim()
+        : 'Rozdział $chapterNumber';
+    debugPrint('AudioCatalog: $chapterReference -> $url');
 
     return AudioTrack(
       id: id,
       bookNumber: bookNumber,
       chapterNumber: chapterNumber,
-      title: title,
+      title: trackTitle,
       subtitle: subtitle,
-      url: '$baseUrl/book_$bookNumber/chapter_$chapterPath.m4a',
+      url: url,
     );
+  }
+
+  static String? audioUrlForReference(String chapterReference) {
+    final parsed = _parseChapterReference(chapterReference);
+    if (parsed == null) return null;
+
+    return '$baseUrl/book_${parsed.bookNumber}/chapter_${parsed.chapterNumber}.m4a';
+  }
+
+  static Map<String, String?> previewUrlsForReferences(
+    Iterable<String> chapterReferences,
+  ) {
+    return {
+      for (final reference in chapterReferences)
+        reference: audioUrlForReference(reference),
+    };
+  }
+
+  static ({int bookNumber, int chapterNumber})? _parseChapterReference(
+    String chapterReference,
+  ) {
+    final parts = chapterReference.trim().split('-');
+    if (parts.length != 2) return null;
+
+    final bookCode = parts[0].trim().toUpperCase();
+    final bookNumber = _bookNumbersByCode[bookCode];
+    final chapterNumber = int.tryParse(parts[1].trim());
+    if (bookNumber == null || chapterNumber == null) return null;
+
+    return (bookNumber: bookNumber, chapterNumber: chapterNumber);
   }
 }
