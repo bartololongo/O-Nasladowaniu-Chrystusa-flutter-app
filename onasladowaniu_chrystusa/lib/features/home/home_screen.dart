@@ -22,11 +22,7 @@ class HomeScreen extends StatefulWidget {
   /// mógł podświetlić ikonę "Więcej" i zarządzać powrotem.
   final void Function(Widget screen)? onOpenMoreScreen;
 
-  const HomeScreen({
-    super.key,
-    this.onNavigateToTab,
-    this.onOpenMoreScreen,
-  });
+  const HomeScreen({super.key, this.onNavigateToTab, this.onOpenMoreScreen});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -42,9 +38,8 @@ class _HomeScreenState extends State<HomeScreen>
   String? _lastChapterRef;
 
   // --- Wsparcie / BuyMeACoffee ---
-  static const String _supportUrl =
-      'https://www.buymeacoffee.com/bartololongo'; 
-      
+  static const String _supportUrl = 'https://www.buymeacoffee.com/bartololongo';
+
   late final AnimationController _supportAnimController;
   late final Animation<double> _supportScaleAnimation;
 
@@ -59,10 +54,7 @@ class _HomeScreenState extends State<HomeScreen>
     );
 
     _supportScaleAnimation = Tween<double>(begin: 1.0, end: 1.03).animate(
-      CurvedAnimation(
-        parent: _supportAnimController,
-        curve: Curves.easeInOut,
-      ),
+      CurvedAnimation(parent: _supportAnimController, curve: Curves.easeInOut),
     );
 
     _supportAnimController.repeat(reverse: true);
@@ -86,11 +78,18 @@ class _HomeScreenState extends State<HomeScreen>
     await Navigator.of(context).push(
       MaterialPageRoute(
         settings: const RouteSettings(name: '/formation-challenge'),
-        builder: (_) => FormationChallengeScreen(
-          onNavigateToTab: widget.onNavigateToTab,
-        ),
+        builder: (_) =>
+            FormationChallengeScreen(onNavigateToTab: widget.onNavigateToTab),
       ),
     );
+  }
+
+  String get _continueReadingTitle {
+    if (_lastChapterRef == null || _lastChapterRef!.isEmpty) {
+      return 'Rozpocznij czytanie';
+    }
+
+    return 'Kontynuuj czytanie';
   }
 
   String get _continueReadingSubtitle {
@@ -110,8 +109,8 @@ class _HomeScreenState extends State<HomeScreen>
 
   Future<void> _showRandomQuoteBottomSheet() async {
     try {
-      final BookParagraph paragraph =
-          await _bookRepository.getRandomParagraph();
+      final BookParagraph paragraph = await _bookRepository
+          .getRandomParagraph();
       if (!mounted) return;
 
       await showModalBottomSheet(
@@ -131,8 +130,7 @@ class _HomeScreenState extends State<HomeScreen>
             locationText =
                 'Księga ${refParts[0]}, rozdział ${refParts[1]}, akapit ${refParts[2]}';
           } else if (refParts.length == 2) {
-            locationText =
-                'Księga ${refParts[0]}, rozdział ${refParts[1]}';
+            locationText = 'Księga ${refParts[0]}, rozdział ${refParts[1]}';
           } else {
             locationText = paragraph.reference;
           }
@@ -146,10 +144,7 @@ class _HomeScreenState extends State<HomeScreen>
                 children: [
                   Row(
                     children: [
-                      Icon(
-                        Icons.format_quote,
-                        color: colorScheme.primary,
-                      ),
+                      Icon(Icons.format_quote, color: colorScheme.primary),
                       const SizedBox(width: 8),
                       const Text(
                         'Wylosowany cytat',
@@ -163,10 +158,7 @@ class _HomeScreenState extends State<HomeScreen>
                   const SizedBox(height: 12),
                   Text(
                     paragraph.text,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      height: 1.5,
-                    ),
+                    style: const TextStyle(fontSize: 16, height: 1.5),
                   ),
                   const SizedBox(height: 12),
                   Text(
@@ -186,15 +178,14 @@ class _HomeScreenState extends State<HomeScreen>
                           onPressed: () async {
                             await _favoritesService
                                 .addOrUpdateFavoriteForParagraph(
-                              paragraph,
-                              note: null,
-                            );
+                                  paragraph,
+                                  note: null,
+                                );
                             if (!mounted) return;
                             Navigator.of(sheetContext).pop();
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
-                                content:
-                                    Text('Dodano cytat do ulubionych.'),
+                                content: Text('Dodano cytat do ulubionych.'),
                               ),
                             );
                           },
@@ -249,9 +240,7 @@ class _HomeScreenState extends State<HomeScreen>
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Nie udało się wylosować cytatu: $e'),
-        ),
+        SnackBar(content: Text('Nie udało się wylosować cytatu: $e')),
       );
     }
   }
@@ -269,10 +258,7 @@ class _HomeScreenState extends State<HomeScreen>
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  paragraph.text,
-                  style: const TextStyle(fontSize: 14),
-                ),
+                Text(paragraph.text, style: const TextStyle(fontSize: 14)),
                 const SizedBox(height: 16),
                 const Text(
                   'Twoja notatka:',
@@ -310,9 +296,7 @@ class _HomeScreenState extends State<HomeScreen>
                 if (!mounted) return;
                 Navigator.of(ctx).pop();
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Dodano wpis do dziennika.'),
-                  ),
+                  const SnackBar(content: Text('Dodano wpis do dziennika.')),
                 );
               },
               child: const Text('Zapisz'),
@@ -325,10 +309,7 @@ class _HomeScreenState extends State<HomeScreen>
 
   Future<void> _openSupportLink() async {
     final uri = Uri.parse(_supportUrl);
-    final ok = await launchUrl(
-      uri,
-      mode: LaunchMode.externalApplication,
-    );
+    final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
     if (!ok && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -343,17 +324,14 @@ class _HomeScreenState extends State<HomeScreen>
   void _openJournalQuick() {
     if (widget.onOpenMoreScreen != null) {
       widget.onOpenMoreScreen!(
-        JournalScreen(
-          onNavigateToTab: widget.onNavigateToTab,
-        ),
+        JournalScreen(onNavigateToTab: widget.onNavigateToTab),
       );
     } else {
       Navigator.of(context).push(
         MaterialPageRoute(
           settings: const RouteSettings(name: '/journal'),
-          builder: (_) => JournalScreen(
-            onNavigateToTab: widget.onNavigateToTab,
-          ),
+          builder: (_) =>
+              JournalScreen(onNavigateToTab: widget.onNavigateToTab),
         ),
       );
     }
@@ -362,17 +340,14 @@ class _HomeScreenState extends State<HomeScreen>
   void _openFavoritesQuick() {
     if (widget.onOpenMoreScreen != null) {
       widget.onOpenMoreScreen!(
-        FavoritesScreen(
-          onNavigateToTab: widget.onNavigateToTab,
-        ),
+        FavoritesScreen(onNavigateToTab: widget.onNavigateToTab),
       );
     } else {
       Navigator.of(context).push(
         MaterialPageRoute(
           settings: const RouteSettings(name: '/favorites'),
-          builder: (_) => FavoritesScreen(
-            onNavigateToTab: widget.onNavigateToTab,
-          ),
+          builder: (_) =>
+              FavoritesScreen(onNavigateToTab: widget.onNavigateToTab),
         ),
       );
     }
@@ -384,9 +359,7 @@ class _HomeScreenState extends State<HomeScreen>
 
   void _openSettingsQuick() {
     if (widget.onOpenMoreScreen != null) {
-      widget.onOpenMoreScreen!(
-        const SettingsScreen(),
-      );
+      widget.onOpenMoreScreen!(const SettingsScreen());
     } else {
       Navigator.of(context).push(
         MaterialPageRoute(
@@ -432,20 +405,14 @@ class _HomeScreenState extends State<HomeScreen>
                     'O naśladowaniu Chrystusa',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w700,
-                    ),
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
                   ),
                   SizedBox(height: 2),
                   Text(
                     'Droga codziennej lektury i refleksji',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w400,
-                    ),
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w400),
                   ),
                 ],
               ),
@@ -484,10 +451,7 @@ class _HomeScreenState extends State<HomeScreen>
   Widget _buildHeader(BuildContext context) {
     return const Text(
       'Witaj!',
-      style: TextStyle(
-        fontSize: 24,
-        fontWeight: FontWeight.bold,
-      ),
+      style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
     );
   }
 
@@ -551,31 +515,22 @@ class _HomeScreenState extends State<HomeScreen>
         decoration: BoxDecoration(
           color: colorScheme.surface.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: colorScheme.primary.withValues(alpha: 0.3),
-          ),
+          border: Border.all(color: colorScheme.primary.withValues(alpha: 0.3)),
         ),
         padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Icon(
-              Icons.play_circle_fill,
-              size: 32,
-              color: colorScheme.primary,
-            ),
+            Icon(Icons.play_circle_fill, size: 32, color: colorScheme.primary),
             const SizedBox(width: 16),
             Expanded(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'Kontynuuj czytanie',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                    ),
+                  Text(
+                    _continueReadingTitle,
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
                   ),
                   const SizedBox(height: 4),
                   Text(
@@ -605,9 +560,7 @@ class _HomeScreenState extends State<HomeScreen>
         decoration: BoxDecoration(
           color: colorScheme.surface.withOpacity(0.1),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: colorScheme.primary.withOpacity(0.3),
-          ),
+          border: Border.all(color: colorScheme.primary.withOpacity(0.3)),
         ),
         padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
         child: Row(
@@ -626,10 +579,7 @@ class _HomeScreenState extends State<HomeScreen>
                 children: [
                   const Text(
                     'Droga naśladowania',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                    ),
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
                   ),
                   const SizedBox(height: 4),
                   Text(
@@ -661,19 +611,13 @@ class _HomeScreenState extends State<HomeScreen>
         decoration: BoxDecoration(
           color: colorScheme.surface.withOpacity(0.1),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: colorScheme.primary.withOpacity(0.3),
-          ),
+          border: Border.all(color: colorScheme.primary.withOpacity(0.3)),
         ),
         padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Icon(
-              Icons.auto_awesome,
-              size: 32,
-              color: colorScheme.primary,
-            ),
+            Icon(Icons.auto_awesome, size: 32, color: colorScheme.primary),
             const SizedBox(width: 16),
             const Expanded(
               child: Column(
@@ -682,18 +626,12 @@ class _HomeScreenState extends State<HomeScreen>
                 children: [
                   Text(
                     'Losuj cytat',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                    ),
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
                   ),
                   SizedBox(height: 4),
                   Text(
                     'Wyświetl losowy fragment z książki.',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.white70,
-                    ),
+                    style: TextStyle(fontSize: 14, color: Colors.white70),
                   ),
                 ],
               ),
@@ -717,19 +655,13 @@ class _HomeScreenState extends State<HomeScreen>
           decoration: BoxDecoration(
             color: colorScheme.surface.withOpacity(0.08),
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: colorScheme.primary.withOpacity(0.25),
-            ),
+            border: Border.all(color: colorScheme.primary.withOpacity(0.25)),
           ),
           padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Icon(
-                Icons.coffee,
-                size: 32,
-                color: colorScheme.primary,
-              ),
+              Icon(Icons.coffee, size: 32, color: colorScheme.primary),
               const SizedBox(width: 16),
               Expanded(
                 child: Column(
@@ -787,18 +719,12 @@ class _QuickActionChip extends StatelessWidget {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(999),
           color: colorScheme.surface.withOpacity(0.16),
-          border: Border.all(
-            color: colorScheme.primary.withOpacity(0.35),
-          ),
+          border: Border.all(color: colorScheme.primary.withOpacity(0.35)),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              icon,
-              size: 18,
-              color: colorScheme.primary,
-            ),
+            Icon(icon, size: 18, color: colorScheme.primary),
             const SizedBox(width: 6),
             Text(
               label,
