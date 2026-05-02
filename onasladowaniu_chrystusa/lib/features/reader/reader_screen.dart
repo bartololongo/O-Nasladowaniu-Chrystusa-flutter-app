@@ -7,6 +7,9 @@ import '../../shared/services/preferences_service.dart';
 import '../../shared/services/bookmarks_service.dart';
 import '../../shared/services/favorites_service.dart';
 import '../../shared/services/journal_service.dart';
+import '../audio/data/audio_catalog.dart';
+import '../audio/data/audio_track.dart';
+import '../audio/ui/audio_player_screen.dart';
 
 class ReaderScreen extends StatefulWidget {
   final void Function(String query)? onOpenSearchResults;
@@ -707,6 +710,55 @@ class _ReaderScreenState extends State<ReaderScreen> {
     }
   }
 
+  AudioTrack? _audioTrackForCurrentChapter() {
+    final visibleChapter = _visibleChapter;
+    if (visibleChapter != null &&
+        visibleChapter.reference == _currentChapterRef) {
+      return _audioTrackForChapter(visibleChapter);
+    }
+
+    return AudioCatalog.trackForChapter(
+      chapterReference: _currentChapterRef,
+      title: _fallbackAudioTitleForReference(_currentChapterRef),
+      subtitle: _bookTitleForReference(_currentChapterRef),
+    );
+  }
+
+  AudioTrack? _audioTrackForChapter(BookChapter chapter) {
+    return AudioCatalog.trackForChapter(
+      chapterReference: chapter.reference,
+      title: chapter.title,
+      subtitle: _bookTitleForReference(chapter.reference),
+    );
+  }
+
+  String _bookTitleForReference(String chapterReference) {
+    final bookCode = chapterReference.split('-').first;
+
+    return switch (bookCode) {
+      'I' => 'Księga pierwsza',
+      'II' => 'Księga druga',
+      'III' => 'Księga trzecia',
+      'IV' => 'Księga czwarta',
+      _ => 'Księga $bookCode',
+    };
+  }
+
+  String _fallbackAudioTitleForReference(String chapterReference) {
+    final parts = chapterReference.split('-');
+    if (parts.length == 2) {
+      return 'Rozdział ${parts[1]}';
+    }
+
+    return 'Rozdział';
+  }
+
+  Future<void> _openAudioPlayer(AudioTrack track) async {
+    await Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => AudioPlayerScreen(track: track)));
+  }
+
   /// Zakładka z paska zaznaczenia – zawsze "dodaj", bez usuwania.
   Future<void> _addSelectionBookmark() async {
     if (_isCurrentBookmarked) {
@@ -908,6 +960,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
   Widget build(BuildContext context) {
     // Przy każdym buildzie sprawdzamy, czy nie ma nowego "skoku" z zewnątrz
     _maybeHandleExternalJump();
+    final currentAudioTrack = _audioTrackForCurrentChapter();
 
     return Scaffold(
       appBar: AppBar(
@@ -920,6 +973,12 @@ class _ReaderScreenState extends State<ReaderScreen> {
             tooltip: _isCurrentBookmarked ? 'Usuń zakładkę' : 'Dodaj zakładkę',
             onPressed: _toggleBookmarkForCurrentChapter,
           ),
+          if (currentAudioTrack != null)
+            IconButton(
+              icon: const Icon(Icons.headphones_rounded),
+              tooltip: 'Posłuchaj rozdziału',
+              onPressed: () => _openAudioPlayer(currentAudioTrack),
+            ),
           IconButton(
             icon: const Icon(Icons.search),
             tooltip: 'Znajdź w rozdziale',
