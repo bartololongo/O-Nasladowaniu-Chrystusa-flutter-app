@@ -20,6 +20,8 @@ class _InlineAudioPlayerCardState extends State<InlineAudioPlayerCard> {
 
   StreamSubscription<PlaybackEvent>? _playbackErrorSubscription;
   String? _errorMessage;
+  bool _isDraggingProgress = false;
+  Duration _dragPosition = Duration.zero;
 
   @override
   void initState() {
@@ -132,12 +134,15 @@ class _InlineAudioPlayerCardState extends State<InlineAudioPlayerCard> {
         return StreamBuilder<Duration>(
           stream: _audioService.positionStream,
           builder: (context, positionSnapshot) {
-            final position = isCurrentTrack
+            final streamedPosition = isCurrentTrack
                 ? _clampPosition(
                     positionSnapshot.data ?? Duration.zero,
                     duration,
                   )
                 : Duration.zero;
+            final position = _isDraggingProgress
+                ? _clampPosition(_dragPosition, duration)
+                : streamedPosition;
 
             return Column(
               children: [
@@ -148,11 +153,19 @@ class _InlineAudioPlayerCardState extends State<InlineAudioPlayerCard> {
                       : 1,
                   onChanged: duration == Duration.zero
                       ? null
-                      : (value) => unawaited(
-                          _audioService.seek(
-                            Duration(milliseconds: value.round()),
-                          ),
-                        ),
+                      : (value) {
+                          setState(() {
+                            _isDraggingProgress = true;
+                            _dragPosition = _durationFromSliderValue(
+                              value,
+                              duration,
+                            );
+                          });
+                        },
+                  onChangeEnd: duration == Duration.zero
+                      ? null
+                      : (value) =>
+                            unawaited(_seekToSliderValue(value, duration)),
                 ),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -284,6 +297,28 @@ class _InlineAudioPlayerCardState extends State<InlineAudioPlayerCard> {
     if (duration == Duration.zero) return position;
     if (position > duration) return duration;
     return position;
+  }
+
+  Duration _durationFromSliderValue(double value, Duration duration) {
+    final maxMilliseconds = duration.inMilliseconds;
+    if (maxMilliseconds <= 0) return Duration.zero;
+
+    final milliseconds = value.round().clamp(0, maxMilliseconds);
+    return Duration(milliseconds: milliseconds);
+  }
+
+  Future<void> _seekToSliderValue(double value, Duration duration) async {
+    final target = _durationFromSliderValue(value, duration);
+    try {
+      await _audioService.seek(target);
+    } finally {
+      if (mounted) {
+        setState(() {
+          _dragPosition = target;
+          _isDraggingProgress = false;
+        });
+      }
+    }
   }
 
   String _formatDuration(Duration duration) {

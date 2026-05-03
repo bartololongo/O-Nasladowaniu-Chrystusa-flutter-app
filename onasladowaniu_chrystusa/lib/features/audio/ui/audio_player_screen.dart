@@ -32,6 +32,8 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
   bool _isLoadingAdjacentTracks = false;
   bool _isChangingTrack = false;
   bool _handledCompletedTrack = false;
+  bool _isDraggingProgress = false;
+  Duration _dragPosition = Duration.zero;
 
   @override
   void initState() {
@@ -476,10 +478,13 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
         return StreamBuilder<Duration>(
           stream: _audioService.positionStream,
           builder: (context, positionSnapshot) {
-            final position = _clampPosition(
+            final streamedPosition = _clampPosition(
               positionSnapshot.data ?? Duration.zero,
               duration,
             );
+            final position = _isDraggingProgress
+                ? _clampPosition(_dragPosition, duration)
+                : streamedPosition;
 
             return Column(
               children: [
@@ -490,11 +495,19 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
                       : 1,
                   onChanged: duration == Duration.zero
                       ? null
-                      : (value) => unawaited(
-                          _audioService.seek(
-                            Duration(milliseconds: value.round()),
-                          ),
-                        ),
+                      : (value) {
+                          setState(() {
+                            _isDraggingProgress = true;
+                            _dragPosition = _durationFromSliderValue(
+                              value,
+                              duration,
+                            );
+                          });
+                        },
+                  onChangeEnd: duration == Duration.zero
+                      ? null
+                      : (value) =>
+                            unawaited(_seekToSliderValue(value, duration)),
                 ),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 4),
@@ -741,6 +754,28 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
     if (duration == Duration.zero) return position;
     if (position > duration) return duration;
     return position;
+  }
+
+  Duration _durationFromSliderValue(double value, Duration duration) {
+    final maxMilliseconds = duration.inMilliseconds;
+    if (maxMilliseconds <= 0) return Duration.zero;
+
+    final milliseconds = value.round().clamp(0, maxMilliseconds);
+    return Duration(milliseconds: milliseconds);
+  }
+
+  Future<void> _seekToSliderValue(double value, Duration duration) async {
+    final target = _durationFromSliderValue(value, duration);
+    try {
+      await _audioService.seek(target);
+    } finally {
+      if (mounted) {
+        setState(() {
+          _dragPosition = target;
+          _isDraggingProgress = false;
+        });
+      }
+    }
   }
 
   String _formatDuration(Duration duration) {
