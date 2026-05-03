@@ -10,6 +10,7 @@ import '../../shared/services/preferences_service.dart';
 import '../../shared/services/formation_widget_snapshot_service.dart';
 import '../../shared/navigation/app_page_route.dart';
 import '../../shared/navigation/main_tabs.dart';
+import '../../shared/widgets/section_header.dart';
 import '../audio/data/audio_catalog.dart';
 import '../audio/data/audio_track.dart';
 import '../audio/ui/audio_player_screen.dart';
@@ -264,39 +265,53 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Droga naśladowania'),
-        actions: [
-          IconButton(
-            onPressed: _openSearch,
-            icon: const Icon(Icons.search),
-            tooltip: 'Szukaj',
-          ),
-          IconButton(
-            onPressed: _openSettings,
-            icon: const Icon(Icons.settings),
-            tooltip: 'Ustawienia',
-          ),
-        ],
-      ),
-      body: FutureBuilder<_FormationChallengeViewState>(
-        future: _stateFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
+      body: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            SectionHeader(
+              title: 'Droga naśladowania',
+              subtitle: 'Codzienna medytacja z tekstem, refleksją i rytmem.',
+              icon: Icons.route,
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    onPressed: _openSearch,
+                    icon: const Icon(Icons.search),
+                    tooltip: 'Szukaj',
+                  ),
+                  IconButton(
+                    onPressed: _openSettings,
+                    icon: const Icon(Icons.settings),
+                    tooltip: 'Ustawienia',
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: FutureBuilder<_FormationChallengeViewState>(
+                future: _stateFuture,
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
 
-          if (snapshot.hasError) {
-            return _buildErrorBody(context, snapshot.error);
-          }
+                  if (snapshot.hasError) {
+                    return _buildErrorBody(context, snapshot.error);
+                  }
 
-          final state = snapshot.data;
-          if (state == null || !state.isStarted) {
-            return _buildNotStartedBody(context);
-          }
+                  final state = snapshot.data;
+                  if (state == null || !state.isStarted) {
+                    return _buildNotStartedBody(context);
+                  }
 
-          return _buildStartedBody(context, state);
-        },
+                  return _buildStartedBody(context, state);
+                },
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

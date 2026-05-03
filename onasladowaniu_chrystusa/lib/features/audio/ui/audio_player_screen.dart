@@ -185,63 +185,92 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
     final colorScheme = Theme.of(context).colorScheme;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Nagranie lektorskie'),
-        actions: [
+      body: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _buildHeader(context),
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(20, 4, 20, 22),
+                children: [
+                  _buildCoverBlock(context),
+                  const SizedBox(height: 20),
+                  Text(
+                    _track.subtitle,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: colorScheme.primary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Rozdział ${_track.chapterNumber}',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: colorScheme.onSurface.withValues(alpha: 0.72),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    _track.title,
+                    textAlign: TextAlign.center,
+                    maxLines: 3,
+                    overflow: TextOverflow.fade,
+                    softWrap: true,
+                    style: const TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w600,
+                      height: 1.25,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  if (_errorMessage != null) ...[
+                    _buildErrorMessage(context),
+                    const SizedBox(height: 16),
+                  ],
+                  _buildProgress(context),
+                  const SizedBox(height: 18),
+                  _buildControls(context),
+                  const SizedBox(height: 12),
+                  _buildAutoAdvanceToggle(context),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeader(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(8, 12, 12, 8),
+      child: Row(
+        children: [
+          IconButton(
+            onPressed: () => Navigator.of(context).maybePop(),
+            icon: const Icon(Icons.arrow_back),
+            tooltip: 'Wstecz',
+          ),
+          const SizedBox(width: 4),
+          Icon(Icons.headphones_rounded, size: 28, color: colorScheme.primary),
+          const SizedBox(width: 12),
+          const Expanded(
+            child: Text(
+              'Nagranie lektorskie',
+              style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
+            ),
+          ),
           IconButton(
             tooltip: 'Wybierz rozdział',
             onPressed: _showChapterPicker,
             icon: const Icon(Icons.format_list_bulleted_rounded),
           ),
         ],
-      ),
-      body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 22),
-          children: [
-            _buildCoverBlock(context),
-            const SizedBox(height: 20),
-            Text(
-              _track.subtitle,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: colorScheme.primary,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Rozdział ${_track.chapterNumber}',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: colorScheme.onSurface.withValues(alpha: 0.72),
-              ),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              _track.title,
-              textAlign: TextAlign.center,
-              maxLines: 3,
-              overflow: TextOverflow.fade,
-              softWrap: true,
-              style: const TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.w600,
-                height: 1.25,
-              ),
-            ),
-            const SizedBox(height: 20),
-            if (_errorMessage != null) ...[
-              _buildErrorMessage(context),
-              const SizedBox(height: 16),
-            ],
-            _buildProgress(context),
-            const SizedBox(height: 18),
-            _buildControls(context),
-            const SizedBox(height: 12),
-            _buildAutoAdvanceToggle(context),
-          ],
-        ),
       ),
     );
   }

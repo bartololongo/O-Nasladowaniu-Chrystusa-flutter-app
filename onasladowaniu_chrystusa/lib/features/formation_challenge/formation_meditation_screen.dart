@@ -9,6 +9,7 @@ import '../../shared/models/formation_challenge_models.dart';
 import '../../shared/services/formation_challenge_progress_service.dart';
 import '../../shared/services/formation_meditation_settings_service.dart';
 import '../../shared/services/formation_widget_snapshot_service.dart';
+import '../../shared/widgets/section_header.dart';
 import 'formation_journal_helpers.dart';
 
 enum _MeditationContentMode { read, listen }
@@ -253,51 +254,61 @@ class _FormationMeditationScreenState extends State<FormationMeditationScreen> {
     final audioTrack = _audioTrackForDay(widget.day);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Medytacja')),
-      body: _isLoadingSettings
-          ? const Center(child: CircularProgressIndicator())
-          : SafeArea(
-              child: ListView(
-                padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
-                children: [
-                  Text(
-                    'Dzień ${widget.day.dayNumber} z ${widget.totalDays}',
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    widget.day.chapterTitle,
-                    style: const TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w600,
-                      height: 1.2,
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: TextButton.icon(
-                      onPressed: _isRunning || _isFinished
-                          ? null
-                          : _chooseDuration,
-                      icon: const Icon(Icons.timer_outlined),
-                      label: Text('Czas medytacji: $_durationMinutes min'),
-                    ),
-                  ),
-                  if (_isFinished) ...[
-                    const SizedBox(height: 14),
-                    _buildFinishedSection(context),
-                  ] else ...[
-                    const SizedBox(height: 10),
-                    _buildContentModeSelector(context, audioTrack),
-                    const SizedBox(height: 12),
-                    _buildContentSection(context, audioTrack),
-                    const SizedBox(height: 24),
-                    _buildTimerSection(context),
-                  ],
-                ],
-              ),
+      body: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            SectionHeader(
+              title: 'Medytacja',
+              subtitle: 'Dzień ${widget.day.dayNumber} z ${widget.totalDays}',
+              icon: Icons.self_improvement,
+              showBackButton: true,
+              onBack: _returnToChallenge,
             ),
+            Expanded(
+              child: _isLoadingSettings
+                  ? const Center(child: CircularProgressIndicator())
+                  : ListView(
+                      padding: const EdgeInsets.fromLTRB(20, 4, 20, 32),
+                      children: [
+                        Text(
+                          widget.day.chapterTitle,
+                          style: const TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.w600,
+                            height: 1.2,
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: TextButton.icon(
+                            onPressed: _isRunning || _isFinished
+                                ? null
+                                : _chooseDuration,
+                            icon: const Icon(Icons.timer_outlined),
+                            label: Text(
+                              'Czas medytacji: $_durationMinutes min',
+                            ),
+                          ),
+                        ),
+                        if (_isFinished) ...[
+                          const SizedBox(height: 14),
+                          _buildFinishedSection(context),
+                        ] else ...[
+                          const SizedBox(height: 10),
+                          _buildContentModeSelector(context, audioTrack),
+                          const SizedBox(height: 12),
+                          _buildContentSection(context, audioTrack),
+                          const SizedBox(height: 24),
+                          _buildTimerSection(context),
+                        ],
+                      ],
+                    ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 

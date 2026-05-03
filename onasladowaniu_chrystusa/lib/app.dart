@@ -241,10 +241,7 @@ class _RootScreenState extends State<_RootScreen> with WidgetsBindingObserver {
     });
 
     // Resetujemy stos wewnętrznego Navigatora do bazowego ekranu taba.
-    nav?.pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => _buildTabBody()),
-      (route) => false,
-    );
+    nav?.popUntil((route) => route.isFirst);
   }
 
   /// Otwiera ekran z sekcji "Więcej" (Dziennik/Ulubione/Ustawienia).
@@ -349,6 +346,27 @@ class _RootScreenState extends State<_RootScreen> with WidgetsBindingObserver {
     }
   }
 
+  Widget _buildAnimatedTabBody() {
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 200),
+      reverseDuration: const Duration(milliseconds: 160),
+      transitionBuilder: (child, animation) {
+        return FadeTransition(
+          opacity: CurvedAnimation(
+            parent: animation,
+            curve: Curves.easeOut,
+            reverseCurve: Curves.easeIn,
+          ),
+          child: child,
+        );
+      },
+      child: KeyedSubtree(
+        key: ValueKey<int>(_baseTabIndex),
+        child: _buildTabBody(),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -361,7 +379,7 @@ class _RootScreenState extends State<_RootScreen> with WidgetsBindingObserver {
         onGenerateRoute: (settings) {
           // Pierwsza (bazowa) trasa – aktualny tab (Start domyślnie).
           return MaterialPageRoute(
-            builder: (_) => _buildTabBody(),
+            builder: (_) => _buildAnimatedTabBody(),
             settings: settings,
           );
         },
