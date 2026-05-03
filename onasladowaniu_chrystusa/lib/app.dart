@@ -343,7 +343,7 @@ class _RootScreenState extends State<_RootScreen> with WidgetsBindingObserver {
           onNavigateToTab: _onTabSelected,
         );
       case MainTabs.listen:
-        return const ListenScreen();
+        return ListenScreen(onNavigateToTab: _onTabSelected);
       default:
         return const SizedBox.shrink();
     }

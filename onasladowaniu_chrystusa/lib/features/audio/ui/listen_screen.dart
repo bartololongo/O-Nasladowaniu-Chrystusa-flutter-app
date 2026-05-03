@@ -13,7 +13,9 @@ import '../../search/search_screen.dart';
 import '../../settings/settings_screen.dart';
 
 class ListenScreen extends StatefulWidget {
-  const ListenScreen({super.key});
+  final void Function(int tabIndex)? onNavigateToTab;
+
+  const ListenScreen({super.key, this.onNavigateToTab});
 
   @override
   State<ListenScreen> createState() => _ListenScreenState();
@@ -108,7 +110,7 @@ class _ListenScreenState extends State<ListenScreen> {
     Navigator.of(context).push(
       MaterialPageRoute(
         settings: const RouteSettings(name: '/search'),
-        builder: (_) => const SearchScreen(),
+        builder: (_) => SearchScreen(onNavigateToTab: widget.onNavigateToTab),
       ),
     );
   }
