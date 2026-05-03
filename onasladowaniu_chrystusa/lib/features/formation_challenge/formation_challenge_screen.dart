@@ -317,7 +317,7 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
             ),
             const SizedBox(height: 20),
             const Text(
-              'Codzienna medytacja z «O naśladowaniu Chrystusa»',
+              'Codzienna medytacja\nz «O naśladowaniu Chrystusa»',
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
             ),

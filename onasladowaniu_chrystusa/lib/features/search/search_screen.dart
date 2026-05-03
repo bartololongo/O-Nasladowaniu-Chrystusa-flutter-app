@@ -9,6 +9,7 @@ import '../../shared/services/preferences_service.dart';
 import '../bookmarks/bookmarks_screen.dart';
 import '../favorites/favorites_screen.dart';
 import '../journal/journal_screen.dart';
+import '../reader/reader_screen.dart';
 
 class SearchScreen extends StatefulWidget {
   final void Function(int tabIndex)? onNavigateToTab;
@@ -417,7 +418,12 @@ class _SearchScreenState extends State<SearchScreen> {
       return;
     }
 
-    widget.onNavigateToTab?.call(MainTabs.read);
+    await Navigator.of(context).pushReplacement(
+      MaterialPageRoute(
+        settings: const RouteSettings(name: '/reader/from-search'),
+        builder: (_) => const ReaderScreen(),
+      ),
+    );
   }
 
   void _openBookmarksResult() {
