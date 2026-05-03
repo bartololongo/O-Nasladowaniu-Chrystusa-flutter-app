@@ -51,6 +51,33 @@ class ContentUpdateService {
     : _httpClient = httpClient ?? HttpClient(),
       currentAppVersion = currentAppVersion ?? _bundledAppVersion;
 
+  Future<String?> getLocalContentVersion() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_localVersionKey);
+  }
+
+  Future<bool> hasLocalOverride() async {
+    final file = await BookRepository.localOverrideFile();
+    return file.exists();
+  }
+
+  Future<void> restoreBundledContent() async {
+    final file = await BookRepository.localOverrideFile();
+    if (await file.exists()) {
+      await file.delete();
+    }
+
+    final tempFile = File('${file.path}.tmp');
+    if (await tempFile.exists()) {
+      await tempFile.delete();
+    }
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_localVersionKey);
+    await prefs.remove(_localSha256Key);
+    await prefs.remove(_updatedAtKey);
+  }
+
   Future<ContentUpdateResult> checkAndDownloadLatest() async {
     String? localVersion;
     String? remoteVersion;

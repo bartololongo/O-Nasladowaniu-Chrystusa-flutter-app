@@ -5,6 +5,7 @@ import '../../shared/services/formation_challenge_progress_service.dart';
 import '../../shared/services/formation_meditation_settings_service.dart';
 import '../../shared/services/formation_notification_service.dart';
 import '../../shared/services/formation_widget_snapshot_service.dart';
+import '../../shared/services/content_update_service.dart';
 import '../../shared/widgets/section_header.dart';
 import '../audio/services/app_audio_player_service.dart';
 import 'backup_screen.dart';
@@ -31,13 +32,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
       FormationWidgetSnapshotService();
   final AppAudioPlayerService _audioPlayerService =
       AppAudioPlayerService.instance;
+  final ContentUpdateService _contentUpdateService = ContentUpdateService();
 
   late Future<_FormationSettingsState> _formationSettingsFuture;
+  late Future<_ContentSettingsState> _contentSettingsFuture;
+  bool _isCheckingContentUpdate = false;
+  bool _isRestoringBundledContent = false;
 
   @override
   void initState() {
     super.initState();
     _formationSettingsFuture = _loadFormationSettings();
+    _contentSettingsFuture = _loadContentSettings();
   }
 
   Future<_FormationSettingsState> _loadFormationSettings() async {
@@ -58,6 +64,165 @@ class _SettingsScreenState extends State<SettingsScreen> {
     setState(() {
       _formationSettingsFuture = _loadFormationSettings();
     });
+  }
+
+  Future<_ContentSettingsState> _loadContentSettings() async {
+    final localVersion = await _contentUpdateService.getLocalContentVersion();
+    final hasLocalOverride = await _contentUpdateService.hasLocalOverride();
+
+    return _ContentSettingsState(
+      localVersion: localVersion,
+      hasLocalOverride: hasLocalOverride,
+    );
+  }
+
+  Future<void> _refreshContentSettings() async {
+    setState(() {
+      _contentSettingsFuture = _loadContentSettings();
+    });
+  }
+
+  Future<void> _checkContentUpdate() async {
+    if (_isCheckingContentUpdate) return;
+
+    setState(() {
+      _isCheckingContentUpdate = true;
+    });
+
+    final result = await _contentUpdateService.checkAndDownloadLatest();
+    if (!mounted) return;
+
+    setState(() {
+      _isCheckingContentUpdate = false;
+      _contentSettingsFuture = _loadContentSettings();
+    });
+
+    final message = _contentUpdateMessage(result);
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<void> _restoreBundledContent() async {
+    if (_isRestoringBundledContent) return;
+
+    final confirmed =
+        await showModalBottomSheet<bool>(
+          context: context,
+          isScrollControlled: false,
+          builder: (sheetContext) {
+            final colorScheme = Theme.of(sheetContext).colorScheme;
+
+            return SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.menu_book_outlined,
+                          size: 32,
+                          color: colorScheme.primary,
+                        ),
+                        const SizedBox(width: 12),
+                        const Expanded(
+                          child: Text(
+                            'Przywrócić tekst wbudowany?',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    const Text(
+                      'Usunie to pobraną wersję tekstu książki. Aplikacja '
+                      'wróci do tekstu dołączonego do tej wersji aplikacji.',
+                      style: TextStyle(fontSize: 14, height: 1.4),
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        TextButton(
+                          onPressed: () =>
+                              Navigator.of(sheetContext).pop(false),
+                          child: const Text('Anuluj'),
+                        ),
+                        const SizedBox(width: 8),
+                        ElevatedButton.icon(
+                          onPressed: () => Navigator.of(sheetContext).pop(true),
+                          icon: const Icon(Icons.restore),
+                          label: const Text('Przywróć'),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        ) ??
+        false;
+
+    if (!confirmed) return;
+
+    setState(() {
+      _isRestoringBundledContent = true;
+    });
+
+    try {
+      await _contentUpdateService.restoreBundledContent();
+      if (!mounted) return;
+      setState(() {
+        _isRestoringBundledContent = false;
+        _contentSettingsFuture = _loadContentSettings();
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Przywrócono tekst wbudowany. Zmiany będą widoczne po ponownym '
+            'otwarciu czytnika lub ponownym uruchomieniu aplikacji.',
+          ),
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _isRestoringBundledContent = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Nie udało się przywrócić tekstu.')),
+      );
+    }
+  }
+
+  String _contentUpdateMessage(ContentUpdateResult result) {
+    final suffix = result.status == ContentUpdateStatus.updated
+        ? ' Zmiany będą widoczne po ponownym otwarciu czytnika lub ponownym uruchomieniu aplikacji.'
+        : '';
+
+    final message = switch (result.status) {
+      ContentUpdateStatus.updated => 'Pobrano najnowszą wersję tekstu.',
+      ContentUpdateStatus.upToDate => 'Masz już najnowszą wersję tekstu.',
+      ContentUpdateStatus.skippedIncompatibleAppVersion =>
+        'Ta wersja tekstu wymaga nowszej wersji aplikacji.',
+      ContentUpdateStatus.manifestUnavailable =>
+        'Nie udało się sprawdzić aktualizacji tekstu.',
+      ContentUpdateStatus.downloadFailed => 'Nie udało się pobrać tekstu.',
+      ContentUpdateStatus.invalidHash =>
+        'Pobrany plik nie przeszedł weryfikacji.',
+      ContentUpdateStatus.invalidJson =>
+        'Pobrany tekst ma nieprawidłowy format.',
+      ContentUpdateStatus.unknownError => 'Wystąpił nieznany błąd.',
+    };
+
+    return '$message$suffix';
   }
 
   Future<void> _changeMeditationDuration(int currentMinutes) async {
@@ -460,6 +625,91 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
+  Widget _buildContentSettingsSection(BuildContext context) {
+    return FutureBuilder<_ContentSettingsState>(
+      future: _contentSettingsFuture,
+      builder: (context, snapshot) {
+        final state = snapshot.data;
+
+        if (snapshot.connectionState == ConnectionState.waiting &&
+            state == null) {
+          return const ListTile(
+            leading: Icon(Icons.menu_book_outlined),
+            title: Text('Tekst książki'),
+            subtitle: Text('Ładowanie informacji...'),
+          );
+        }
+
+        if (snapshot.hasError || state == null) {
+          return ListTile(
+            leading: const Icon(Icons.menu_book_outlined),
+            title: const Text('Tekst książki'),
+            subtitle: const Text('Nie udało się wczytać informacji'),
+            trailing: IconButton(
+              onPressed: _refreshContentSettings,
+              icon: const Icon(Icons.refresh),
+            ),
+          );
+        }
+
+        final versionLabel = state.localVersion == null
+            ? 'Wersja wbudowana'
+            : 'Pobrana wersja ${state.localVersion}';
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(16, 8, 16, 4),
+              child: Text(
+                'Tekst książki',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.menu_book_outlined),
+              title: const Text('Wersja tekstu'),
+              subtitle: Text(versionLabel),
+            ),
+            ListTile(
+              enabled: !_isCheckingContentUpdate,
+              leading: const Icon(Icons.system_update_alt),
+              title: const Text('Sprawdź aktualizacje tekstu'),
+              subtitle: const Text(
+                'Sprawdź i pobierz poprawki tekstu bez aktualizacji aplikacji.',
+              ),
+              trailing: _isCheckingContentUpdate
+                  ? const SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : null,
+              onTap: _isCheckingContentUpdate ? null : _checkContentUpdate,
+            ),
+            if (state.hasLocalOverride)
+              ListTile(
+                enabled: !_isRestoringBundledContent,
+                leading: const Icon(Icons.restore),
+                title: const Text('Przywróć tekst wbudowany'),
+                subtitle: const Text('Usuń pobraną wersję tekstu książki.'),
+                trailing: _isRestoringBundledContent
+                    ? const SizedBox(
+                        width: 22,
+                        height: 22,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : null,
+                onTap: _isRestoringBundledContent
+                    ? null
+                    : _restoreBundledContent,
+              ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -502,6 +752,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                     onTap: _clearAudioPlaybackProgress,
                   ),
+                  const Divider(),
+                  _buildContentSettingsSection(context),
                   const Divider(),
                   _buildFormationSettingsSection(context),
                   const Divider(),
@@ -677,6 +929,16 @@ class _FormationSettingsState {
     required this.durationMinutes,
     required this.reminderEnabled,
     required this.reminderTime,
+  });
+}
+
+class _ContentSettingsState {
+  final String? localVersion;
+  final bool hasLocalOverride;
+
+  const _ContentSettingsState({
+    required this.localVersion,
+    required this.hasLocalOverride,
   });
 }
 
