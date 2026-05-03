@@ -20,8 +20,6 @@ class _InlineAudioPlayerCardState extends State<InlineAudioPlayerCard> {
 
   StreamSubscription<PlaybackEvent>? _playbackErrorSubscription;
   String? _errorMessage;
-  bool _isDraggingProgress = false;
-  Duration _dragPosition = Duration.zero;
 
   @override
   void initState() {
@@ -124,17 +122,230 @@ class _InlineAudioPlayerCardState extends State<InlineAudioPlayerCard> {
   }
 
   Widget _buildProgress(bool isCurrentTrack) {
+    return _InlineAudioProgressSlider(
+      audioService: _audioService,
+      isCurrentTrack: isCurrentTrack,
+    );
+  }
+
+  Widget _buildControls(bool isCurrentTrack) {
+    return RepaintBoundary(
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          _InlineAudioSeekButton(
+            tooltip: 'Cofnij o 10 sekund',
+            label: '-10',
+            onPressed: !isCurrentTrack
+                ? null
+                : () => unawaited(
+                    _audioService.seekRelative(const Duration(seconds: -10)),
+                  ),
+          ),
+          const SizedBox(width: 16),
+          _InlineAudioPlayPauseButton(
+            audioService: _audioService,
+            isCurrentTrack: isCurrentTrack,
+            onPlayOrResume: _playOrResume,
+          ),
+          const SizedBox(width: 16),
+          _InlineAudioSeekButton(
+            tooltip: 'Przewiń o 10 sekund',
+            label: '+10',
+            onPressed: !isCurrentTrack
+                ? null
+                : () => unawaited(
+                    _audioService.seekRelative(const Duration(seconds: 10)),
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _playOrResume() async {
+    try {
+      setState(() {
+        _errorMessage = null;
+      });
+
+      if (_isCurrentTrack) {
+        await _audioService.resume();
+      } else {
+        await _audioService.playTrack(widget.track);
+      }
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _errorMessage =
+            'Nie udało się odtworzyć audio. Sprawdź połączenie z internetem.';
+      });
+    }
+  }
+}
+
+class _InlineAudioPlayPauseButton extends StatelessWidget {
+  final AppAudioPlayerService audioService;
+  final bool isCurrentTrack;
+  final Future<void> Function() onPlayOrResume;
+
+  const _InlineAudioPlayPauseButton({
+    required this.audioService,
+    required this.isCurrentTrack,
+    required this.onPlayOrResume,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return StreamBuilder<PlayerState>(
+      stream: audioService.playerStateStream.distinct(
+        (previous, next) =>
+            _InlineAudioPlayPauseState.fromPlayerState(
+              previous,
+              isCurrentTrack: isCurrentTrack,
+            ) ==
+            _InlineAudioPlayPauseState.fromPlayerState(
+              next,
+              isCurrentTrack: isCurrentTrack,
+            ),
+      ),
+      builder: (context, snapshot) {
+        final buttonState = _InlineAudioPlayPauseState.fromPlayerState(
+          snapshot.data,
+          isCurrentTrack: isCurrentTrack,
+        );
+
+        return SizedBox(
+          width: 58,
+          height: 58,
+          child: FilledButton(
+            style: FilledButton.styleFrom(
+              shape: const CircleBorder(),
+              padding: EdgeInsets.zero,
+              backgroundColor: colorScheme.primary,
+              foregroundColor: colorScheme.onPrimary,
+            ),
+            onPressed: buttonState.isLoading
+                ? null
+                : () => unawaited(
+                    buttonState.isPlaying
+                        ? audioService.pause()
+                        : onPlayOrResume(),
+                  ),
+            child: buttonState.isLoading
+                ? SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.3,
+                      color: colorScheme.onPrimary,
+                    ),
+                  )
+                : Icon(
+                    buttonState.isPlaying
+                        ? Icons.pause_rounded
+                        : Icons.play_arrow,
+                    size: 34,
+                  ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _InlineAudioPlayPauseState {
+  final bool isPlaying;
+  final bool isLoading;
+
+  const _InlineAudioPlayPauseState({
+    required this.isPlaying,
+    required this.isLoading,
+  });
+
+  factory _InlineAudioPlayPauseState.fromPlayerState(
+    PlayerState? state, {
+    required bool isCurrentTrack,
+  }) {
+    return _InlineAudioPlayPauseState(
+      isPlaying: isCurrentTrack && (state?.playing ?? false),
+      isLoading:
+          isCurrentTrack && state?.processingState == ProcessingState.loading,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is _InlineAudioPlayPauseState &&
+        other.isPlaying == isPlaying &&
+        other.isLoading == isLoading;
+  }
+
+  @override
+  int get hashCode => Object.hash(isPlaying, isLoading);
+}
+
+class _InlineAudioSeekButton extends StatelessWidget {
+  final String tooltip;
+  final String label;
+  final VoidCallback? onPressed;
+
+  const _InlineAudioSeekButton({
+    required this.tooltip,
+    required this.label,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox.square(
+      dimension: 44,
+      child: IconButton.filledTonal(
+        tooltip: tooltip,
+        onPressed: onPressed,
+        icon: Text(
+          label,
+          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+        ),
+      ),
+    );
+  }
+}
+
+class _InlineAudioProgressSlider extends StatefulWidget {
+  final AppAudioPlayerService audioService;
+  final bool isCurrentTrack;
+
+  const _InlineAudioProgressSlider({
+    required this.audioService,
+    required this.isCurrentTrack,
+  });
+
+  @override
+  State<_InlineAudioProgressSlider> createState() =>
+      _InlineAudioProgressSliderState();
+}
+
+class _InlineAudioProgressSliderState
+    extends State<_InlineAudioProgressSlider> {
+  bool _isDraggingProgress = false;
+  Duration _dragPosition = Duration.zero;
+
+  @override
+  Widget build(BuildContext context) {
     return StreamBuilder<Duration?>(
-      stream: _audioService.durationStream,
+      stream: widget.audioService.durationStream,
       builder: (context, durationSnapshot) {
-        final duration = isCurrentTrack
+        final duration = widget.isCurrentTrack
             ? durationSnapshot.data ?? Duration.zero
             : Duration.zero;
 
         return StreamBuilder<Duration>(
-          stream: _audioService.positionStream,
+          stream: widget.audioService.positionStream,
           builder: (context, positionSnapshot) {
-            final streamedPosition = isCurrentTrack
+            final streamedPosition = widget.isCurrentTrack
                 ? _clampPosition(
                     positionSnapshot.data ?? Duration.zero,
                     duration,
@@ -182,117 +393,6 @@ class _InlineAudioPlayerCardState extends State<InlineAudioPlayerCard> {
     );
   }
 
-  Widget _buildControls(bool isCurrentTrack) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return StreamBuilder<PlayerState>(
-      stream: _audioService.playerStateStream,
-      builder: (context, snapshot) {
-        final playerState = snapshot.data;
-        final processingState = playerState?.processingState;
-        final isLoading =
-            isCurrentTrack &&
-            (processingState == ProcessingState.loading ||
-                processingState == ProcessingState.buffering);
-        final isPlaying = isCurrentTrack && (playerState?.playing ?? false);
-
-        return Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            _buildSeekButton(
-              tooltip: 'Cofnij o 10 sekund',
-              label: '-10',
-              onPressed: !isCurrentTrack || isLoading
-                  ? null
-                  : () => unawaited(
-                      _audioService.seekRelative(const Duration(seconds: -10)),
-                    ),
-            ),
-            const SizedBox(width: 16),
-            SizedBox(
-              width: 58,
-              height: 58,
-              child: FilledButton(
-                style: FilledButton.styleFrom(
-                  shape: const CircleBorder(),
-                  padding: EdgeInsets.zero,
-                  backgroundColor: colorScheme.primary,
-                  foregroundColor: colorScheme.onPrimary,
-                ),
-                onPressed: isLoading
-                    ? null
-                    : () => unawaited(
-                        isPlaying ? _audioService.pause() : _playOrResume(),
-                      ),
-                child: isLoading
-                    ? SizedBox(
-                        width: 22,
-                        height: 22,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2.3,
-                          color: colorScheme.onPrimary,
-                        ),
-                      )
-                    : Icon(
-                        isPlaying ? Icons.pause_rounded : Icons.play_arrow,
-                        size: 34,
-                      ),
-              ),
-            ),
-            const SizedBox(width: 16),
-            _buildSeekButton(
-              tooltip: 'Przewiń o 10 sekund',
-              label: '+10',
-              onPressed: !isCurrentTrack || isLoading
-                  ? null
-                  : () => unawaited(
-                      _audioService.seekRelative(const Duration(seconds: 10)),
-                    ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  Widget _buildSeekButton({
-    required String tooltip,
-    required String label,
-    required VoidCallback? onPressed,
-  }) {
-    return SizedBox.square(
-      dimension: 44,
-      child: IconButton.filledTonal(
-        tooltip: tooltip,
-        onPressed: onPressed,
-        icon: Text(
-          label,
-          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
-        ),
-      ),
-    );
-  }
-
-  Future<void> _playOrResume() async {
-    try {
-      setState(() {
-        _errorMessage = null;
-      });
-
-      if (_isCurrentTrack) {
-        await _audioService.resume();
-      } else {
-        await _audioService.playTrack(widget.track);
-      }
-    } catch (_) {
-      if (!mounted) return;
-      setState(() {
-        _errorMessage =
-            'Nie udało się odtworzyć audio. Sprawdź połączenie z internetem.';
-      });
-    }
-  }
-
   Duration _clampPosition(Duration position, Duration duration) {
     if (duration == Duration.zero) return position;
     if (position > duration) return duration;
@@ -310,7 +410,7 @@ class _InlineAudioPlayerCardState extends State<InlineAudioPlayerCard> {
   Future<void> _seekToSliderValue(double value, Duration duration) async {
     final target = _durationFromSliderValue(value, duration);
     try {
-      await _audioService.seek(target);
+      await widget.audioService.seek(target);
     } finally {
       if (mounted) {
         setState(() {
