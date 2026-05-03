@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../../shared/models/book_models.dart';
+import '../../../shared/navigation/app_page_route.dart';
 import '../../../shared/services/book_repository.dart';
 import '../../../shared/widgets/section_header.dart';
 import '../data/audio_catalog.dart';
@@ -49,7 +50,7 @@ class _ListenScreenState extends State<ListenScreen> {
     }
 
     await Navigator.of(context).push(
-      MaterialPageRoute(
+      AppPageRoute.fade(
         settings: const RouteSettings(name: '/audio-player/from-listen'),
         builder: (_) => AudioPlayerScreen(track: track),
       ),
@@ -99,7 +100,7 @@ class _ListenScreenState extends State<ListenScreen> {
 
   void _openSettings() {
     Navigator.of(context).push(
-      MaterialPageRoute(
+      AppPageRoute.fade(
         settings: const RouteSettings(name: '/settings'),
         builder: (_) => const SettingsScreen(),
       ),
@@ -108,7 +109,7 @@ class _ListenScreenState extends State<ListenScreen> {
 
   void _openSearch() {
     Navigator.of(context).push(
-      MaterialPageRoute(
+      AppPageRoute.fade(
         settings: const RouteSettings(name: '/search'),
         builder: (_) => SearchScreen(onNavigateToTab: widget.onNavigateToTab),
       ),

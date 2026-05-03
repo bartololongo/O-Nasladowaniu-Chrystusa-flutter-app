@@ -8,6 +8,7 @@ import '../../shared/services/formation_challenge_service.dart';
 import '../../shared/services/journal_service.dart';
 import '../../shared/services/preferences_service.dart';
 import '../../shared/services/formation_widget_snapshot_service.dart';
+import '../../shared/navigation/app_page_route.dart';
 import '../../shared/navigation/main_tabs.dart';
 import '../audio/data/audio_catalog.dart';
 import '../audio/data/audio_track.dart';
@@ -244,7 +245,7 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
 
   void _openSearch() {
     Navigator.of(context).push(
-      MaterialPageRoute(
+      AppPageRoute.fade(
         settings: const RouteSettings(name: '/search'),
         builder: (_) => SearchScreen(onNavigateToTab: widget.onNavigateToTab),
       ),
@@ -253,7 +254,7 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
 
   void _openSettings() {
     Navigator.of(context).push(
-      MaterialPageRoute(
+      AppPageRoute.fade(
         settings: const RouteSettings(name: '/settings'),
         builder: (_) => const SettingsScreen(),
       ),

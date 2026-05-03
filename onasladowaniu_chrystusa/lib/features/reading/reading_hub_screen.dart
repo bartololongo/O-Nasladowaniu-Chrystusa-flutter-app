@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import '../../shared/navigation/app_page_route.dart';
 import '../../shared/widgets/section_header.dart';
 import '../bookmarks/bookmarks_screen.dart';
 import '../favorites/favorites_screen.dart';
@@ -25,7 +26,7 @@ class ReadingHubScreen extends StatelessWidget {
 
   void _openReader(BuildContext context) {
     Navigator.of(context).push(
-      MaterialPageRoute(
+      AppPageRoute.fade(
         settings: const RouteSettings(name: '/reader/from-reading-hub'),
         builder: (_) => ReaderScreen(
           key: readerScreenKey,
@@ -38,7 +39,7 @@ class ReadingHubScreen extends StatelessWidget {
 
   void _openBookmarks(BuildContext context) {
     Navigator.of(context).push(
-      MaterialPageRoute(
+      AppPageRoute.fade(
         settings: const RouteSettings(name: '/bookmarks/from-reading-hub'),
         builder: (_) => BookmarksScreen(onNavigateToTab: onNavigateToTab),
       ),
@@ -47,7 +48,7 @@ class ReadingHubScreen extends StatelessWidget {
 
   void _openFavorites(BuildContext context) {
     Navigator.of(context).push(
-      MaterialPageRoute(
+      AppPageRoute.fade(
         settings: const RouteSettings(name: '/favorites/from-reading-hub'),
         builder: (_) => FavoritesScreen(onNavigateToTab: onNavigateToTab),
       ),
@@ -56,7 +57,7 @@ class ReadingHubScreen extends StatelessWidget {
 
   void _openJournal(BuildContext context) {
     Navigator.of(context).push(
-      MaterialPageRoute(
+      AppPageRoute.fade(
         settings: const RouteSettings(name: '/journal/from-reading-hub'),
         builder: (_) => JournalScreen(onNavigateToTab: onNavigateToTab),
       ),
@@ -65,7 +66,7 @@ class ReadingHubScreen extends StatelessWidget {
 
   void _openSettings(BuildContext context) {
     Navigator.of(context).push(
-      MaterialPageRoute(
+      AppPageRoute.fade(
         settings: const RouteSettings(name: '/settings'),
         builder: (_) => const SettingsScreen(),
       ),
@@ -74,7 +75,7 @@ class ReadingHubScreen extends StatelessWidget {
 
   void _openSearch(BuildContext context) {
     Navigator.of(context).push(
-      MaterialPageRoute(
+      AppPageRoute.fade(
         settings: const RouteSettings(name: '/search'),
         builder: (_) => SearchScreen(onNavigateToTab: onNavigateToTab),
       ),

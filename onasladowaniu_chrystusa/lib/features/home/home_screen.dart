@@ -11,6 +11,7 @@ import '../../shared/services/formation_challenge_progress_service.dart';
 import '../../shared/services/formation_challenge_service.dart';
 import '../../shared/services/journal_service.dart';
 import '../../shared/models/formation_challenge_models.dart';
+import '../../shared/navigation/app_page_route.dart';
 import '../../shared/navigation/main_tabs.dart';
 
 import '../formation_challenge/formation_challenge_screen.dart';
@@ -136,7 +137,7 @@ class _HomeScreenState extends State<HomeScreen>
 
   Future<void> _openFormationChallengeScreen() async {
     await Navigator.of(context).push(
-      MaterialPageRoute(
+      AppPageRoute.fade(
         settings: const RouteSettings(name: '/formation-challenge'),
         builder: (_) =>
             FormationChallengeScreen(onNavigateToTab: widget.onNavigateToTab),
@@ -182,7 +183,7 @@ class _HomeScreenState extends State<HomeScreen>
     if (track == null || !mounted) return;
 
     await Navigator.of(context).push(
-      MaterialPageRoute(
+      AppPageRoute.fade(
         settings: const RouteSettings(name: '/audio-player'),
         builder: (_) => AudioPlayerScreen(track: track),
       ),
@@ -213,7 +214,7 @@ class _HomeScreenState extends State<HomeScreen>
     }
 
     await Navigator.of(context).push(
-      MaterialPageRoute(
+      AppPageRoute.fade(
         settings: const RouteSettings(name: '/formation-meditation'),
         builder: (_) =>
             FormationMeditationScreen(day: day, totalDays: totalDays),
@@ -529,7 +530,7 @@ class _HomeScreenState extends State<HomeScreen>
       widget.onOpenMoreScreen!(const SettingsScreen());
     } else {
       Navigator.of(context).push(
-        MaterialPageRoute(
+        AppPageRoute.fade(
           settings: const RouteSettings(name: '/settings'),
           builder: (_) => const SettingsScreen(),
         ),
@@ -539,7 +540,7 @@ class _HomeScreenState extends State<HomeScreen>
 
   void _openSearchScreen() {
     Navigator.of(context).push(
-      MaterialPageRoute(
+      AppPageRoute.fade(
         settings: const RouteSettings(name: '/search'),
         builder: (_) => SearchScreen(
           onNavigateToTab: widget.onNavigateToTab,
