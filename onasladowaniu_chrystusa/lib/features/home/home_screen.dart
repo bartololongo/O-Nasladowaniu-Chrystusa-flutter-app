@@ -7,9 +7,13 @@ import '../../shared/services/book_repository.dart';
 import '../../shared/models/book_models.dart';
 import '../../shared/services/preferences_service.dart';
 import '../../shared/services/favorites_service.dart';
+import '../../shared/services/formation_challenge_progress_service.dart';
+import '../../shared/services/formation_challenge_service.dart';
 import '../../shared/services/journal_service.dart';
+import '../../shared/models/formation_challenge_models.dart';
 
 import '../formation_challenge/formation_challenge_screen.dart';
+import '../formation_challenge/formation_meditation_screen.dart';
 import '../journal/journal_screen.dart';
 import '../favorites/favorites_screen.dart';
 import '../bookmarks/bookmarks_screen.dart';
@@ -41,11 +45,16 @@ class _HomeScreenState extends State<HomeScreen>
   final JournalService _journalService = JournalService();
   final BookRepository _bookRepository = BookRepository();
   final AppAudioPlayerService _audioService = AppAudioPlayerService.instance;
+  final FormationChallengeService _formationChallengeService =
+      FormationChallengeService();
+  final FormationChallengeProgressService _formationProgressService =
+      FormationChallengeProgressService();
 
   String? _lastChapterRef;
   String? _lastAudioTrackId;
   String _audioChapterMeta = 'Księga I, rozdział 1';
-  String? _lastAudioChapterTitle;
+  FormationChallengeDay? _dailyMeditationDay;
+  int? _dailyMeditationTotalDays;
   StreamSubscription<AudioTrack?>? _audioTrackSubscription;
 
   // --- Wsparcie / BuyMeACoffee ---
@@ -59,6 +68,7 @@ class _HomeScreenState extends State<HomeScreen>
     super.initState();
     _loadLastChapterRef();
     _loadLastAudioTrack();
+    _loadDailyMeditationShortcut();
     _audioTrackSubscription = _audioService.currentTrackStream.listen((_) {
       unawaited(_loadLastAudioTrack());
     });
@@ -96,18 +106,31 @@ class _HomeScreenState extends State<HomeScreen>
         ? null
         : AudioCatalog.chapterReferenceForTrackId(trackId);
     final chapterReference = lastChapterReference ?? 'I-1';
-    final chapter = await _bookRepository.getChapterByReference(
-      chapterReference,
-    );
-    final title = chapter?.title.trim();
 
     if (!mounted) return;
     setState(() {
       _lastAudioTrackId = lastChapterReference == null ? null : trackId;
       _audioChapterMeta = _chapterMetaForReference(chapterReference);
-      _lastAudioChapterTitle = title != null && title.isNotEmpty
-          ? title
-          : _fallbackChapterTitleForReference(chapterReference);
+    });
+  }
+
+  Future<void> _loadDailyMeditationShortcut() async {
+    final isStarted = await _formationProgressService.isStarted();
+    final startDate = isStarted
+        ? await _formationProgressService.getStartDate()
+        : null;
+    final totalDays = await _formationChallengeService.getTotalDays();
+    final day = startDate == null
+        ? null
+        : await _formationChallengeService.getDayForDate(
+            startDate,
+            DateTime.now(),
+          );
+
+    if (!mounted) return;
+    setState(() {
+      _dailyMeditationDay = day;
+      _dailyMeditationTotalDays = totalDays;
     });
   }
 
@@ -119,6 +142,8 @@ class _HomeScreenState extends State<HomeScreen>
             FormationChallengeScreen(onNavigateToTab: widget.onNavigateToTab),
       ),
     );
+    if (!mounted) return;
+    await _loadDailyMeditationShortcut();
   }
 
   String get _continueReadingTitle {
@@ -165,6 +190,38 @@ class _HomeScreenState extends State<HomeScreen>
 
     if (!mounted) return;
     await _loadLastAudioTrack();
+  }
+
+  String get _dailyMeditationSubtitle {
+    final day = _dailyMeditationDay;
+    final totalDays = _dailyMeditationTotalDays;
+
+    if (day == null || totalDays == null) {
+      return 'Najpierw rozpocznij Drogę naśladowania.';
+    }
+
+    return 'Dzień ${day.dayNumber} z $totalDays';
+  }
+
+  Future<void> _openDailyMeditationQuick() async {
+    final day = _dailyMeditationDay;
+    final totalDays = _dailyMeditationTotalDays;
+
+    if (day == null || totalDays == null) {
+      await _openFormationChallengeScreen();
+      return;
+    }
+
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        settings: const RouteSettings(name: '/formation-meditation'),
+        builder: (_) =>
+            FormationMeditationScreen(day: day, totalDays: totalDays),
+      ),
+    );
+
+    if (!mounted) return;
+    await _loadDailyMeditationShortcut();
   }
 
   Future<AudioTrack?> _lastAudioTrack() async {
@@ -215,15 +272,6 @@ class _HomeScreenState extends State<HomeScreen>
     }
 
     return 'Rozdział $chapterReference';
-  }
-
-  String _fallbackChapterTitleForReference(String chapterReference) {
-    final parts = chapterReference.split('-');
-    if (parts.length == 2) {
-      return 'Rozdział ${parts[1]}';
-    }
-
-    return 'Rozdział';
   }
 
   Future<void> _showRandomQuoteBottomSheet() async {
@@ -558,6 +606,8 @@ class _HomeScreenState extends State<HomeScreen>
             const SizedBox(height: 12),
             _buildContinueListeningCard(context),
             const SizedBox(height: 12),
+            _buildDailyMeditationCard(context),
+            const SizedBox(height: 12),
             _buildFormationChallengeCard(context),
             const SizedBox(height: 12),
             _buildRandomQuoteCard(context),
@@ -715,14 +765,55 @@ class _HomeScreenState extends State<HomeScreen>
                       color: colorScheme.onSurface.withValues(alpha: 0.7),
                     ),
                   ),
-                  const SizedBox(height: 2),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDailyMeditationCard(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(16),
+      onTap: () => unawaited(_openDailyMeditationQuick()),
+      child: Container(
+        decoration: BoxDecoration(
+          color: colorScheme.surface.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: colorScheme.primary.withValues(alpha: 0.3)),
+        ),
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.self_improvement_rounded,
+              size: 32,
+              color: colorScheme.primary,
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Medytacja z dnia',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 4),
                   Text(
-                    _lastAudioChapterTitle ?? 'Rozdział 1',
+                    _dailyMeditationSubtitle,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       fontSize: 14,
-                      color: colorScheme.onSurface.withValues(alpha: 0.86),
+                      color: colorScheme.onSurface.withValues(alpha: 0.7),
                     ),
                   ),
                 ],
