@@ -186,14 +186,14 @@ class _InlineAudioPlayerCardState extends State<InlineAudioPlayerCard> {
         return Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            IconButton.filledTonal(
-              tooltip: 'Cofnij o 15 sekund',
+            _buildSeekButton(
+              tooltip: 'Cofnij o 10 sekund',
+              label: '-10',
               onPressed: !isCurrentTrack || isLoading
                   ? null
                   : () => unawaited(
-                      _audioService.seekRelative(const Duration(seconds: -15)),
+                      _audioService.seekRelative(const Duration(seconds: -10)),
                     ),
-              icon: const Icon(Icons.replay_rounded),
             ),
             const SizedBox(width: 16),
             SizedBox(
@@ -227,18 +227,36 @@ class _InlineAudioPlayerCardState extends State<InlineAudioPlayerCard> {
               ),
             ),
             const SizedBox(width: 16),
-            IconButton.filledTonal(
-              tooltip: 'Przewiń o 15 sekund',
+            _buildSeekButton(
+              tooltip: 'Przewiń o 10 sekund',
+              label: '+10',
               onPressed: !isCurrentTrack || isLoading
                   ? null
                   : () => unawaited(
-                      _audioService.seekRelative(const Duration(seconds: 15)),
+                      _audioService.seekRelative(const Duration(seconds: 10)),
                     ),
-              icon: const Icon(Icons.forward_rounded),
             ),
           ],
         );
       },
+    );
+  }
+
+  Widget _buildSeekButton({
+    required String tooltip,
+    required String label,
+    required VoidCallback? onPressed,
+  }) {
+    return SizedBox.square(
+      dimension: 44,
+      child: IconButton.filledTonal(
+        tooltip: tooltip,
+        onPressed: onPressed,
+        icon: Text(
+          label,
+          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+        ),
+      ),
     );
   }
 
