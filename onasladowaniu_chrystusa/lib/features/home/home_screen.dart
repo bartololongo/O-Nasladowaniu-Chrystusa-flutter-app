@@ -18,6 +18,7 @@ import '../formation_challenge/formation_challenge_screen.dart';
 import '../formation_challenge/formation_meditation_screen.dart';
 import '../journal/journal_screen.dart';
 import '../favorites/favorites_screen.dart';
+import '../reader/reader_screen.dart';
 import '../settings/settings_screen.dart';
 import '../search/search_screen.dart';
 import '../audio/data/audio_catalog.dart';
@@ -716,7 +717,12 @@ class _HomeScreenState extends State<HomeScreen>
     return InkWell(
       borderRadius: BorderRadius.circular(16),
       onTap: () {
-        widget.onNavigateToTab?.call(MainTabs.read);
+        Navigator.of(context).push(
+          AppPageRoute.fade(
+            settings: const RouteSettings(name: '/reader/from-home'),
+            builder: (_) => const ReaderScreen(),
+          ),
+        );
       },
       child: Container(
         decoration: BoxDecoration(
