@@ -8,9 +8,12 @@ import '../../shared/services/formation_challenge_service.dart';
 import '../../shared/services/journal_service.dart';
 import '../../shared/services/preferences_service.dart';
 import '../../shared/services/formation_widget_snapshot_service.dart';
+import '../../shared/navigation/main_tabs.dart';
 import '../audio/data/audio_catalog.dart';
 import '../audio/data/audio_track.dart';
 import '../audio/ui/audio_player_screen.dart';
+import '../search/search_screen.dart';
+import '../settings/settings_screen.dart';
 import 'formation_journal_helpers.dart';
 import 'formation_meditation_screen.dart';
 
@@ -223,7 +226,7 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
     await _preferencesService.clearJumpParagraphNumber();
 
     if (!mounted) return;
-    widget.onNavigateToTab?.call(1);
+    widget.onNavigateToTab?.call(MainTabs.read);
 
     if (Navigator.of(context).canPop()) {
       Navigator.of(context).pop();
@@ -239,10 +242,42 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
     );
   }
 
+  void _openSearch() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        settings: const RouteSettings(name: '/search'),
+        builder: (_) => SearchScreen(onNavigateToTab: widget.onNavigateToTab),
+      ),
+    );
+  }
+
+  void _openSettings() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        settings: const RouteSettings(name: '/settings'),
+        builder: (_) => const SettingsScreen(),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Droga naśladowania')),
+      appBar: AppBar(
+        title: const Text('Droga naśladowania'),
+        actions: [
+          IconButton(
+            onPressed: _openSearch,
+            icon: const Icon(Icons.search),
+            tooltip: 'Szukaj',
+          ),
+          IconButton(
+            onPressed: _openSettings,
+            icon: const Icon(Icons.settings),
+            tooltip: 'Ustawienia',
+          ),
+        ],
+      ),
       body: FutureBuilder<_FormationChallengeViewState>(
         future: _stateFuture,
         builder: (context, snapshot) {

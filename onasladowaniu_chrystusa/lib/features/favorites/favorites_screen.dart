@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../shared/services/favorites_service.dart';
 import '../../shared/services/preferences_service.dart';
 import '../../shared/models/reader_user_models.dart';
+import '../../shared/navigation/main_tabs.dart';
 import '../../shared/widgets/section_header.dart';
 
 class FavoritesScreen extends StatefulWidget {
@@ -85,8 +86,8 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
       Navigator.of(context).pop();
     }
 
-    // przełącz na tab "Czytanie"
-    widget.onNavigateToTab?.call(1);
+    // przełącz na tab "Czytaj"
+    widget.onNavigateToTab?.call(MainTabs.read);
   }
 
   Future<void> _deleteFavorite(FavoriteQuote f) async {

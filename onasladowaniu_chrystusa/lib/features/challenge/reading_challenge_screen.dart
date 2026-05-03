@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../../shared/services/reading_challenge_service.dart';
 import '../../shared/services/book_repository.dart';
 import '../../shared/services/preferences_service.dart';
-import '../../shared/models/book_models.dart';
+import '../../shared/navigation/main_tabs.dart';
 
 class ReadingChallengeScreen extends StatefulWidget {
   final void Function(int tabIndex)? onNavigateToTab;
@@ -117,8 +117,8 @@ class _ReadingChallengeScreenState extends State<ReadingChallengeScreen> {
 
     if (!mounted) return;
 
-    // przełącz na tab "Czytanie"
-    widget.onNavigateToTab?.call(1);
+    // przełącz na tab "Czytaj"
+    widget.onNavigateToTab?.call(MainTabs.read);
 
     // zamknij ekran wyzwania
     if (Navigator.of(context).canPop()) {

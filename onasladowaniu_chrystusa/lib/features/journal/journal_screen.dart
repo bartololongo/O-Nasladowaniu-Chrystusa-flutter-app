@@ -4,6 +4,7 @@ import '../../shared/services/journal_service.dart';
 import '../../shared/services/preferences_service.dart';
 import '../../shared/services/favorites_service.dart';
 import '../../shared/models/book_models.dart';
+import '../../shared/navigation/main_tabs.dart';
 import '../../shared/widgets/section_header.dart';
 
 class JournalScreen extends StatefulWidget {
@@ -633,8 +634,8 @@ class _JournalScreenState extends State<JournalScreen> {
     // 3) zamykamy bottomsheet ze szczegółami wpisu
     Navigator.of(sheetContext).pop();
 
-    // 4) przełączamy na tab "Czytanie"
-    widget.onNavigateToTab?.call(1);
+    // 4) przełączamy na tab "Czytaj"
+    widget.onNavigateToTab?.call(MainTabs.read);
 
     // 5) zamykamy ekran dziennika (jeśli jest osobnym route’em)
     if (Navigator.of(context).canPop()) {

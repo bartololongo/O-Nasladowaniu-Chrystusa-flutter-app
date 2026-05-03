@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../shared/services/bookmarks_service.dart';
 import '../../shared/services/preferences_service.dart';
 import '../../shared/models/reader_user_models.dart';
+import '../../shared/navigation/main_tabs.dart';
 import '../../shared/widgets/section_header.dart';
 
 class BookmarksScreen extends StatefulWidget {
@@ -54,8 +55,8 @@ class _BookmarksScreenState extends State<BookmarksScreen> {
     // Jednorazowy skok do rozdziału z zakładki (nie zmieniamy głównego lastChapterRef)
     await _prefs.setJumpChapterRef(b.chapterRef);
 
-    // przełącz na tab "Czytanie"
-    widget.onNavigateToTab?.call(1);
+    // przełącz na tab "Czytaj"
+    widget.onNavigateToTab?.call(MainTabs.read);
   }
 
   Future<void> _deleteBookmark(Bookmark b) async {
@@ -90,10 +91,11 @@ class _BookmarksScreenState extends State<BookmarksScreen> {
   }
 
   Widget _buildHeader(BuildContext context) {
-    return const SectionHeader(
+    return SectionHeader(
       title: 'Zakładki',
       subtitle: 'Szybki powrót do zapisanych rozdziałów.',
       icon: Icons.bookmark_border,
+      showBackButton: Navigator.canPop(context),
     );
   }
 

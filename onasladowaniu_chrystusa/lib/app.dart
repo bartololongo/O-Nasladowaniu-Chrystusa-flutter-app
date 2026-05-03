@@ -4,13 +4,14 @@ import 'package:flutter/material.dart';
 import 'package:home_widget/home_widget.dart';
 
 import 'features/home/home_screen.dart';
-import 'features/reader/reader_screen.dart';
-import 'features/bookmarks/bookmarks_screen.dart';
+import 'features/reading/reading_hub_screen.dart';
 import 'features/journal/journal_screen.dart';
 import 'features/settings/settings_screen.dart';
 import 'features/favorites/favorites_screen.dart';
 import 'features/formation_challenge/formation_challenge_screen.dart';
+import 'features/audio/ui/listen_screen.dart';
 import 'features/search/search_screen.dart';
+import 'shared/navigation/main_tabs.dart';
 import 'shared/services/formation_notification_service.dart';
 import 'shared/services/formation_widget_snapshot_service.dart';
 import 'app_route_observer.dart';
@@ -65,11 +66,11 @@ class _RootScreen extends StatefulWidget {
 }
 
 class _RootScreenState extends State<_RootScreen> with WidgetsBindingObserver {
-  /// Bazowa zakładka (Start / Czytanie / Zakładki).
-  int _baseTabIndex = 0;
+  /// Bazowa zakładka (Start / Droga / Czytaj / Słuchaj).
+  int _baseTabIndex = MainTabs.start;
 
-  /// Aktualnie podświetlana zakładka w BottomNavigationBar (Start/Czytanie/Zakładki/Więcej).
-  int _selectedIndex = 0;
+  /// Aktualnie podświetlana zakładka w BottomNavigationBar (Start/Droga/Czytaj/Słuchaj).
+  int _selectedIndex = MainTabs.start;
 
   /// ID instancji Readera.
   final int _readerInstanceId = 0;
@@ -77,8 +78,8 @@ class _RootScreenState extends State<_RootScreen> with WidgetsBindingObserver {
   String? _activeMoreRouteName;
 
   /// Wewnętrzny Navigator, w którym renderujemy:
-  /// - ekrany z bottom nav (Start, Czytanie, Zakładki),
-  /// - oraz stack "Więcej": Dziennik, Ulubione, Ustawienia itp.
+  /// - ekrany z bottom nav (Start, Droga, Czytaj, Słuchaj),
+  /// - oraz dodatkowe ekrany: Dziennik, Ulubione, Ustawienia itp.
   ///
   /// Dzięki temu dolny pasek jest zawsze widoczny.
   final GlobalKey<NavigatorState> _innerNavigatorKey =
@@ -221,13 +222,6 @@ class _RootScreenState extends State<_RootScreen> with WidgetsBindingObserver {
   }
 
   void _onTabSelected(int index) {
-    // Ostatni przycisk ("Więcej") otwiera bottom sheet,
-    // nie zmieniamy wtedy bazowej zakładki.
-    if (index == 3) {
-      _showMoreSheet();
-      return;
-    }
-
     final nav = _innerNavigatorKey.currentState;
     final atRoot = !(nav?.canPop() ?? false);
 
@@ -253,69 +247,23 @@ class _RootScreenState extends State<_RootScreen> with WidgetsBindingObserver {
     );
   }
 
-  void _showMoreSheet() {
-    showModalBottomSheet(
-      context: context,
-      builder: (ctx) {
-        return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ListTile(
-                leading: const Icon(Icons.edit_note),
-                title: const Text('Dziennik duchowy'),
-                onTap: () {
-                  Navigator.of(ctx).pop(); // zamknij bottom sheet
-                  _openMoreScreen(
-                    JournalScreen(onNavigateToTab: _onTabSelected),
-                  );
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.format_quote),
-                title: const Text('Ulubione cytaty'),
-                onTap: () {
-                  Navigator.of(ctx).pop();
-                  _openMoreScreen(
-                    FavoritesScreen(onNavigateToTab: _onTabSelected),
-                  );
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.settings),
-                title: const Text('Ustawienia'),
-                onTap: () {
-                  Navigator.of(ctx).pop();
-                  _openMoreScreen(const SettingsScreen());
-                },
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
   /// Otwiera ekran z sekcji "Więcej" (Dziennik/Ulubione/Ustawienia).
-  /// Podświetla przycisk "Więcej", a po zamknięciu ekranu przywraca
-  /// podświetlenie bazowej zakładki (_baseTabIndex).
+  /// Zachowuje podświetlenie bazowej zakładki (_baseTabIndex).
   void _openMoreScreen(Widget screen) {
     final routeName = _moreRouteNameFor(screen);
     final navigator = _innerNavigatorKey.currentState;
     if (navigator == null) return;
 
-    if (_selectedIndex == 3 && _activeMoreRouteName == routeName) {
+    if (_activeMoreRouteName == routeName) {
       if (routeName == '/settings') {
         navigator.popUntil((route) => route.settings.name == routeName);
       }
       return;
     }
 
-    final replaceActiveMoreScreen =
-        _selectedIndex == 3 && _activeMoreRouteName != null;
+    final replaceActiveMoreScreen = _activeMoreRouteName != null;
 
     setState(() {
-      _selectedIndex = 3; // podświetl "Więcej"
       _activeMoreRouteName = routeName;
     });
 
@@ -375,24 +323,27 @@ class _RootScreenState extends State<_RootScreen> with WidgetsBindingObserver {
   }
 
   /// Buduje ekran odpowiadający aktualnie wybranemu bazowemu tabowi
-  /// (Start/Czytanie/Zakładki).
+  /// (Start/Droga/Czytaj/Słuchaj).
   Widget _buildTabBody() {
     switch (_baseTabIndex) {
-      case 0:
+      case MainTabs.start:
         return HomeScreen(
           onNavigateToTab: _onTabSelected,
           onOpenMoreScreen: _openMoreScreenFromHome,
         );
-      case 1:
+      case MainTabs.formation:
+        return FormationChallengeScreen(onNavigateToTab: _onTabSelected);
+      case MainTabs.read:
         // ValueKey na podstawie _readerInstanceId wymusza nową instancję,
         // gdy ten licznik się zmieni.
-        return ReaderScreen(
-          key: ValueKey(_readerInstanceId),
-          onOpenSearchResults: _openSearchResultsFromReader,
+        return ReadingHubScreen(
+          readerScreenKey: ValueKey(_readerInstanceId),
           pendingReaderRequestSignal: _pendingReaderRequestSignal,
+          onOpenSearchResults: _openSearchResultsFromReader,
+          onNavigateToTab: _onTabSelected,
         );
-      case 2:
-        return BookmarksScreen(onNavigateToTab: _onTabSelected);
+      case MainTabs.listen:
+        return const ListenScreen();
       default:
         return const SizedBox.shrink();
     }
@@ -421,17 +372,11 @@ class _RootScreenState extends State<_RootScreen> with WidgetsBindingObserver {
         type: BottomNavigationBarType.fixed,
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Start'),
+          BottomNavigationBarItem(icon: Icon(Icons.route), label: 'Droga'),
+          BottomNavigationBarItem(icon: Icon(Icons.menu_book), label: 'Czytaj'),
           BottomNavigationBarItem(
-            icon: Icon(Icons.menu_book),
-            label: 'Czytanie',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.bookmark),
-            label: 'Zakładki',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.more_horiz),
-            label: 'Więcej',
+            icon: Icon(Icons.headphones_rounded),
+            label: 'Słuchaj',
           ),
         ],
       ),

@@ -11,12 +11,12 @@ import '../../shared/services/formation_challenge_progress_service.dart';
 import '../../shared/services/formation_challenge_service.dart';
 import '../../shared/services/journal_service.dart';
 import '../../shared/models/formation_challenge_models.dart';
+import '../../shared/navigation/main_tabs.dart';
 
 import '../formation_challenge/formation_challenge_screen.dart';
 import '../formation_challenge/formation_meditation_screen.dart';
 import '../journal/journal_screen.dart';
 import '../favorites/favorites_screen.dart';
-import '../bookmarks/bookmarks_screen.dart';
 import '../settings/settings_screen.dart';
 import '../search/search_screen.dart';
 import '../audio/data/audio_catalog.dart';
@@ -395,7 +395,7 @@ class _HomeScreenState extends State<HomeScreen>
                       if (!mounted) return;
                       Navigator.of(sheetContext).pop();
 
-                      widget.onNavigateToTab?.call(1);
+                      widget.onNavigateToTab?.call(MainTabs.read);
                     },
                   ),
                 ],
@@ -521,7 +521,7 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   void _openBookmarksQuick() {
-    widget.onNavigateToTab?.call(2);
+    widget.onNavigateToTab?.call(MainTabs.read);
   }
 
   void _openSettingsQuick() {
@@ -592,6 +592,11 @@ class _HomeScreenState extends State<HomeScreen>
             icon: const Icon(Icons.search),
             tooltip: 'Szukaj',
           ),
+          IconButton(
+            onPressed: _openSettingsQuick,
+            icon: const Icon(Icons.settings),
+            tooltip: 'Ustawienia',
+          ),
         ],
       ),
       body: Padding(
@@ -600,20 +605,49 @@ class _HomeScreenState extends State<HomeScreen>
           children: [
             _buildHeader(context),
             const SizedBox(height: 12),
-            _buildQuickActionsRow(context),
-            const SizedBox(height: 16),
+            _buildStartIntro(context),
+            const SizedBox(height: 20),
+            _buildSectionTitle(context, 'Na teraz'),
+            const SizedBox(height: 8),
             _buildContinueReadingCard(context),
             const SizedBox(height: 12),
             _buildContinueListeningCard(context),
             const SizedBox(height: 12),
             _buildDailyMeditationCard(context),
-            const SizedBox(height: 12),
-            _buildFormationChallengeCard(context),
-            const SizedBox(height: 12),
+            const SizedBox(height: 20),
+            _buildSectionTitle(context, 'Dodatkowe skróty'),
+            const SizedBox(height: 8),
             _buildRandomQuoteCard(context),
             const SizedBox(height: 12),
             _buildSupportCard(context),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStartIntro(BuildContext context) {
+    return Text(
+      'Wróć do czytania, słuchania albo dzisiejszej medytacji.',
+      style: TextStyle(
+        fontSize: 14,
+        height: 1.4,
+        color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.72),
+      ),
+    );
+  }
+
+  Widget _buildSectionTitle(BuildContext context, String title) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: Text(
+        title,
+        style: TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
+          color: Theme.of(
+            context,
+          ).colorScheme.onSurface.withValues(alpha: 0.72),
         ),
       ),
     );
@@ -626,6 +660,7 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
+  // ignore: unused_element
   Widget _buildQuickActionsRow(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
 
@@ -680,7 +715,7 @@ class _HomeScreenState extends State<HomeScreen>
     return InkWell(
       borderRadius: BorderRadius.circular(16),
       onTap: () {
-        widget.onNavigateToTab?.call(1);
+        widget.onNavigateToTab?.call(MainTabs.read);
       },
       child: Container(
         decoration: BoxDecoration(
@@ -826,6 +861,7 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
+  // ignore: unused_element
   Widget _buildFormationChallengeCard(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
 

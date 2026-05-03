@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../shared/models/global_search_models.dart';
+import '../../shared/navigation/main_tabs.dart';
 import '../../shared/services/global_search_service.dart';
 import '../../shared/services/preferences_service.dart';
 import '../bookmarks/bookmarks_screen.dart';
@@ -416,12 +417,12 @@ class _SearchScreenState extends State<SearchScreen> {
       return;
     }
 
-    widget.onNavigateToTab?.call(1);
+    widget.onNavigateToTab?.call(MainTabs.read);
   }
 
   void _openBookmarksResult() {
     if (widget.onNavigateToTab != null) {
-      widget.onNavigateToTab!(2);
+      widget.onNavigateToTab!(MainTabs.read);
       return;
     }
 
