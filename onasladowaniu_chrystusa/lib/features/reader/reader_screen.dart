@@ -600,7 +600,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
                                     ),
                                     title: Text(chapter.title),
                                     subtitle: Text(
-                                      'Rozdział ${chapter.number} • ${chapter.reference}',
+                                      'Rozdział ${chapter.number}',
                                     ),
                                     trailing:
                                         _currentChapterRef == chapter.reference
