@@ -59,6 +59,7 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
     _playerStateSubscription = _audioService.playerStateStream.listen(
       _handlePlayerStateChanged,
     );
+    unawaited(_audioService.initializePlaybackSpeed());
     unawaited(_loadAutoAdvanceSetting());
     unawaited(_loadAdjacentTracks());
     unawaited(_startPlayback(_track));
@@ -233,6 +234,8 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
                   _buildProgress(context),
                   const SizedBox(height: 18),
                   _buildControls(context),
+                  const SizedBox(height: 12),
+                  _buildPlaybackSpeedButton(context),
                   const SizedBox(height: 12),
                   _buildAutoAdvanceToggle(context),
                 ],
@@ -504,46 +507,66 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
     final isBusy = _isLoadingAdjacentTracks || _isChangingTrack;
 
     return RepaintBoundary(
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          _AudioSeekButton(
-            tooltip: 'Cofnij o 10 sekund',
-            label: '-10',
-            onPressed: () => unawaited(
-              _audioService.seekRelative(const Duration(seconds: -10)),
-            ),
-          ),
-          const SizedBox(width: 8),
-          _AudioTransportButton(
-            tooltip: 'Poprzedni rozdział',
-            icon: Icons.skip_previous_rounded,
-            onPressed: isBusy || _previousTrack == null
-                ? null
-                : () => unawaited(_changeTrack(_previousTrack)),
-          ),
-          const SizedBox(width: 10),
-          _AudioPlayPauseButton(
-            audioService: _audioService,
-            onTogglePlay: _togglePlay,
-          ),
-          const SizedBox(width: 10),
-          _AudioTransportButton(
-            tooltip: 'Następny rozdział',
-            icon: Icons.skip_next_rounded,
-            onPressed: isBusy || _nextTrack == null
-                ? null
-                : () => unawaited(_changeTrack(_nextTrack)),
-          ),
-          const SizedBox(width: 8),
-          _AudioSeekButton(
-            tooltip: 'Przewiń o 10 sekund',
-            label: '+10',
-            onPressed: () => unawaited(
-              _audioService.seekRelative(const Duration(seconds: 10)),
-            ),
-          ),
-        ],
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isCompact = constraints.maxWidth < 310;
+          final transportSize = isCompact ? 46.0 : 50.0;
+          final seekSize = isCompact ? 40.0 : 44.0;
+          final playSize = isCompact ? 72.0 : 76.0;
+          final outerSpacing = isCompact ? 8.0 : 16.0;
+          final innerSpacing = isCompact ? 4.0 : 8.0;
+
+          return Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _AudioTransportButton(
+                tooltip: 'Poprzedni rozdział',
+                icon: Icons.skip_previous_rounded,
+                size: transportSize,
+                iconSize: isCompact ? 25 : 28,
+                onPressed: isBusy || _previousTrack == null
+                    ? null
+                    : () => unawaited(_changeTrack(_previousTrack)),
+              ),
+              SizedBox(width: outerSpacing),
+              _AudioSeekButton(
+                tooltip: 'Cofnij o 10 sekund',
+                label: '-10',
+                size: seekSize,
+                fontSize: isCompact ? 12 : 13,
+                onPressed: () => unawaited(
+                  _audioService.seekRelative(const Duration(seconds: -10)),
+                ),
+              ),
+              SizedBox(width: innerSpacing),
+              _AudioPlayPauseButton(
+                size: playSize,
+                audioService: _audioService,
+                onTogglePlay: _togglePlay,
+              ),
+              SizedBox(width: innerSpacing),
+              _AudioSeekButton(
+                tooltip: 'Przewiń o 10 sekund',
+                label: '+10',
+                size: seekSize,
+                fontSize: isCompact ? 12 : 13,
+                onPressed: () => unawaited(
+                  _audioService.seekRelative(const Duration(seconds: 10)),
+                ),
+              ),
+              SizedBox(width: outerSpacing),
+              _AudioTransportButton(
+                tooltip: 'Następny rozdział',
+                icon: Icons.skip_next_rounded,
+                size: transportSize,
+                iconSize: isCompact ? 25 : 28,
+                onPressed: isBusy || _nextTrack == null
+                    ? null
+                    : () => unawaited(_changeTrack(_nextTrack)),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -583,6 +606,121 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
         ],
       ),
     );
+  }
+
+  Widget _buildPlaybackSpeedButton(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Align(
+      alignment: Alignment.center,
+      child: StreamBuilder<double>(
+        stream: _audioService.playbackSpeedStream,
+        initialData: _audioService.playbackSpeed,
+        builder: (context, snapshot) {
+          final speed =
+              snapshot.data ?? AppAudioPlayerService.defaultPlaybackSpeed;
+
+          return FilledButton.tonalIcon(
+            onPressed: _showPlaybackSpeedSheet,
+            icon: const Icon(Icons.speed_rounded),
+            label: Text(_formatPlaybackSpeed(speed)),
+            style: FilledButton.styleFrom(
+              foregroundColor: colorScheme.primary,
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+              textStyle: const TextStyle(fontWeight: FontWeight.w700),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  void _showPlaybackSpeedSheet() {
+    showModalBottomSheet<void>(
+      context: context,
+      builder: (context) {
+        final colorScheme = Theme.of(context).colorScheme;
+
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+            child: StreamBuilder<double>(
+              stream: _audioService.playbackSpeedStream,
+              initialData: _audioService.playbackSpeed,
+              builder: (context, snapshot) {
+                final currentSpeed =
+                    snapshot.data ?? AppAudioPlayerService.defaultPlaybackSpeed;
+
+                return Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: colorScheme.onSurface.withValues(alpha: 0.3),
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    const Text(
+                      'Tempo odtwarzania',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Wybierz tempo dla nagrania lektorskiego.',
+                      style: TextStyle(
+                        color: colorScheme.onSurface.withValues(alpha: 0.72),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        for (final speed
+                            in AppAudioPlayerService.availablePlaybackSpeeds)
+                          ChoiceChip(
+                            label: Text(_formatPlaybackSpeed(speed)),
+                            selected: _isSamePlaybackSpeed(currentSpeed, speed),
+                            onSelected: (_) {
+                              unawaited(_audioService.setPlaybackSpeed(speed));
+                              Navigator.of(context).pop();
+                            },
+                          ),
+                      ],
+                    ),
+                  ],
+                );
+              },
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  bool _isSamePlaybackSpeed(double first, double second) {
+    return (first - second).abs() < 0.001;
+  }
+
+  String _formatPlaybackSpeed(double speed) {
+    if ((speed - speed.roundToDouble()).abs() < 0.001) {
+      return '${speed.toStringAsFixed(1)}x';
+    }
+
+    if (((speed * 10).roundToDouble() - speed * 10).abs() < 0.001) {
+      return '${speed.toStringAsFixed(1)}x';
+    }
+
+    return '${speed.toStringAsFixed(2)}x';
   }
 
   Future<void> _togglePlay() async {
@@ -764,10 +902,12 @@ class _AudioProgressSliderState extends State<_AudioProgressSlider> {
 }
 
 class _AudioPlayPauseButton extends StatelessWidget {
+  final double size;
   final AppAudioPlayerService audioService;
   final Future<void> Function() onTogglePlay;
 
   const _AudioPlayPauseButton({
+    this.size = 76,
     required this.audioService,
     required this.onTogglePlay,
   });
@@ -786,8 +926,8 @@ class _AudioPlayPauseButton extends StatelessWidget {
         final buttonState = _AudioPlayPauseState.fromPlayerState(snapshot.data);
 
         return SizedBox(
-          width: 76,
-          height: 76,
+          width: size,
+          height: size,
           child: FilledButton(
             style: FilledButton.styleFrom(
               shape: const CircleBorder(),
@@ -815,7 +955,7 @@ class _AudioPlayPauseButton extends StatelessWidget {
                     buttonState.isPlaying
                         ? Icons.pause_rounded
                         : Icons.play_arrow,
-                    size: 42,
+                    size: size * 0.55,
                   ),
           ),
         );
@@ -855,21 +995,25 @@ class _AudioTransportButton extends StatelessWidget {
   final String tooltip;
   final IconData icon;
   final VoidCallback? onPressed;
+  final double size;
+  final double iconSize;
 
   const _AudioTransportButton({
     required this.tooltip,
     required this.icon,
     required this.onPressed,
+    this.size = 44,
+    this.iconSize = 24,
   });
 
   @override
   Widget build(BuildContext context) {
     return SizedBox.square(
-      dimension: 44,
+      dimension: size,
       child: IconButton.filledTonal(
         tooltip: tooltip,
         onPressed: onPressed,
-        icon: Icon(icon),
+        icon: Icon(icon, size: iconSize),
       ),
     );
   }
@@ -879,23 +1023,27 @@ class _AudioSeekButton extends StatelessWidget {
   final String tooltip;
   final String label;
   final VoidCallback? onPressed;
+  final double size;
+  final double fontSize;
 
   const _AudioSeekButton({
     required this.tooltip,
     required this.label,
     required this.onPressed,
+    this.size = 44,
+    this.fontSize = 13,
   });
 
   @override
   Widget build(BuildContext context) {
     return SizedBox.square(
-      dimension: 44,
+      dimension: size,
       child: IconButton.filledTonal(
         tooltip: tooltip,
         onPressed: onPressed,
         icon: Text(
           label,
-          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+          style: TextStyle(fontSize: fontSize, fontWeight: FontWeight.w700),
         ),
       ),
     );
