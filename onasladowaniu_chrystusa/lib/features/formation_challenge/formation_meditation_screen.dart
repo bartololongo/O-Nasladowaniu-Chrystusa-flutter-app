@@ -49,6 +49,7 @@ class _FormationMeditationScreenState extends State<FormationMeditationScreen> {
   bool _isFinished = false;
   bool _completionSaved = false;
   _MeditationContentMode _contentMode = _MeditationContentMode.read;
+  int _keepScreenOnRefreshToken = 0;
 
   @override
   void initState() {
@@ -217,13 +218,18 @@ class _FormationMeditationScreenState extends State<FormationMeditationScreen> {
     Navigator.of(context).pop();
   }
 
-  void _openSettings() {
-    Navigator.of(context).push(
+  Future<void> _openSettings() async {
+    await Navigator.of(context).push(
       AppPageRoute.fade(
         settings: const RouteSettings(name: '/settings'),
         builder: (_) => const SettingsScreen(),
       ),
     );
+    if (!mounted) return;
+
+    setState(() {
+      _keepScreenOnRefreshToken++;
+    });
   }
 
   String get _timerText {
@@ -418,7 +424,10 @@ class _FormationMeditationScreenState extends State<FormationMeditationScreen> {
     return SizedBox(
       height: _meditationContentHeight,
       child: _contentMode == _MeditationContentMode.listen && audioTrack != null
-          ? InlineAudioPlayerCard(track: audioTrack)
+          ? InlineAudioPlayerCard(
+              track: audioTrack,
+              keepScreenOnRefreshToken: _keepScreenOnRefreshToken,
+            )
           : _buildReadingSection(context),
     );
   }

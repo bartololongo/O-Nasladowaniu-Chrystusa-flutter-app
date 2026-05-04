@@ -11,14 +11,20 @@ import 'audio_player_screen.dart';
 
 class InlineAudioPlayerCard extends StatefulWidget {
   final AudioTrack track;
+  final int keepScreenOnRefreshToken;
 
-  const InlineAudioPlayerCard({super.key, required this.track});
+  const InlineAudioPlayerCard({
+    super.key,
+    required this.track,
+    this.keepScreenOnRefreshToken = 0,
+  });
 
   @override
   State<InlineAudioPlayerCard> createState() => _InlineAudioPlayerCardState();
 }
 
-class _InlineAudioPlayerCardState extends State<InlineAudioPlayerCard> {
+class _InlineAudioPlayerCardState extends State<InlineAudioPlayerCard>
+    with WidgetsBindingObserver {
   final AppAudioPlayerService _audioService = AppAudioPlayerService.instance;
 
   StreamSubscription<PlaybackEvent>? _playbackErrorSubscription;
@@ -27,6 +33,7 @@ class _InlineAudioPlayerCardState extends State<InlineAudioPlayerCard> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _playbackErrorSubscription = _audioService.playbackEventStream.listen(
       (_) {},
       onError: (_) {
@@ -42,18 +49,38 @@ class _InlineAudioPlayerCardState extends State<InlineAudioPlayerCard> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _playbackErrorSubscription?.cancel();
     unawaited(WakelockPlus.disable());
     super.dispose();
+  }
+
+  @override
+  void didUpdateWidget(covariant InlineAudioPlayerCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.keepScreenOnRefreshToken != widget.keepScreenOnRefreshToken) {
+      unawaited(_applyKeepScreenOnSetting());
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      unawaited(_applyKeepScreenOnSetting());
+    }
   }
 
   bool get _isCurrentTrack => _audioService.currentTrack?.id == widget.track.id;
 
   Future<void> _applyKeepScreenOnSetting() async {
     final keepScreenOn = await _audioService.getKeepScreenOnInPlayer();
-    if (!mounted || !keepScreenOn) return;
+    if (!mounted) return;
 
-    await WakelockPlus.enable();
+    if (keepScreenOn) {
+      await WakelockPlus.enable();
+    } else {
+      await WakelockPlus.disable();
+    }
   }
 
   @override
@@ -200,15 +227,18 @@ class _InlineAudioPlayerCardState extends State<InlineAudioPlayerCard> {
     }
   }
 
-  void _openFullPlayer() {
+  Future<void> _openFullPlayer() async {
     final currentTrack = _audioService.currentTrack;
     final track = currentTrack?.id == widget.track.id
         ? currentTrack!
         : widget.track;
 
-    Navigator.of(
+    await Navigator.of(
       context,
     ).push(AppPageRoute.fade(builder: (_) => AudioPlayerScreen(track: track)));
+    if (!mounted) return;
+
+    await _applyKeepScreenOnSetting();
   }
 }
 
