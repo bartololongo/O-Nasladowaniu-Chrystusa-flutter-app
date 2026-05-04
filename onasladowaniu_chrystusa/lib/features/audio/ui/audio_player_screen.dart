@@ -302,13 +302,16 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
     );
   }
 
-  void _openSettings() {
-    Navigator.of(context).push(
+  Future<void> _openSettings() async {
+    await Navigator.of(context).push(
       AppPageRoute.fade(
         settings: const RouteSettings(name: '/settings'),
         builder: (_) => const SettingsScreen(),
       ),
     );
+    if (!mounted) return;
+
+    await _applyKeepScreenOnSetting();
   }
 
   void _showChapterPicker() {
