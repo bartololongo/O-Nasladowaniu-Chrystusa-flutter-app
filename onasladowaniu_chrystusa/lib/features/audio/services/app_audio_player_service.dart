@@ -34,6 +34,8 @@ class AppAudioPlayerService {
 
   Stream<double> get playbackSpeedStream => _playbackSpeedController.stream;
 
+  Duration get currentPosition => _player.position;
+
   Stream<Duration> get positionStream => _player.positionStream;
 
   Stream<Duration?> get durationStream => _player.durationStream;
@@ -50,6 +52,16 @@ class AppAudioPlayerService {
   Future<void> setAutoAdvanceEnabled(bool enabled) async {
     final preferences = await SharedPreferences.getInstance();
     await preferences.setBool(_autoAdvanceEnabledKey, enabled);
+  }
+
+  Future<bool> getKeepScreenOnInPlayer() async {
+    final preferences = await SharedPreferences.getInstance();
+    return preferences.getBool(_keepScreenOnInPlayerKey) ?? false;
+  }
+
+  Future<void> setKeepScreenOnInPlayer(bool enabled) async {
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.setBool(_keepScreenOnInPlayerKey, enabled);
   }
 
   Future<void> initializePlaybackSpeed() {
@@ -219,14 +231,16 @@ class AppAudioPlayerService {
   }
 
   AudioSource _audioSourceForTrack(AudioTrack track) {
+    final mediaTitle = 'Rozdział ${track.chapterNumber} — ${track.title}';
+
     return AudioSource.uri(
       Uri.parse(track.url),
       tag: MediaItem(
         id: track.id,
         album: 'O naśladowaniu Chrystusa',
-        title: track.title,
+        title: mediaTitle,
         artist: 'Tomasz à Kempis',
-        displayTitle: track.title,
+        displayTitle: mediaTitle,
         displaySubtitle: track.subtitle,
       ),
     );
@@ -306,6 +320,7 @@ class AppAudioPlayerService {
   static const String _positionKeyPrefix = 'audio_position_ms_';
   static const String _lastTrackKey = 'audio_last_track_id';
   static const String _autoAdvanceEnabledKey = 'audio_auto_advance_enabled';
+  static const String _keepScreenOnInPlayerKey = 'audio.player.keep_screen_on';
   static const String _playbackSpeedKey = 'audio.playback.speed';
   static const double defaultPlaybackSpeed = 1.0;
   static const List<double> availablePlaybackSpeeds = [

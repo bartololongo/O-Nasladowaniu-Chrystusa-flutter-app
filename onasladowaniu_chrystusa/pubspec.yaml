@@ -46,6 +46,7 @@ dependencies:
   home_widget: ^0.9.1
   just_audio_background: ^0.0.1-beta.17
   audio_session: ^0.2.3
+  wakelock_plus: ^1.5.2
 
 dev_dependencies:
   flutter_test:

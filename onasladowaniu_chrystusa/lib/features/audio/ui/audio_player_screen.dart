@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 
 import '../../../shared/models/book_models.dart';
 import '../../../shared/services/book_repository.dart';
@@ -60,6 +61,7 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
       _handlePlayerStateChanged,
     );
     unawaited(_audioService.initializePlaybackSpeed());
+    unawaited(_applyKeepScreenOnSetting());
     unawaited(_loadAutoAdvanceSetting());
     unawaited(_loadAdjacentTracks());
     unawaited(_startPlayback(_track));
@@ -69,8 +71,23 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
   void dispose() {
     _playbackErrorSubscription?.cancel();
     _playerStateSubscription?.cancel();
+    unawaited(WakelockPlus.disable());
     unawaited(_audioService.pause());
     super.dispose();
+  }
+
+  Future<void> _applyKeepScreenOnSetting() async {
+    final keepScreenOn = await _audioService.getKeepScreenOnInPlayer();
+    if (!mounted) {
+      await WakelockPlus.disable();
+      return;
+    }
+
+    if (keepScreenOn) {
+      await WakelockPlus.enable();
+    } else {
+      await WakelockPlus.disable();
+    }
   }
 
   Future<void> _loadAutoAdvanceSetting() async {
@@ -519,14 +536,27 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
           return Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              _AudioTransportButton(
-                tooltip: 'Poprzedni rozdział',
-                icon: Icons.skip_previous_rounded,
-                size: transportSize,
-                iconSize: isCompact ? 25 : 28,
-                onPressed: isBusy || _previousTrack == null
-                    ? null
-                    : () => unawaited(_changeTrack(_previousTrack)),
+              StreamBuilder<Duration>(
+                stream: _audioService.positionStream,
+                initialData: _audioService.currentPosition,
+                builder: (context, snapshot) {
+                  final canRestartCurrentTrack =
+                      (snapshot.data ?? Duration.zero) >
+                      _previousTrackRestartThreshold;
+                  final canUsePreviousButton =
+                      !isBusy &&
+                      (canRestartCurrentTrack || _previousTrack != null);
+
+                  return _AudioTransportButton(
+                    tooltip: 'Poprzedni rozdział',
+                    icon: Icons.skip_previous_rounded,
+                    size: transportSize,
+                    iconSize: isCompact ? 25 : 28,
+                    onPressed: canUsePreviousButton
+                        ? () => unawaited(_restartOrChangeToPreviousTrack())
+                        : null,
+                  );
+                },
               ),
               SizedBox(width: outerSpacing),
               _AudioSeekButton(
@@ -723,6 +753,15 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
     return '${speed.toStringAsFixed(2)}x';
   }
 
+  Future<void> _restartOrChangeToPreviousTrack() async {
+    if (_audioService.currentPosition > _previousTrackRestartThreshold) {
+      await _audioService.seek(Duration.zero);
+      return;
+    }
+
+    await _changeTrack(_previousTrack);
+  }
+
   Future<void> _togglePlay() async {
     try {
       setState(() {
@@ -786,6 +825,8 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
       _ => 'Księga $bookCode',
     };
   }
+
+  static const Duration _previousTrackRestartThreshold = Duration(seconds: 3);
 }
 
 class _AudioProgressSlider extends StatefulWidget {

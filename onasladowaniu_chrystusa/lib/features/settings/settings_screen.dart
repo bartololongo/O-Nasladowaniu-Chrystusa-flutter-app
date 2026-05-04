@@ -36,6 +36,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   late Future<_FormationSettingsState> _formationSettingsFuture;
   late Future<_ContentSettingsState> _contentSettingsFuture;
+  late Future<bool> _keepScreenOnInPlayerFuture;
   bool _isCheckingContentUpdate = false;
   bool _isRestoringBundledContent = false;
 
@@ -44,6 +45,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     super.initState();
     _formationSettingsFuture = _loadFormationSettings();
     _contentSettingsFuture = _loadContentSettings();
+    _keepScreenOnInPlayerFuture = _audioPlayerService.getKeepScreenOnInPlayer();
   }
 
   Future<_FormationSettingsState> _loadFormationSettings() async {
@@ -430,6 +432,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
+  Future<void> _setKeepScreenOnInPlayer(bool enabled) async {
+    await _audioPlayerService.setKeepScreenOnInPlayer(enabled);
+    if (!mounted) return;
+
+    setState(() {
+      _keepScreenOnInPlayerFuture = Future.value(enabled);
+    });
+  }
+
   Future<void> _launchUrl(
     BuildContext context,
     String url, {
@@ -751,6 +762,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       'Rozdziały audio będą odtwarzane od początku.',
                     ),
                     onTap: _clearAudioPlaybackProgress,
+                  ),
+                  FutureBuilder<bool>(
+                    future: _keepScreenOnInPlayerFuture,
+                    builder: (context, snapshot) {
+                      final enabled = snapshot.data ?? false;
+
+                      return SwitchListTile(
+                        value: enabled,
+                        onChanged: _setKeepScreenOnInPlayer,
+                        secondary: const Icon(Icons.screen_lock_portrait),
+                        title: const Text('Ekran stale włączony w odtwarzaczu'),
+                        subtitle: const Text(
+                          'Zapobiega wygaszaniu ekranu podczas korzystania '
+                          'z pełnego odtwarzacza audio.',
+                        ),
+                      );
+                    },
                   ),
                   const Divider(),
                   _buildContentSettingsSection(context),
