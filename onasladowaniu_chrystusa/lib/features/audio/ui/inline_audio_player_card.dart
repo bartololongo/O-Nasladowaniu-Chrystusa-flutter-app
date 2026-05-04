@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 
 import '../data/audio_track.dart';
 import '../services/app_audio_player_service.dart';
@@ -34,15 +35,24 @@ class _InlineAudioPlayerCardState extends State<InlineAudioPlayerCard> {
         });
       },
     );
+    unawaited(_applyKeepScreenOnSetting());
   }
 
   @override
   void dispose() {
     _playbackErrorSubscription?.cancel();
+    unawaited(WakelockPlus.disable());
     super.dispose();
   }
 
   bool get _isCurrentTrack => _audioService.currentTrack?.id == widget.track.id;
+
+  Future<void> _applyKeepScreenOnSetting() async {
+    final keepScreenOn = await _audioService.getKeepScreenOnInPlayer();
+    if (!mounted || !keepScreenOn) return;
+
+    await WakelockPlus.enable();
+  }
 
   @override
   Widget build(BuildContext context) {
