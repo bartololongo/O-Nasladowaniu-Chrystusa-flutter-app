@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import '../../shared/models/book_models.dart';
+import '../../shared/navigation/app_page_route.dart';
 import '../../shared/services/book_repository.dart';
 import '../../shared/services/preferences_service.dart';
 import '../../shared/services/bookmarks_service.dart';
@@ -10,6 +11,7 @@ import '../../shared/services/journal_service.dart';
 import '../audio/data/audio_catalog.dart';
 import '../audio/data/audio_track.dart';
 import '../audio/ui/audio_player_screen.dart';
+import '../settings/settings_screen.dart';
 
 class ReaderScreen extends StatefulWidget {
   final void Function(String query)? onOpenSearchResults;
@@ -959,6 +961,15 @@ class _ReaderScreenState extends State<ReaderScreen> {
     widget.onOpenSearchResults?.call(query);
   }
 
+  void _openSettings() {
+    Navigator.of(context).push(
+      AppPageRoute.fade(
+        settings: const RouteSettings(name: '/settings'),
+        builder: (_) => const SettingsScreen(),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     // Przy każdym buildzie sprawdzamy, czy nie ma nowego "skoku" z zewnątrz
@@ -992,6 +1003,11 @@ class _ReaderScreenState extends State<ReaderScreen> {
             icon: const Icon(Icons.menu_book_outlined),
             tooltip: 'Wybierz księgę i rozdział',
             onPressed: _showChapterPicker,
+          ),
+          IconButton(
+            icon: const Icon(Icons.settings),
+            tooltip: 'Ustawienia',
+            onPressed: _openSettings,
           ),
         ],
       ),
