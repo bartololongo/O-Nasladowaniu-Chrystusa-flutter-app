@@ -91,18 +91,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _isCheckingContentUpdate = true;
     });
 
-    final result = await _contentUpdateService.checkAndDownloadLatest();
+    String message;
+    try {
+      final result = await _contentUpdateService.checkAndDownloadLatest();
+      message = _contentUpdateMessage(result);
+    } catch (_) {
+      message = 'Wystąpił nieznany błąd.';
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isCheckingContentUpdate = false;
+          _contentSettingsFuture = _loadContentSettings();
+        });
+      }
+    }
+
     if (!mounted) return;
 
-    setState(() {
-      _isCheckingContentUpdate = false;
-      _contentSettingsFuture = _loadContentSettings();
-    });
-
-    final message = _contentUpdateMessage(result);
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.clearSnackBars();
+    messenger.showSnackBar(SnackBar(content: Text(message)));
   }
 
   Future<void> _restoreBundledContent() async {
