@@ -1,7 +1,9 @@
 import 'dart:async';
 
+import 'package:audio_session/audio_session.dart';
 import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:just_audio_background/just_audio_background.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../data/audio_track.dart';
@@ -18,6 +20,7 @@ class AppAudioPlayerService {
   AudioTrack? _currentTrack;
   StreamSubscription<Duration>? _positionSubscription;
   Timer? _saveTimer;
+  Future<void>? _audioSessionConfiguration;
 
   AudioTrack? get currentTrack => _currentTrack;
 
@@ -52,10 +55,11 @@ class AppAudioPlayerService {
   Future<void> playTrack(AudioTrack track) async {
     try {
       if (_currentTrack?.id != track.id) {
+        await _ensurePlaybackAudioSession();
         await _saveCurrentPosition();
         _currentTrack = track;
         _currentTrackController.add(track);
-        await _player.setUrl(track.url);
+        await _player.setAudioSource(_audioSourceForTrack(track));
         await _restoreSavedPosition(track);
       } else {
         await _restoreSavedPositionIfPlayerIsAtStart(track);
@@ -157,6 +161,29 @@ class AppAudioPlayerService {
         unawaited(_saveCurrentPosition());
       });
     });
+  }
+
+  Future<void> _ensurePlaybackAudioSession() {
+    return _audioSessionConfiguration ??= _configurePlaybackAudioSession();
+  }
+
+  Future<void> _configurePlaybackAudioSession() async {
+    final session = await AudioSession.instance;
+    await session.configure(const AudioSessionConfiguration.music());
+  }
+
+  AudioSource _audioSourceForTrack(AudioTrack track) {
+    return AudioSource.uri(
+      Uri.parse(track.url),
+      tag: MediaItem(
+        id: track.id,
+        album: 'O naśladowaniu Chrystusa',
+        title: track.title,
+        artist: 'Tomasz à Kempis',
+        displayTitle: track.title,
+        displaySubtitle: track.subtitle,
+      ),
+    );
   }
 
   bool _isRestorablePosition(Duration position, Duration? duration) {

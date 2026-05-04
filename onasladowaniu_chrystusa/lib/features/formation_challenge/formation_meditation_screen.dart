@@ -5,7 +5,9 @@ import 'package:flutter/material.dart';
 import '../audio/data/audio_catalog.dart';
 import '../audio/data/audio_track.dart';
 import '../audio/ui/inline_audio_player_card.dart';
+import '../settings/settings_screen.dart';
 import '../../shared/models/formation_challenge_models.dart';
+import '../../shared/navigation/app_page_route.dart';
 import '../../shared/services/formation_challenge_progress_service.dart';
 import '../../shared/services/formation_meditation_settings_service.dart';
 import '../../shared/services/formation_widget_snapshot_service.dart';
@@ -215,6 +217,15 @@ class _FormationMeditationScreenState extends State<FormationMeditationScreen> {
     Navigator.of(context).pop();
   }
 
+  void _openSettings() {
+    Navigator.of(context).push(
+      AppPageRoute.fade(
+        settings: const RouteSettings(name: '/settings'),
+        builder: (_) => const SettingsScreen(),
+      ),
+    );
+  }
+
   String get _timerText {
     final remaining = _remaining ?? Duration.zero;
     final minutes = remaining.inMinutes.toString().padLeft(2, '0');
@@ -264,6 +275,11 @@ class _FormationMeditationScreenState extends State<FormationMeditationScreen> {
               icon: Icons.self_improvement,
               showBackButton: true,
               onBack: _returnToChallenge,
+              trailing: IconButton(
+                onPressed: _openSettings,
+                icon: const Icon(Icons.settings),
+                tooltip: 'Ustawienia',
+              ),
             ),
             Expanded(
               child: _isLoadingSettings

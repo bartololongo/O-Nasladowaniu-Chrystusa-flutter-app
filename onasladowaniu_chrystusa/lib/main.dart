@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:just_audio_background/just_audio_background.dart';
 
 import 'app.dart';
 import 'shared/services/formation_notification_service.dart';
@@ -6,6 +7,11 @@ import 'shared/services/formation_widget_snapshot_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await JustAudioBackground.init(
+    androidNotificationChannelId: 'pl.bartololongo.onasladowaniu.audio',
+    androidNotificationChannelName: 'O naśladowaniu Chrystusa',
+    androidNotificationOngoing: true,
+  );
   final initialNotificationPayload = await FormationNotificationService.instance
       .initialize();
   try {
