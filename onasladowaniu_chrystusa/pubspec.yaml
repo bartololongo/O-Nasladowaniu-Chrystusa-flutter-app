@@ -75,6 +75,7 @@ flutter:
   assets:
     - assets/book/imitation_pl.json
     - assets/splash/splash.png
+    - assets/audio/lockscreen_artwork.png
     # w przyszłości:
     # - assets/audio/
 

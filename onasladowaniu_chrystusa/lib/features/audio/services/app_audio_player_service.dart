@@ -1,9 +1,12 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:audio_session/audio_session.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:just_audio_background/just_audio_background.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../data/audio_track.dart';
@@ -96,7 +99,7 @@ class AppAudioPlayerService {
         await _saveCurrentPosition();
         _currentTrack = track;
         _currentTrackController.add(track);
-        await _player.setAudioSource(_audioSourceForTrack(track));
+        await _player.setAudioSource(await _audioSourceForTrack(track));
         await _player.setSpeed(_playbackSpeed);
         await _restoreSavedPosition(track);
       } else {
@@ -230,8 +233,9 @@ class AppAudioPlayerService {
     return defaultPlaybackSpeed;
   }
 
-  AudioSource _audioSourceForTrack(AudioTrack track) {
+  Future<AudioSource> _audioSourceForTrack(AudioTrack track) async {
     final mediaTitle = 'Rozdział ${track.chapterNumber} — ${track.title}';
+    final artworkUri = await _getLockScreenArtworkUri();
 
     return AudioSource.uri(
       Uri.parse(track.url),
@@ -242,8 +246,44 @@ class AppAudioPlayerService {
         artist: 'Tomasz à Kempis',
         displayTitle: mediaTitle,
         displaySubtitle: track.subtitle,
+        artUri: artworkUri,
       ),
     );
+  }
+
+  Future<Uri?> _getLockScreenArtworkUri() async {
+    try {
+      final artworkFile = await _ensureLockScreenArtworkFile();
+      return Uri.file(artworkFile.path);
+    } catch (error, stackTrace) {
+      debugPrint(
+        'AppAudioPlayerService: lock screen artwork unavailable. '
+        'errorType=${error.runtimeType}, error=$error',
+      );
+      debugPrintStack(
+        label: 'AppAudioPlayerService: lock screen artwork stackTrace',
+        stackTrace: stackTrace,
+      );
+      return null;
+    }
+  }
+
+  Future<File> _ensureLockScreenArtworkFile() async {
+    final supportDirectory = await getApplicationSupportDirectory();
+    final artworkDirectory = Directory('${supportDirectory.path}/audio');
+    final artworkFile = File('${artworkDirectory.path}/lockscreen_artwork.png');
+
+    if (await artworkFile.exists()) return artworkFile;
+
+    await artworkDirectory.create(recursive: true);
+    final assetData = await rootBundle.load(_lockScreenArtworkAssetPath);
+    final bytes = assetData.buffer.asUint8List(
+      assetData.offsetInBytes,
+      assetData.lengthInBytes,
+    );
+    await artworkFile.writeAsBytes(bytes, flush: true);
+
+    return artworkFile;
   }
 
   bool _isRestorablePosition(Duration position, Duration? duration) {
@@ -322,6 +362,8 @@ class AppAudioPlayerService {
   static const String _autoAdvanceEnabledKey = 'audio_auto_advance_enabled';
   static const String _keepScreenOnInPlayerKey = 'audio.player.keep_screen_on';
   static const String _playbackSpeedKey = 'audio.playback.speed';
+  static const String _lockScreenArtworkAssetPath =
+      'assets/audio/lockscreen_artwork.png';
   static const double defaultPlaybackSpeed = 1.0;
   static const List<double> availablePlaybackSpeeds = [
     0.75,
