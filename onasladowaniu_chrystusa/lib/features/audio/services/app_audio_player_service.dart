@@ -16,15 +16,23 @@ class AppAudioPlayerService {
   final AudioPlayer _player = AudioPlayer();
   final StreamController<AudioTrack?> _currentTrackController =
       StreamController<AudioTrack?>.broadcast();
+  final StreamController<double> _playbackSpeedController =
+      StreamController<double>.broadcast();
 
   AudioTrack? _currentTrack;
   StreamSubscription<Duration>? _positionSubscription;
   Timer? _saveTimer;
   Future<void>? _audioSessionConfiguration;
+  Future<void>? _playbackSpeedInitialization;
+  double _playbackSpeed = defaultPlaybackSpeed;
 
   AudioTrack? get currentTrack => _currentTrack;
 
   Stream<AudioTrack?> get currentTrackStream => _currentTrackController.stream;
+
+  double get playbackSpeed => _playbackSpeed;
+
+  Stream<double> get playbackSpeedStream => _playbackSpeedController.stream;
 
   Stream<Duration> get positionStream => _player.positionStream;
 
@@ -44,6 +52,22 @@ class AppAudioPlayerService {
     await preferences.setBool(_autoAdvanceEnabledKey, enabled);
   }
 
+  Future<void> initializePlaybackSpeed() {
+    return _playbackSpeedInitialization ??= _loadSavedPlaybackSpeed();
+  }
+
+  Future<void> setPlaybackSpeed(double speed) async {
+    final normalizedSpeed = _normalizePlaybackSpeed(speed);
+    await initializePlaybackSpeed();
+
+    _playbackSpeed = normalizedSpeed;
+    _playbackSpeedController.add(normalizedSpeed);
+    await _player.setSpeed(normalizedSpeed);
+
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.setDouble(_playbackSpeedKey, normalizedSpeed);
+  }
+
   Future<String?> getLastTrackId() async {
     final preferences = await SharedPreferences.getInstance();
     final trackId = preferences.getString(_lastTrackKey);
@@ -56,10 +80,12 @@ class AppAudioPlayerService {
     try {
       if (_currentTrack?.id != track.id) {
         await _ensurePlaybackAudioSession();
+        await initializePlaybackSpeed();
         await _saveCurrentPosition();
         _currentTrack = track;
         _currentTrackController.add(track);
         await _player.setAudioSource(_audioSourceForTrack(track));
+        await _player.setSpeed(_playbackSpeed);
         await _restoreSavedPosition(track);
       } else {
         await _restoreSavedPositionIfPlayerIsAtStart(track);
@@ -172,6 +198,26 @@ class AppAudioPlayerService {
     await session.configure(const AudioSessionConfiguration.music());
   }
 
+  Future<void> _loadSavedPlaybackSpeed() async {
+    final preferences = await SharedPreferences.getInstance();
+    final savedSpeed = preferences.getDouble(_playbackSpeedKey);
+    final speed = _normalizePlaybackSpeed(savedSpeed);
+
+    _playbackSpeed = speed;
+    _playbackSpeedController.add(speed);
+    await _player.setSpeed(speed);
+  }
+
+  double _normalizePlaybackSpeed(double? speed) {
+    if (speed == null) return defaultPlaybackSpeed;
+
+    for (final availableSpeed in availablePlaybackSpeeds) {
+      if ((availableSpeed - speed).abs() < 0.001) return availableSpeed;
+    }
+
+    return defaultPlaybackSpeed;
+  }
+
   AudioSource _audioSourceForTrack(AudioTrack track) {
     return AudioSource.uri(
       Uri.parse(track.url),
@@ -260,4 +306,14 @@ class AppAudioPlayerService {
   static const String _positionKeyPrefix = 'audio_position_ms_';
   static const String _lastTrackKey = 'audio_last_track_id';
   static const String _autoAdvanceEnabledKey = 'audio_auto_advance_enabled';
+  static const String _playbackSpeedKey = 'audio.playback.speed';
+  static const double defaultPlaybackSpeed = 1.0;
+  static const List<double> availablePlaybackSpeeds = [
+    0.75,
+    1.0,
+    1.25,
+    1.5,
+    1.75,
+    2.0,
+  ];
 }
