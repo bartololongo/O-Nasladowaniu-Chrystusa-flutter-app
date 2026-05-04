@@ -4,8 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
+import '../../../shared/navigation/app_page_route.dart';
 import '../data/audio_track.dart';
 import '../services/app_audio_player_service.dart';
+import 'audio_player_screen.dart';
 
 class InlineAudioPlayerCard extends StatefulWidget {
   final AudioTrack track;
@@ -108,6 +110,11 @@ class _InlineAudioPlayerCardState extends State<InlineAudioPlayerCard> {
                       ],
                     ),
                   ),
+                  IconButton(
+                    tooltip: 'Pełny odtwarzacz',
+                    onPressed: _openFullPlayer,
+                    icon: const Icon(Icons.open_in_full_rounded),
+                  ),
                 ],
               ),
               if (_errorMessage != null) ...[
@@ -191,6 +198,17 @@ class _InlineAudioPlayerCardState extends State<InlineAudioPlayerCard> {
             'Nie udało się odtworzyć audio. Sprawdź połączenie z internetem.';
       });
     }
+  }
+
+  void _openFullPlayer() {
+    final currentTrack = _audioService.currentTrack;
+    final track = currentTrack?.id == widget.track.id
+        ? currentTrack!
+        : widget.track;
+
+    Navigator.of(
+      context,
+    ).push(AppPageRoute.fade(builder: (_) => AudioPlayerScreen(track: track)));
   }
 }
 
