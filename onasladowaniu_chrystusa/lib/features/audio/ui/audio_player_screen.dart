@@ -459,9 +459,7 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
                               return ListTile(
                                 contentPadding: EdgeInsets.zero,
                                 title: Text(chapter.title),
-                                subtitle: Text(
-                                  'Rozdział ${chapter.number} · ${chapter.reference}',
-                                ),
+                                subtitle: Text('Rozdział ${chapter.number}'),
                                 trailing: isCurrent
                                     ? Icon(
                                         Icons.check,
