@@ -486,30 +486,38 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
   Widget _buildCoverBlock(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
 
-    return Container(
-      height: 156,
-      decoration: BoxDecoration(
-        color: colorScheme.surface.withValues(alpha: 0.14),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: colorScheme.primary.withValues(alpha: 0.28)),
-      ),
-      child: Center(
-        child: Container(
-          width: 86,
-          height: 86,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: colorScheme.primary.withValues(alpha: 0.14),
-            border: Border.all(
-              color: colorScheme.primary.withValues(alpha: 0.42),
+    return Center(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final artworkSize = constraints.maxWidth.clamp(0.0, 240.0);
+
+          return Container(
+            width: artworkSize,
+            height: artworkSize,
+            decoration: BoxDecoration(
+              color: colorScheme.surface.withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(
+                color: colorScheme.primary.withValues(alpha: 0.28),
+              ),
             ),
-          ),
-          child: Icon(
-            Icons.headphones_rounded,
-            size: 42,
-            color: colorScheme.primary,
-          ),
-        ),
+            clipBehavior: Clip.antiAlias,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                Image.asset(
+                  'assets/audio/lockscreen_artwork.png',
+                  fit: BoxFit.cover,
+                ),
+                DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.08),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
       ),
     );
   }
