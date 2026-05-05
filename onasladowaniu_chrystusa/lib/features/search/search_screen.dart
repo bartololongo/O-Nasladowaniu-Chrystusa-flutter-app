@@ -6,7 +6,6 @@ import '../../shared/models/global_search_models.dart';
 import '../../shared/navigation/app_page_route.dart';
 import '../../shared/services/global_search_service.dart';
 import '../../shared/services/preferences_service.dart';
-import '../favorites/favorites_screen.dart';
 import '../journal/journal_screen.dart';
 import '../reader/reader_screen.dart';
 
@@ -371,7 +370,7 @@ class _SearchScreenState extends State<SearchScreen> {
         await _openBookmarkResult(result);
         return;
       case GlobalSearchResultType.favorite:
-        _openFavoritesResult();
+        await _openFavoriteResult(result);
         return;
     }
   }
@@ -442,18 +441,27 @@ class _SearchScreenState extends State<SearchScreen> {
     );
   }
 
-  void _openFavoritesResult() {
-    final screen = FavoritesScreen(onNavigateToTab: widget.onNavigateToTab);
+  Future<void> _openFavoriteResult(GlobalSearchResult result) async {
+    final paragraphRef = result.paragraphRef;
+    final chapterRef = _chapterRefFromParagraphRef(paragraphRef);
 
-    if (widget.onOpenMoreScreen != null) {
-      widget.onOpenMoreScreen!(screen);
-      return;
+    if (chapterRef != null && chapterRef.isNotEmpty) {
+      await _preferencesService.setJumpChapterRef(chapterRef);
     }
 
-    Navigator.of(context).push(
+    final paragraphNumber = _paragraphNumberFromParagraphRef(paragraphRef);
+    if (paragraphNumber != null) {
+      await _preferencesService.setJumpParagraphNumber(paragraphNumber);
+    } else {
+      await _preferencesService.clearJumpParagraphNumber();
+    }
+
+    if (!mounted) return;
+
+    await Navigator.of(context).push(
       AppPageRoute.fade(
-        settings: const RouteSettings(name: '/favorites/from-search'),
-        builder: (_) => screen,
+        settings: const RouteSettings(name: '/reader/from-favorite-search'),
+        builder: (_) => const ReaderScreen(),
       ),
     );
   }
@@ -465,6 +473,15 @@ class _SearchScreenState extends State<SearchScreen> {
     if (parts.length < 2) return paragraphRef;
 
     return '${parts[0]}-${parts[1]}';
+  }
+
+  int? _paragraphNumberFromParagraphRef(String? paragraphRef) {
+    if (paragraphRef == null || paragraphRef.isEmpty) return null;
+
+    final parts = paragraphRef.split('-');
+    if (parts.length < 3) return null;
+
+    return int.tryParse(parts[2]);
   }
 
   String _sectionTitle(GlobalSearchResultType type) {
