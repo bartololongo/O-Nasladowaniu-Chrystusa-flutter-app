@@ -5,6 +5,7 @@ import '../../shared/models/reader_user_models.dart';
 import '../../shared/navigation/app_page_route.dart';
 import '../../shared/widgets/section_header.dart';
 import '../reader/reader_screen.dart';
+import '../settings/settings_screen.dart';
 
 class FavoritesScreen extends StatefulWidget {
   final void Function(int tabIndex)? onNavigateToTab;
@@ -98,6 +99,15 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
     ).showSnackBar(const SnackBar(content: Text('Ulubiony cytat usunięty.')));
   }
 
+  void _openSettings() {
+    Navigator.of(context).push(
+      AppPageRoute.fade(
+        settings: const RouteSettings(name: '/settings'),
+        builder: (_) => const SettingsScreen(),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -108,11 +118,16 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const SectionHeader(
+                SectionHeader(
                   title: 'Ulubione cytaty',
                   subtitle: 'Zapisane fragmenty, do których chcesz wracać.',
                   icon: Icons.format_quote,
                   showBackButton: true,
+                  trailing: IconButton(
+                    onPressed: _openSettings,
+                    icon: const Icon(Icons.settings),
+                    tooltip: 'Ustawienia',
+                  ),
                 ),
                 Expanded(child: _buildContent(context, snapshot)),
               ],
