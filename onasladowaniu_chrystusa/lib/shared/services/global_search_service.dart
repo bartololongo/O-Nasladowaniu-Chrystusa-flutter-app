@@ -18,10 +18,10 @@ class GlobalSearchService {
     BookmarksService? bookmarksService,
     FavoritesService? favoritesService,
     JournalService? journalService,
-  })  : _bookRepository = bookRepository ?? BookRepository(),
-        _bookmarksService = bookmarksService ?? BookmarksService(),
-        _favoritesService = favoritesService ?? FavoritesService(),
-        _journalService = journalService ?? JournalService();
+  }) : _bookRepository = bookRepository ?? BookRepository(),
+       _bookmarksService = bookmarksService ?? BookmarksService(),
+       _favoritesService = favoritesService ?? FavoritesService(),
+       _journalService = journalService ?? JournalService();
 
   Future<List<GlobalSearchResult>> search(String query) async {
     final normalizedQuery = _normalize(query);
@@ -43,7 +43,8 @@ class GlobalSearchService {
 
     for (final book in collection.books) {
       for (final chapter in book.chapters) {
-        final chapterText = '${book.title} ${chapter.reference} '
+        final chapterText =
+            '${book.title} ${chapter.reference} '
             '${chapter.title}';
 
         if (_matches(chapterText, query)) {
@@ -84,15 +85,21 @@ class GlobalSearchService {
 
   Future<List<GlobalSearchResult>> _searchBookmarks(String query) async {
     final bookmarks = await _bookmarksService.getBookmarks();
+    final collection = await _bookRepository.getCollection();
     final results = <GlobalSearchResult>[];
 
     for (final bookmark in bookmarks) {
-      final chapter = await _bookRepository.getChapterByReference(
-        bookmark.chapterRef,
-      );
+      final match = _findChapter(collection, bookmark.chapterRef);
+      final book = match?.book;
+      final chapter = match?.chapter;
+      final chapterParagraphText =
+          chapter?.paragraphs.map((paragraph) => paragraph.text).join(' ') ??
+          '';
       final searchable = [
         bookmark.chapterRef,
+        book?.title,
         chapter?.title,
+        chapterParagraphText,
       ].whereType<String>().join(' ');
 
       if (!_matches(searchable, query)) continue;
@@ -102,10 +109,10 @@ class GlobalSearchService {
           id: 'bookmark-${bookmark.id}',
           type: GlobalSearchResultType.bookmark,
           title: chapter?.title ?? 'Zakładka',
-          subtitle: bookmark.chapterRef,
+          subtitle: book?.title ?? bookmark.chapterRef,
           snippet: chapter == null
               ? bookmark.chapterRef
-              : _chapterPreview(chapter),
+              : _bookmarkSnippet(chapter, query),
           chapterRef: bookmark.chapterRef,
         ),
       );
@@ -113,6 +120,21 @@ class GlobalSearchService {
     }
 
     return results;
+  }
+
+  ({Book book, BookChapter chapter})? _findChapter(
+    BookCollection collection,
+    String chapterRef,
+  ) {
+    for (final book in collection.books) {
+      for (final chapter in book.chapters) {
+        if (chapter.reference == chapterRef) {
+          return (book: book, chapter: chapter);
+        }
+      }
+    }
+
+    return null;
   }
 
   Future<List<GlobalSearchResult>> _searchFavorites(String query) async {
@@ -201,6 +223,20 @@ class GlobalSearchService {
   String _chapterPreview(BookChapter chapter) {
     final text = chapter.paragraphs.map((p) => p.text).join(' ');
     return _snippet(text, _normalize(chapter.title));
+  }
+
+  String _bookmarkSnippet(BookChapter chapter, String query) {
+    final chapterText = chapter.paragraphs.map((p) => p.text).join(' ');
+    if (_matches(chapterText, query)) {
+      return _snippet(chapterText, query);
+    }
+
+    final chapterMeta = '${chapter.title} ${chapter.reference}';
+    if (_matches(chapterMeta, query)) {
+      return _snippet(chapterMeta, query);
+    }
+
+    return _chapterPreview(chapter);
   }
 
   String _formatDate(DateTime date) {

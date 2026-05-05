@@ -4,10 +4,8 @@ import 'package:flutter/material.dart';
 
 import '../../shared/models/global_search_models.dart';
 import '../../shared/navigation/app_page_route.dart';
-import '../../shared/navigation/main_tabs.dart';
 import '../../shared/services/global_search_service.dart';
 import '../../shared/services/preferences_service.dart';
-import '../bookmarks/bookmarks_screen.dart';
 import '../favorites/favorites_screen.dart';
 import '../journal/journal_screen.dart';
 import '../reader/reader_screen.dart';
@@ -370,7 +368,7 @@ class _SearchScreenState extends State<SearchScreen> {
         await _openBookResult(result);
         return;
       case GlobalSearchResultType.bookmark:
-        _openBookmarksResult();
+        await _openBookmarkResult(result);
         return;
       case GlobalSearchResultType.favorite:
         _openFavoritesResult();
@@ -427,16 +425,19 @@ class _SearchScreenState extends State<SearchScreen> {
     );
   }
 
-  void _openBookmarksResult() {
-    if (widget.onNavigateToTab != null) {
-      widget.onNavigateToTab!(MainTabs.read);
-      return;
+  Future<void> _openBookmarkResult(GlobalSearchResult result) async {
+    final chapterRef = result.chapterRef;
+    if (chapterRef != null && chapterRef.isNotEmpty) {
+      await _preferencesService.setJumpChapterRef(chapterRef);
     }
+    await _preferencesService.clearJumpParagraphNumber();
 
-    Navigator.of(context).push(
+    if (!mounted) return;
+
+    await Navigator.of(context).pushReplacement(
       AppPageRoute.fade(
-        settings: const RouteSettings(name: '/bookmarks/from-search'),
-        builder: (_) => const BookmarksScreen(),
+        settings: const RouteSettings(name: '/reader/from-bookmark-search'),
+        builder: (_) => const ReaderScreen(),
       ),
     );
   }
