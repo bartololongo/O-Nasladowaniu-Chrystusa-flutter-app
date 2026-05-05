@@ -497,7 +497,7 @@ class _HomeScreenState extends State<HomeScreen>
       );
     } else {
       Navigator.of(context).push(
-        MaterialPageRoute(
+        AppPageRoute.fade(
           settings: const RouteSettings(name: '/journal'),
           builder: (_) =>
               JournalScreen(onNavigateToTab: widget.onNavigateToTab),
@@ -513,7 +513,7 @@ class _HomeScreenState extends State<HomeScreen>
       );
     } else {
       Navigator.of(context).push(
-        MaterialPageRoute(
+        AppPageRoute.fade(
           settings: const RouteSettings(name: '/favorites'),
           builder: (_) =>
               FavoritesScreen(onNavigateToTab: widget.onNavigateToTab),

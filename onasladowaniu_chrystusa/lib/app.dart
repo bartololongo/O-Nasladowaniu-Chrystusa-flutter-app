@@ -11,6 +11,7 @@ import 'features/favorites/favorites_screen.dart';
 import 'features/formation_challenge/formation_challenge_screen.dart';
 import 'features/audio/ui/listen_screen.dart';
 import 'features/search/search_screen.dart';
+import 'shared/navigation/app_page_route.dart';
 import 'shared/navigation/main_tabs.dart';
 import 'shared/services/formation_notification_service.dart';
 import 'shared/services/formation_widget_snapshot_service.dart';
@@ -209,7 +210,7 @@ class _RootScreenState extends State<_RootScreen> with WidgetsBindingObserver {
       }
       navigator
           .push(
-            MaterialPageRoute(
+            AppPageRoute.fade(
               settings: const RouteSettings(name: '/formation-challenge'),
               builder: (_) =>
                   FormationChallengeScreen(onNavigateToTab: _onTabSelected),
@@ -264,7 +265,7 @@ class _RootScreenState extends State<_RootScreen> with WidgetsBindingObserver {
       _activeMoreRouteName = routeName;
     });
 
-    final route = MaterialPageRoute(
+    final route = AppPageRoute.fade(
       settings: RouteSettings(name: routeName),
       builder: (_) => screen,
     );
@@ -304,7 +305,7 @@ class _RootScreenState extends State<_RootScreen> with WidgetsBindingObserver {
     if (navigator == null) return;
 
     navigator.push(
-      MaterialPageRoute(
+      AppPageRoute.fade(
         settings: const RouteSettings(name: '/search/from-reader'),
         builder: (_) => SearchScreen(
           initialQuery: query,

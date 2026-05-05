@@ -759,9 +759,12 @@ class _ReaderScreenState extends State<ReaderScreen> {
     final track = _audioTrackForCurrentChapter();
     if (track == null) return;
 
-    await Navigator.of(
-      context,
-    ).push(MaterialPageRoute(builder: (_) => AudioPlayerScreen(track: track)));
+    await Navigator.of(context).push(
+      AppPageRoute.fade(
+        settings: const RouteSettings(name: '/audio-player/from-reader'),
+        builder: (_) => AudioPlayerScreen(track: track),
+      ),
+    );
   }
 
   /// Zakładka z paska zaznaczenia – zawsze "dodaj", bez usuwania.

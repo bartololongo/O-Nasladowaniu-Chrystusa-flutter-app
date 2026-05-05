@@ -213,7 +213,7 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
 
   Future<void> _openMeditation(FormationChallengeDay day, int totalDays) async {
     await Navigator.of(context).push(
-      MaterialPageRoute(
+      AppPageRoute.fade(
         settings: const RouteSettings(name: '/formation-meditation'),
         builder: (_) =>
             FormationMeditationScreen(day: day, totalDays: totalDays),
@@ -237,7 +237,7 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
 
   Future<void> _openAudioPlayer(AudioTrack track) async {
     await Navigator.of(context).push(
-      MaterialPageRoute(
+      AppPageRoute.fade(
         settings: const RouteSettings(name: '/audio-player'),
         builder: (_) => AudioPlayerScreen(track: track),
       ),

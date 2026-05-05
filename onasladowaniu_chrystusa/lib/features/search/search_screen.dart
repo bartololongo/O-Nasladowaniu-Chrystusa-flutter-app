@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../shared/models/global_search_models.dart';
+import '../../shared/navigation/app_page_route.dart';
 import '../../shared/navigation/main_tabs.dart';
 import '../../shared/services/global_search_service.dart';
 import '../../shared/services/preferences_service.dart';
@@ -389,7 +390,7 @@ class _SearchScreenState extends State<SearchScreen> {
     }
 
     Navigator.of(context).push(
-      MaterialPageRoute(
+      AppPageRoute.fade(
         settings: const RouteSettings(name: '/journal/from-search'),
         builder: (_) => screen,
       ),
@@ -419,7 +420,7 @@ class _SearchScreenState extends State<SearchScreen> {
     }
 
     await Navigator.of(context).pushReplacement(
-      MaterialPageRoute(
+      AppPageRoute.fade(
         settings: const RouteSettings(name: '/reader/from-search'),
         builder: (_) => const ReaderScreen(),
       ),
@@ -433,7 +434,7 @@ class _SearchScreenState extends State<SearchScreen> {
     }
 
     Navigator.of(context).push(
-      MaterialPageRoute(
+      AppPageRoute.fade(
         settings: const RouteSettings(name: '/bookmarks/from-search'),
         builder: (_) => const BookmarksScreen(),
       ),
@@ -449,7 +450,7 @@ class _SearchScreenState extends State<SearchScreen> {
     }
 
     Navigator.of(context).push(
-      MaterialPageRoute(
+      AppPageRoute.fade(
         settings: const RouteSettings(name: '/favorites/from-search'),
         builder: (_) => screen,
       ),

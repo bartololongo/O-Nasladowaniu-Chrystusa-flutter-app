@@ -6,6 +6,7 @@ import '../../shared/services/formation_meditation_settings_service.dart';
 import '../../shared/services/formation_notification_service.dart';
 import '../../shared/services/formation_widget_snapshot_service.dart';
 import '../../shared/services/content_update_service.dart';
+import '../../shared/navigation/app_page_route.dart';
 import '../../shared/widgets/section_header.dart';
 import '../audio/services/app_audio_player_service.dart';
 import 'backup_screen.dart';
@@ -759,7 +760,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     subtitle: const Text('Zapisz lub przywróć dane aplikacji'),
                     onTap: () {
                       Navigator.of(context).push(
-                        MaterialPageRoute(builder: (_) => const BackupScreen()),
+                        AppPageRoute.fade(
+                          settings: const RouteSettings(name: '/backup'),
+                          builder: (_) => const BackupScreen(),
+                        ),
                       );
                     },
                   ),
