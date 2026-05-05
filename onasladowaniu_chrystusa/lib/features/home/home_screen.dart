@@ -378,6 +378,9 @@ class _HomeScreenState extends State<HomeScreen>
                     icon: const Icon(Icons.menu_book),
                     label: const Text('Zobacz w książce'),
                     onPressed: () async {
+                      final sheetNavigator = Navigator.of(sheetContext);
+                      final rootNavigator = Navigator.of(context);
+
                       if (chapterRef != null && chapterRef.isNotEmpty) {
                         await _prefs.setJumpChapterRef(chapterRef);
                       }
@@ -395,9 +398,16 @@ class _HomeScreenState extends State<HomeScreen>
                       }
 
                       if (!mounted) return;
-                      Navigator.of(sheetContext).pop();
+                      sheetNavigator.pop();
 
-                      widget.onNavigateToTab?.call(MainTabs.read);
+                      await rootNavigator.push(
+                        AppPageRoute.fade(
+                          settings: const RouteSettings(
+                            name: '/reader/from-random-quote',
+                          ),
+                          builder: (_) => const ReaderScreen(),
+                        ),
+                      );
                     },
                   ),
                 ],
