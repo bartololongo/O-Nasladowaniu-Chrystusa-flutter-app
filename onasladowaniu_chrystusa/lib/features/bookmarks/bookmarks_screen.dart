@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 import '../../shared/services/bookmarks_service.dart';
 import '../../shared/services/preferences_service.dart';
 import '../../shared/models/reader_user_models.dart';
-import '../../shared/navigation/main_tabs.dart';
+import '../../shared/navigation/app_page_route.dart';
 import '../../shared/widgets/section_header.dart';
+import '../reader/reader_screen.dart';
 
 class BookmarksScreen extends StatefulWidget {
   final void Function(int tabIndex)? onNavigateToTab;
@@ -55,17 +56,23 @@ class _BookmarksScreenState extends State<BookmarksScreen> {
     // Jednorazowy skok do rozdziału z zakładki (nie zmieniamy głównego lastChapterRef)
     await _prefs.setJumpChapterRef(b.chapterRef);
 
-    // przełącz na tab "Czytaj"
-    widget.onNavigateToTab?.call(MainTabs.read);
+    if (!mounted) return;
+
+    await Navigator.of(context).push(
+      AppPageRoute.fade(
+        settings: const RouteSettings(name: '/reader/from-bookmark'),
+        builder: (_) => const ReaderScreen(),
+      ),
+    );
   }
 
   Future<void> _deleteBookmark(Bookmark b) async {
     await _service.removeBookmarkForChapterRef(b.chapterRef);
     await _refresh();
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Zakładka usunięta.')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Zakładka usunięta.')));
   }
 
   @override
@@ -79,9 +86,7 @@ class _BookmarksScreenState extends State<BookmarksScreen> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 _buildHeader(context),
-                Expanded(
-                  child: _buildContent(context, snapshot),
-                ),
+                Expanded(child: _buildContent(context, snapshot)),
               ],
             ),
           );
@@ -128,9 +133,9 @@ class _BookmarksScreenState extends State<BookmarksScreen> {
             textAlign: TextAlign.center,
             style: TextStyle(
               height: 1.4,
-              color: Theme.of(context).colorScheme.onSurface.withValues(
-                    alpha: 0.75,
-                  ),
+              color: Theme.of(
+                context,
+              ).colorScheme.onSurface.withValues(alpha: 0.75),
             ),
           ),
         ),

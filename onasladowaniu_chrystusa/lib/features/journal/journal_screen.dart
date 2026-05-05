@@ -4,8 +4,9 @@ import '../../shared/services/journal_service.dart';
 import '../../shared/services/preferences_service.dart';
 import '../../shared/services/favorites_service.dart';
 import '../../shared/models/book_models.dart';
-import '../../shared/navigation/main_tabs.dart';
+import '../../shared/navigation/app_page_route.dart';
 import '../../shared/widgets/section_header.dart';
+import '../reader/reader_screen.dart';
 
 class JournalScreen extends StatefulWidget {
   final void Function(int tabIndex)? onNavigateToTab;
@@ -593,7 +594,7 @@ class _JournalScreenState extends State<JournalScreen> {
   }
 
   /// "Zobacz w książce" – ustawiamy jumpChapterRef + (jeśli się da) jumpParagraphNumber,
-  /// a potem przełączamy na zakładkę "Czytanie".
+  /// a potem otwieramy czytnik bezpośrednio.
   Future<void> _goToBookFromEntry(
     JournalEntry entry,
     BuildContext sheetContext,
@@ -634,13 +635,13 @@ class _JournalScreenState extends State<JournalScreen> {
     // 3) zamykamy bottomsheet ze szczegółami wpisu
     Navigator.of(sheetContext).pop();
 
-    // 4) przełączamy na tab "Czytaj"
-    widget.onNavigateToTab?.call(MainTabs.read);
-
-    // 5) zamykamy ekran dziennika (jeśli jest osobnym route’em)
-    if (Navigator.of(context).canPop()) {
-      Navigator.of(context).pop();
-    }
+    // 4) otwieramy czytnik bezpośrednio
+    await Navigator.of(context).push(
+      AppPageRoute.fade(
+        settings: const RouteSettings(name: '/reader/from-journal'),
+        builder: (_) => const ReaderScreen(),
+      ),
+    );
   }
 
   Future<void> _openEntryDetails(JournalEntry entry) async {

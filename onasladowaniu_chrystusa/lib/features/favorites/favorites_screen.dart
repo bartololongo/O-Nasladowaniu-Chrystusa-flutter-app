@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 import '../../shared/services/favorites_service.dart';
 import '../../shared/services/preferences_service.dart';
 import '../../shared/models/reader_user_models.dart';
-import '../../shared/navigation/main_tabs.dart';
+import '../../shared/navigation/app_page_route.dart';
 import '../../shared/widgets/section_header.dart';
+import '../reader/reader_screen.dart';
 
 class FavoritesScreen extends StatefulWidget {
   final void Function(int tabIndex)? onNavigateToTab;
@@ -80,23 +81,21 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
 
     if (!mounted) return;
 
-    // Jeśli FavoritesScreen jest otwarty jako osobny route (np. z bottomsheet),
-    // to najpierw go zamykamy, żeby wrócić do widoku z dolnym paskiem.
-    if (Navigator.of(context).canPop()) {
-      Navigator.of(context).pop();
-    }
-
-    // przełącz na tab "Czytaj"
-    widget.onNavigateToTab?.call(MainTabs.read);
+    await Navigator.of(context).push(
+      AppPageRoute.fade(
+        settings: const RouteSettings(name: '/reader/from-favorite'),
+        builder: (_) => const ReaderScreen(),
+      ),
+    );
   }
 
   Future<void> _deleteFavorite(FavoriteQuote f) async {
     await _service.removeFavoriteByParagraphRef(f.paragraphRef);
     await _refresh();
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Ulubiony cytat usunięty.')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Ulubiony cytat usunięty.')));
   }
 
   @override
@@ -115,9 +114,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
                   icon: Icons.format_quote,
                   showBackButton: true,
                 ),
-                Expanded(
-                  child: _buildContent(context, snapshot),
-                ),
+                Expanded(child: _buildContent(context, snapshot)),
               ],
             ),
           );
@@ -204,21 +201,16 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
               subtitle: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    f.text,
-                    maxLines: 3,
-                    overflow: TextOverflow.ellipsis,
-                  ),
+                  Text(f.text, maxLines: 3, overflow: TextOverflow.ellipsis),
                   const SizedBox(height: 4),
                   if (f.note != null && f.note!.isNotEmpty)
                     Text(
                       'Notatka: ${f.note}',
                       style: TextStyle(
                         fontSize: 12,
-                        color: Theme.of(context)
-                            .colorScheme
-                            .onSurface
-                            .withOpacity(0.7),
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.onSurface.withOpacity(0.7),
                       ),
                     ),
                   const SizedBox(height: 2),
@@ -226,10 +218,9 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
                     'Dodano: ${_formatDateTime(f.createdAt)}',
                     style: TextStyle(
                       fontSize: 11,
-                      color: Theme.of(context)
-                          .colorScheme
-                          .onSurface
-                          .withOpacity(0.6),
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.onSurface.withOpacity(0.6),
                     ),
                   ),
                 ],
