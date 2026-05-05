@@ -37,6 +37,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
   late final ScrollController _scrollController;
   late final TextEditingController _chapterSearchController;
   late final FocusNode _chapterSearchFocusNode;
+  final GlobalKey<SelectionAreaState> _selectionAreaKey =
+      GlobalKey<SelectionAreaState>();
 
   double _fontSize = 18.0;
   double _lineHeight = 1.5;
@@ -64,6 +66,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
   // aktualnie zaznaczony tekst (SelectionArea)
   String? _selectedText;
+  final ValueNotifier<String?> _selectedTextNotifier = ValueNotifier(null);
 
   // --- NOWE: obsługa skoku do konkretnego akapitu ---
   // numer akapitu (1-based) przekazany z zewnątrz
@@ -105,6 +108,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
     _chapterSearchController.removeListener(_onChapterSearchChanged);
     _chapterSearchController.dispose();
     _chapterSearchFocusNode.dispose();
+    _selectedTextNotifier.dispose();
     _scrollController.dispose();
     super.dispose();
   }
@@ -133,6 +137,23 @@ class _ReaderScreenState extends State<ReaderScreen> {
     if (!_scrollController.hasClients) return;
     final offset = _scrollController.offset;
     _prefs.saveScrollOffset(_currentChapterRef, offset);
+  }
+
+  void _clearManualSelection({bool clearNativeSelection = true}) {
+    _chapterSearchFocusNode.unfocus();
+    FocusScope.of(context).unfocus();
+
+    if (clearNativeSelection) {
+      _selectionAreaKey.currentState?.selectableRegion.clearSelection();
+    }
+
+    _setManualSelectionText(null);
+  }
+
+  void _setManualSelectionText(String? text) {
+    if (_selectedText == text) return;
+    _selectedText = text;
+    _selectedTextNotifier.value = text;
   }
 
   Future<void> _loadReaderFontSize() async {
@@ -194,7 +215,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
     _currentChapterRef = chapter!.reference;
     _visibleChapter = chapter;
     _paragraphKeys.clear();
-    _selectedText = null;
+    _setManualSelectionText(null);
     _resetChapterSearchForChapterChange();
     final pendingSearchRequest = await _prefs.takePendingReaderSearchRequest();
     _setPendingChapterSearchRequest(pendingSearchRequest);
@@ -238,9 +259,9 @@ class _ReaderScreenState extends State<ReaderScreen> {
   }
 
   void _openChapterSearch() {
+    _setManualSelectionText(null);
     setState(() {
       _isChapterSearchVisible = true;
-      _selectedText = null;
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -426,7 +447,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
         return chapter;
       });
       _pendingScrollOffset = null;
-      _selectedText = null;
+      _setManualSelectionText(null);
       _paragraphKeys.clear();
       _resetChapterSearchForChapterChange();
       // _jumpParagraphNumber / _pendingJumpToParagraph ustawiamy
@@ -946,7 +967,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
     setState(() {
       _isChapterSearchVisible = true;
-      _selectedText = null;
+      _setManualSelectionText(null);
       _chapterSearchMatches = _findChapterSearchMatches(chapter, query);
       _activeChapterSearchIndex = 0;
       _chapterSearchOpenedFromGlobalSearch = true;
@@ -1269,41 +1290,44 @@ class _ReaderScreenState extends State<ReaderScreen> {
       child: Stack(
         children: [
           SelectionArea(
+            key: _selectionAreaKey,
             onSelectionChanged: (selected) {
               final text = selected?.plainText;
               if (!mounted) return;
-              setState(() {
-                final trimmed = text?.trim();
-                _selectedText = (trimmed != null && trimmed.isNotEmpty)
-                    ? trimmed
-                    : null;
-              });
+              final trimmed = text?.trim();
+              _setManualSelectionText(
+                trimmed != null && trimmed.isNotEmpty ? trimmed : null,
+              );
             },
             child: SingleChildScrollView(
               controller: _scrollController,
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-              child: GestureDetector(
-                behavior: HitTestBehavior.translucent,
-                onTap: _chapterSearchFocusNode.unfocus,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    for (int i = 0; i < chapter.paragraphs.length; i++) ...[
-                      _buildParagraphText(chapter.paragraphs[i].text, i),
-                      const SizedBox(height: 12),
-                    ],
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  for (int i = 0; i < chapter.paragraphs.length; i++) ...[
+                    _buildParagraphText(chapter.paragraphs[i].text, i),
+                    const SizedBox(height: 12),
                   ],
-                ),
+                ],
               ),
             ),
           ),
-          if (_selectedText != null)
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: 0,
-              child: _buildSelectionToolbar(chapter),
-            ),
+          ValueListenableBuilder<String?>(
+            valueListenable: _selectedTextNotifier,
+            builder: (context, selectedText, child) {
+              if (selectedText == null) {
+                return const SizedBox.shrink();
+              }
+
+              return Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                child: _buildSelectionToolbar(chapter, selectedText),
+              );
+            },
+          ),
         ],
       ),
     );
@@ -1379,9 +1403,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
     return spans;
   }
 
-  Widget _buildSelectionToolbar(BookChapter chapter) {
+  Widget _buildSelectionToolbar(BookChapter chapter, String preview) {
     final colorScheme = Theme.of(context).colorScheme;
-    final preview = _selectedText ?? '';
 
     return SafeArea(
       top: false,
@@ -1431,11 +1454,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
             IconButton(
               tooltip: 'Zamknij',
               icon: const Icon(Icons.close),
-              onPressed: () {
-                setState(() {
-                  _selectedText = null;
-                });
-              },
+              onPressed: _clearManualSelection,
             ),
           ],
         ),
@@ -1465,9 +1484,6 @@ class _ReaderScreenState extends State<ReaderScreen> {
           content: Text('Dodano zaznaczony fragment do ulubionych.'),
         ),
       );
-      setState(() {
-        _selectedText = null;
-      });
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1482,6 +1498,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
     final controller = TextEditingController();
 
+    var saved = false;
     await showDialog(
       context: context,
       builder: (ctx) {
@@ -1527,6 +1544,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
                   quoteRef: '${chapter.reference}-sel',
                 );
 
+                saved = true;
                 if (!mounted) return;
                 Navigator.of(ctx).pop();
                 ScaffoldMessenger.of(context).showSnackBar(
@@ -1541,9 +1559,9 @@ class _ReaderScreenState extends State<ReaderScreen> {
     );
 
     if (!mounted) return;
-    setState(() {
-      _selectedText = null;
-    });
+    if (saved) {
+      _clearManualSelection();
+    }
   }
 }
 
