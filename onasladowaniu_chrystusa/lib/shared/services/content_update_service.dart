@@ -34,6 +34,26 @@ class ContentUpdateResult {
   });
 }
 
+class ContentUpdateAvailability {
+  final bool isAvailable;
+  final bool isDismissed;
+  final String? localVersion;
+  final String? remoteVersion;
+  final ContentManifest? manifest;
+  final ContentUpdateStatus status;
+  final String? message;
+
+  const ContentUpdateAvailability({
+    required this.isAvailable,
+    required this.status,
+    this.isDismissed = false,
+    this.localVersion,
+    this.remoteVersion,
+    this.manifest,
+    this.message,
+  });
+}
+
 class ContentUpdateService {
   static const String manifestUrl =
       'https://bartololongo.pl/uploads/content/o-nasladowaniu/v1/manifest.json';
@@ -42,6 +62,7 @@ class ContentUpdateService {
   static const String _localVersionKey = 'content.book.version';
   static const String _localSha256Key = 'content.book.sha256';
   static const String _updatedAtKey = 'content.book.updatedAt';
+  static const String _dismissedVersionKey = 'content.book.dismissed_version';
   static const String _bundledAppVersion = '1.5.0';
 
   final HttpClient _httpClient;
@@ -54,6 +75,16 @@ class ContentUpdateService {
   Future<String?> getLocalContentVersion() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString(_localVersionKey);
+  }
+
+  Future<String?> getDismissedContentVersion() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_dismissedVersionKey);
+  }
+
+  Future<void> dismissContentVersion(String version) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_dismissedVersionKey, version);
   }
 
   Future<bool> hasLocalOverride() async {
@@ -76,6 +107,104 @@ class ContentUpdateService {
     await prefs.remove(_localVersionKey);
     await prefs.remove(_localSha256Key);
     await prefs.remove(_updatedAtKey);
+  }
+
+  Future<ContentUpdateAvailability> checkAvailability() async {
+    String? localVersion;
+    String? remoteVersion;
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      localVersion = prefs.getString(_localVersionKey);
+      final dismissedVersion = prefs.getString(_dismissedVersionKey);
+
+      final manifestBytes = await _downloadBytes(Uri.parse(manifestUrl));
+      if (manifestBytes == null) {
+        return ContentUpdateAvailability(
+          isAvailable: false,
+          status: ContentUpdateStatus.manifestUnavailable,
+          localVersion: localVersion,
+          message: 'Manifest is unavailable.',
+        );
+      }
+
+      final manifest = _parseManifest(manifestBytes);
+      remoteVersion = manifest.contentVersion;
+
+      if (manifest.schemaVersion != 1) {
+        return ContentUpdateAvailability(
+          isAvailable: false,
+          status: ContentUpdateStatus.invalidJson,
+          localVersion: localVersion,
+          remoteVersion: remoteVersion,
+          manifest: manifest,
+          message: 'Unsupported manifest schema version.',
+        );
+      }
+
+      if (_compareVersions(currentAppVersion, manifest.minAppVersion) < 0) {
+        return ContentUpdateAvailability(
+          isAvailable: false,
+          status: ContentUpdateStatus.skippedIncompatibleAppVersion,
+          localVersion: localVersion,
+          remoteVersion: remoteVersion,
+          manifest: manifest,
+          message:
+              'App version $currentAppVersion is lower than '
+              '${manifest.minAppVersion}.',
+        );
+      }
+
+      if (localVersion != null &&
+          _compareVersions(remoteVersion, localVersion) <= 0) {
+        return ContentUpdateAvailability(
+          isAvailable: false,
+          status: ContentUpdateStatus.upToDate,
+          localVersion: localVersion,
+          remoteVersion: remoteVersion,
+          manifest: manifest,
+        );
+      }
+
+      final isDismissed = dismissedVersion == remoteVersion;
+      return ContentUpdateAvailability(
+        isAvailable: true,
+        isDismissed: isDismissed,
+        status: ContentUpdateStatus.updated,
+        localVersion: localVersion,
+        remoteVersion: remoteVersion,
+        manifest: manifest,
+      );
+    } on FormatException catch (error, stackTrace) {
+      debugPrint('ContentUpdateService: invalid manifest. $error');
+      debugPrintStack(
+        label: 'ContentUpdateService: availability format stackTrace',
+        stackTrace: stackTrace,
+      );
+      return ContentUpdateAvailability(
+        isAvailable: false,
+        status: ContentUpdateStatus.invalidJson,
+        localVersion: localVersion,
+        remoteVersion: remoteVersion,
+        message: error.message,
+      );
+    } catch (error, stackTrace) {
+      debugPrint(
+        'ContentUpdateService: availability check failed. '
+        'errorType=${error.runtimeType}, error=$error',
+      );
+      debugPrintStack(
+        label: 'ContentUpdateService: availability stackTrace',
+        stackTrace: stackTrace,
+      );
+      return ContentUpdateAvailability(
+        isAvailable: false,
+        status: ContentUpdateStatus.unknownError,
+        localVersion: localVersion,
+        remoteVersion: remoteVersion,
+        message: error.toString(),
+      );
+    }
   }
 
   Future<ContentUpdateResult> checkAndDownloadLatest() async {
@@ -162,6 +291,7 @@ class ContentUpdateService {
       await prefs.setString(_localVersionKey, remoteVersion);
       await prefs.setString(_localSha256Key, actualHash);
       await prefs.setString(_updatedAtKey, DateTime.now().toIso8601String());
+      await prefs.remove(_dismissedVersionKey);
 
       return ContentUpdateResult(
         status: ContentUpdateStatus.updated,

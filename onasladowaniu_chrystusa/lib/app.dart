@@ -13,6 +13,7 @@ import 'features/audio/ui/listen_screen.dart';
 import 'features/search/search_screen.dart';
 import 'shared/navigation/app_page_route.dart';
 import 'shared/navigation/main_tabs.dart';
+import 'shared/services/content_update_service.dart';
 import 'shared/services/formation_notification_service.dart';
 import 'shared/services/formation_widget_snapshot_service.dart';
 import 'app_route_observer.dart';
@@ -89,6 +90,9 @@ class _RootScreenState extends State<_RootScreen> with WidgetsBindingObserver {
   StreamSubscription<Uri?>? _widgetClickSubscription;
   String? _pendingNotificationPayload;
   bool _isOpeningFormationFromNotification = false;
+  bool _hasCheckedContentUpdateOnLaunch = false;
+  bool _isShowingContentUpdatePrompt = false;
+  final ContentUpdateService _contentUpdateService = ContentUpdateService();
 
   @override
   void initState() {
@@ -112,6 +116,7 @@ class _RootScreenState extends State<_RootScreen> with WidgetsBindingObserver {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _checkPendingNotificationPayload('initState');
       _checkInitialWidgetUri();
+      unawaited(_checkContentUpdateOnLaunch());
     });
   }
 
@@ -154,6 +159,40 @@ class _RootScreenState extends State<_RootScreen> with WidgetsBindingObserver {
     } catch (_) {
       // Widget launch handling should not block app startup.
     }
+  }
+
+  Future<void> _checkContentUpdateOnLaunch() async {
+    if (_hasCheckedContentUpdateOnLaunch) return;
+    _hasCheckedContentUpdateOnLaunch = true;
+
+    final availability = await _contentUpdateService.checkAvailability();
+    if (!mounted) return;
+
+    if (!availability.isAvailable || availability.isDismissed) {
+      return;
+    }
+
+    final remoteVersion = availability.remoteVersion;
+    if (remoteVersion == null || remoteVersion.isEmpty) {
+      return;
+    }
+
+    if (_isShowingContentUpdatePrompt) return;
+    _isShowingContentUpdatePrompt = true;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (sheetContext) {
+        return _ContentUpdatePromptSheet(
+          remoteVersion: remoteVersion,
+          contentUpdateService: _contentUpdateService,
+        );
+      },
+    );
+
+    if (!mounted) return;
+    _isShowingContentUpdatePrompt = false;
   }
 
   void _handleWidgetUri(Uri? uri) {
@@ -398,6 +437,149 @@ class _RootScreenState extends State<_RootScreen> with WidgetsBindingObserver {
             label: 'Słuchaj',
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _ContentUpdatePromptSheet extends StatefulWidget {
+  final String remoteVersion;
+  final ContentUpdateService contentUpdateService;
+
+  const _ContentUpdatePromptSheet({
+    required this.remoteVersion,
+    required this.contentUpdateService,
+  });
+
+  @override
+  State<_ContentUpdatePromptSheet> createState() =>
+      _ContentUpdatePromptSheetState();
+}
+
+class _ContentUpdatePromptSheetState extends State<_ContentUpdatePromptSheet> {
+  bool _isDownloading = false;
+
+  Future<void> _dismissForNow() async {
+    await widget.contentUpdateService.dismissContentVersion(
+      widget.remoteVersion,
+    );
+    if (!mounted) return;
+    Navigator.of(context).pop();
+  }
+
+  Future<void> _download() async {
+    if (_isDownloading) return;
+
+    setState(() {
+      _isDownloading = true;
+    });
+
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+    final result = await widget.contentUpdateService.checkAndDownloadLatest();
+    if (!mounted) return;
+
+    final message = _contentUpdateMessage(result);
+    messenger.clearSnackBars();
+
+    if (result.status == ContentUpdateStatus.updated) {
+      navigator.pop();
+      messenger.showSnackBar(SnackBar(content: Text(message)));
+      return;
+    }
+
+    setState(() {
+      _isDownloading = false;
+    });
+    messenger.showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  String _contentUpdateMessage(ContentUpdateResult result) {
+    final suffix = result.status == ContentUpdateStatus.updated
+        ? ' Zmiany będą widoczne po ponownym otwarciu czytnika.'
+        : '';
+
+    final message = switch (result.status) {
+      ContentUpdateStatus.updated => 'Pobrano najnowszą wersję tekstu.',
+      ContentUpdateStatus.upToDate => 'Masz już najnowszą wersję tekstu.',
+      ContentUpdateStatus.skippedIncompatibleAppVersion =>
+        'Ta wersja tekstu wymaga nowszej wersji aplikacji.',
+      ContentUpdateStatus.manifestUnavailable =>
+        'Nie udało się sprawdzić aktualizacji tekstu.',
+      ContentUpdateStatus.downloadFailed => 'Nie udało się pobrać tekstu.',
+      ContentUpdateStatus.invalidHash =>
+        'Pobrany plik nie przeszedł weryfikacji.',
+      ContentUpdateStatus.invalidJson =>
+        'Pobrany tekst ma nieprawidłowy format.',
+      ContentUpdateStatus.unknownError => 'Wystąpił nieznany błąd.',
+    };
+
+    return '$message$suffix';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  Icons.menu_book_outlined,
+                  size: 32,
+                  color: colorScheme.primary,
+                ),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Text(
+                    'Dostępna aktualizacja tekstu',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              'Jest dostępna nowsza wersja tekstu książki. Może zawierać '
+              'poprawki literówek i dopasowanie tekstu do nagrań.',
+              style: TextStyle(fontSize: 14, height: 1.4),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Możesz to zrobić później w ustawieniach.',
+              style: TextStyle(fontSize: 14, height: 1.4),
+            ),
+            const SizedBox(height: 20),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton(
+                  onPressed: _isDownloading ? null : _dismissForNow,
+                  child: const Text('Nie teraz'),
+                ),
+                const SizedBox(width: 8),
+                ElevatedButton.icon(
+                  onPressed: _isDownloading ? null : _download,
+                  icon: _isDownloading
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.download_rounded),
+                  label: Text(_isDownloading ? 'Pobieranie...' : 'Pobierz'),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
