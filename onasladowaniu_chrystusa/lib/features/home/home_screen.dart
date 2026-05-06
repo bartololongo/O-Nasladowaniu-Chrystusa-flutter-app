@@ -367,6 +367,10 @@ class _HomeScreenState extends State<HomeScreen>
                           label: const Text('Do dziennika'),
                           onPressed: () async {
                             Navigator.of(sheetContext).pop();
+                            await Future<void>.delayed(
+                              const Duration(milliseconds: 120),
+                            );
+                            if (!mounted) return;
                             await _addRandomQuoteToJournal(paragraph);
                           },
                         ),
@@ -427,63 +431,141 @@ class _HomeScreenState extends State<HomeScreen>
   Future<void> _addRandomQuoteToJournal(BookParagraph paragraph) async {
     final controller = TextEditingController();
 
-    await showDialog(
-      context: context,
-      builder: (ctx) {
-        return AlertDialog(
-          title: const Text('Dodaj do dziennika'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(paragraph.text, style: const TextStyle(fontSize: 14)),
-                const SizedBox(height: 16),
-                const Text(
-                  'Twoja notatka:',
-                  style: TextStyle(fontWeight: FontWeight.w600),
+    try {
+      await showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (ctx) {
+          final colorScheme = Theme.of(ctx).colorScheme;
+          final mediaQuery = MediaQuery.of(ctx);
+          final sheetMaxHeight = mediaQuery.size.height * 0.88;
+          final quoteMaxHeight = mediaQuery.size.height * 0.2;
+
+          return Padding(
+            padding: EdgeInsets.only(bottom: mediaQuery.viewInsets.bottom),
+            child: SafeArea(
+              top: false,
+              child: Material(
+                color: colorScheme.surface,
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(24),
                 ),
-                const SizedBox(height: 4),
-                TextField(
-                  controller: controller,
-                  maxLines: 4,
-                  decoration: const InputDecoration(
-                    border: OutlineInputBorder(),
-                    hintText:
-                        'Co mówi do Ciebie ten fragment? '
-                        'Jak chcesz na niego odpowiedzieć?',
+                clipBehavior: Clip.antiAlias,
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(maxHeight: sheetMaxHeight),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Center(
+                        child: Container(
+                          width: 40,
+                          height: 4,
+                          margin: const EdgeInsets.only(top: 8, bottom: 16),
+                          decoration: BoxDecoration(
+                            color: colorScheme.onSurface.withValues(
+                              alpha: 0.25,
+                            ),
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                        ),
+                      ),
+                      const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 20),
+                        child: Text(
+                          'Dodaj do dziennika',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Flexible(
+                        child: SingleChildScrollView(
+                          padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              ConstrainedBox(
+                                constraints: BoxConstraints(
+                                  maxHeight: quoteMaxHeight,
+                                ),
+                                child: SingleChildScrollView(
+                                  child: Text(
+                                    paragraph.text,
+                                    style: const TextStyle(
+                                      fontSize: 14,
+                                      height: 1.45,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              const Text(
+                                'Twoja notatka:',
+                                style: TextStyle(fontWeight: FontWeight.w600),
+                              ),
+                              const SizedBox(height: 4),
+                              TextField(
+                                controller: controller,
+                                maxLines: 4,
+                                decoration: const InputDecoration(
+                                  border: OutlineInputBorder(),
+                                  hintText:
+                                      'Co mówi do Ciebie ten fragment? '
+                                      'Jak chcesz na niego odpowiedzieć?',
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 4, 20, 16),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            TextButton(
+                              onPressed: () => Navigator.of(ctx).pop(),
+                              child: const Text('Anuluj'),
+                            ),
+                            const SizedBox(width: 8),
+                            ElevatedButton(
+                              onPressed: () async {
+                                final note = controller.text.trim();
+
+                                await _journalService.addEntry(
+                                  content: note.isEmpty ? paragraph.text : note,
+                                  quoteText: paragraph.text,
+                                  quoteRef: paragraph.reference,
+                                );
+
+                                if (!mounted) return;
+                                Navigator.of(ctx).pop();
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Dodano wpis do dziennika.'),
+                                  ),
+                                );
+                              },
+                              child: const Text('Zapisz'),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              ],
+              ),
             ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text('Anuluj'),
-            ),
-            TextButton(
-              onPressed: () async {
-                final note = controller.text.trim();
-
-                await _journalService.addEntry(
-                  content: note.isEmpty ? paragraph.text : note,
-                  quoteText: paragraph.text,
-                  quoteRef: paragraph.reference,
-                );
-
-                if (!mounted) return;
-                Navigator.of(ctx).pop();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Dodano wpis do dziennika.')),
-                );
-              },
-              child: const Text('Zapisz'),
-            ),
-          ],
-        );
-      },
-    );
+          );
+        },
+      );
+    } finally {
+      controller.dispose();
+    }
   }
 
   Future<void> _openSupportLink() async {
