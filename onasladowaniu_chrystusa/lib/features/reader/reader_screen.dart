@@ -1499,61 +1499,125 @@ class _ReaderScreenState extends State<ReaderScreen> {
     final controller = TextEditingController();
 
     var saved = false;
-    await showDialog(
+    await showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       builder: (ctx) {
-        return AlertDialog(
-          title: const Text('Dodaj do dziennika'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(text, style: const TextStyle(fontSize: 14)),
-                const SizedBox(height: 16),
-                const Text(
-                  'Twoja notatka:',
-                  style: TextStyle(fontWeight: FontWeight.w600),
-                ),
-                const SizedBox(height: 4),
-                TextField(
-                  controller: controller,
-                  maxLines: 4,
-                  decoration: const InputDecoration(
-                    border: OutlineInputBorder(),
-                    hintText:
-                        'Co mówi do Ciebie ten fragment? '
-                        'Jak chcesz na niego odpowiedzieć?',
+        final colorScheme = Theme.of(ctx).colorScheme;
+        final mediaQuery = MediaQuery.of(ctx);
+        final sheetMaxHeight = mediaQuery.size.height * 0.88;
+        final quoteMaxHeight = mediaQuery.size.height * 0.2;
+
+        return Padding(
+          padding: EdgeInsets.only(bottom: mediaQuery.viewInsets.bottom),
+          child: SafeArea(
+            top: false,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(maxHeight: sheetMaxHeight),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      margin: const EdgeInsets.only(top: 8, bottom: 16),
+                      decoration: BoxDecoration(
+                        color: colorScheme.onSurface.withOpacity(0.25),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                    ),
                   ),
-                ),
-              ],
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 20),
+                    child: Text(
+                      'Dodaj do dziennika',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Flexible(
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          ConstrainedBox(
+                            constraints: BoxConstraints(
+                              maxHeight: quoteMaxHeight,
+                            ),
+                            child: SingleChildScrollView(
+                              child: Text(
+                                text,
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  height: 1.45,
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          const Text(
+                            'Twoja notatka:',
+                            style: TextStyle(fontWeight: FontWeight.w600),
+                          ),
+                          const SizedBox(height: 4),
+                          TextField(
+                            controller: controller,
+                            maxLines: 4,
+                            decoration: const InputDecoration(
+                              border: OutlineInputBorder(),
+                              hintText:
+                                  'Co mówi do Ciebie ten fragment? '
+                                  'Jak chcesz na niego odpowiedzieć?',
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 4, 20, 16),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        TextButton(
+                          onPressed: () => Navigator.of(ctx).pop(),
+                          child: const Text('Anuluj'),
+                        ),
+                        const SizedBox(width: 8),
+                        ElevatedButton(
+                          onPressed: () async {
+                            final note = controller.text.trim();
+
+                            await _journalService.addEntry(
+                              content: note.isEmpty ? text : note,
+                              quoteText: text,
+                              quoteRef: '${chapter.reference}-sel',
+                            );
+
+                            saved = true;
+                            if (!mounted) return;
+                            Navigator.of(ctx).pop();
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Dodano wpis do dziennika.'),
+                              ),
+                            );
+                          },
+                          child: const Text('Zapisz'),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text('Anuluj'),
-            ),
-            TextButton(
-              onPressed: () async {
-                final note = controller.text.trim();
-
-                await _journalService.addEntry(
-                  content: note.isEmpty ? text : note,
-                  quoteText: text,
-                  quoteRef: '${chapter.reference}-sel',
-                );
-
-                saved = true;
-                if (!mounted) return;
-                Navigator.of(ctx).pop();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Dodano wpis do dziennika.')),
-                );
-              },
-              child: const Text('Zapisz'),
-            ),
-          ],
         );
       },
     );
