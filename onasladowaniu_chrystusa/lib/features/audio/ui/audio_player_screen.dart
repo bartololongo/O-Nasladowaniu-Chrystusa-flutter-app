@@ -250,12 +250,12 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
                     _buildErrorMessage(context),
                     const SizedBox(height: 16),
                   ],
+                  _buildProgressActions(context),
+                  const SizedBox(height: 8),
                   _buildProgress(context),
-                  const SizedBox(height: 18),
+                  const SizedBox(height: 2),
                   _buildControls(context),
-                  const SizedBox(height: 12),
-                  _buildPlaybackSpeedButton(context),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 28),
                   _buildAutoAdvanceToggle(context),
                 ],
               ),
@@ -545,6 +545,34 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
     return _AudioProgressSlider(audioService: _audioService);
   }
 
+  Widget _buildProgressActions(BuildContext context) {
+    return Row(
+      children: [
+        _buildPlaybackSpeedButton(context),
+        const SizedBox(width: 10),
+        _AudioSeekButton(
+          tooltip: 'Cofnij o 10 sekund',
+          label: '-10',
+          size: 42,
+          fontSize: 13,
+          onPressed: () => unawaited(
+            _audioService.seekRelative(const Duration(seconds: -10)),
+          ),
+        ),
+        const SizedBox(width: 8),
+        _AudioSeekButton(
+          tooltip: 'Przewiń o 10 sekund',
+          label: '+10',
+          size: 42,
+          fontSize: 13,
+          onPressed: () => unawaited(
+            _audioService.seekRelative(const Duration(seconds: 10)),
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildControls(BuildContext context) {
     final isBusy = _isLoadingAdjacentTracks || _isChangingTrack;
 
@@ -552,11 +580,9 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
       child: LayoutBuilder(
         builder: (context, constraints) {
           final isCompact = constraints.maxWidth < 310;
-          final transportSize = isCompact ? 46.0 : 50.0;
-          final seekSize = isCompact ? 40.0 : 44.0;
+          final transportSize = isCompact ? 64.0 : 76.0;
           final playSize = isCompact ? 72.0 : 76.0;
-          final outerSpacing = isCompact ? 8.0 : 16.0;
-          final innerSpacing = isCompact ? 4.0 : 8.0;
+          final spacing = isCompact ? 24.0 : 42.0;
 
           return Row(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -576,45 +602,25 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
                     tooltip: 'Poprzedni rozdział',
                     icon: Icons.skip_previous_rounded,
                     size: transportSize,
-                    iconSize: isCompact ? 25 : 28,
+                    iconSize: isCompact ? 44 : 52,
                     onPressed: canUsePreviousButton
                         ? () => unawaited(_restartOrChangeToPreviousTrack())
                         : null,
                   );
                 },
               ),
-              SizedBox(width: outerSpacing),
-              _AudioSeekButton(
-                tooltip: 'Cofnij o 10 sekund',
-                label: '-10',
-                size: seekSize,
-                fontSize: isCompact ? 12 : 13,
-                onPressed: () => unawaited(
-                  _audioService.seekRelative(const Duration(seconds: -10)),
-                ),
-              ),
-              SizedBox(width: innerSpacing),
+              SizedBox(width: spacing),
               _AudioPlayPauseButton(
                 size: playSize,
                 audioService: _audioService,
                 onTogglePlay: _togglePlay,
               ),
-              SizedBox(width: innerSpacing),
-              _AudioSeekButton(
-                tooltip: 'Przewiń o 10 sekund',
-                label: '+10',
-                size: seekSize,
-                fontSize: isCompact ? 12 : 13,
-                onPressed: () => unawaited(
-                  _audioService.seekRelative(const Duration(seconds: 10)),
-                ),
-              ),
-              SizedBox(width: outerSpacing),
+              SizedBox(width: spacing),
               _AudioTransportButton(
                 tooltip: 'Następny rozdział',
                 icon: Icons.skip_next_rounded,
                 size: transportSize,
-                iconSize: isCompact ? 25 : 28,
+                iconSize: isCompact ? 44 : 52,
                 onPressed: isBusy || _nextTrack == null
                     ? null
                     : () => unawaited(_changeTrack(_nextTrack)),
@@ -1074,11 +1080,15 @@ class _AudioTransportButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return SizedBox.square(
       dimension: size,
-      child: IconButton.filledTonal(
+      child: IconButton(
         tooltip: tooltip,
         onPressed: onPressed,
+        color: colorScheme.primary,
+        disabledColor: colorScheme.onSurface.withValues(alpha: 0.28),
         icon: Icon(icon, size: iconSize),
       ),
     );
