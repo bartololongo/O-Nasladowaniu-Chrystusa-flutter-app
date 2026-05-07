@@ -579,6 +579,8 @@ class _JournalScreenState extends State<JournalScreen> {
     }
 
     final paragraph = BookParagraph(index: index, reference: ref, text: text);
+    final sheetNavigator = Navigator.of(sheetContext);
+    final messenger = ScaffoldMessenger.of(context);
 
     await _favoritesService.addOrUpdateFavoriteForParagraph(
       paragraph,
@@ -588,10 +590,10 @@ class _JournalScreenState extends State<JournalScreen> {
     if (!mounted) return;
 
     // zamknij bottomsheet
-    Navigator.of(sheetContext).pop();
+    sheetNavigator.pop();
 
     // i pokaż komunikat
-    ScaffoldMessenger.of(context).showSnackBar(
+    messenger.showSnackBar(
       const SnackBar(content: Text('Cytat dodany do ulubionych.')),
     );
   }
@@ -607,6 +609,8 @@ class _JournalScreenState extends State<JournalScreen> {
       Navigator.of(sheetContext).pop();
       return;
     }
+    final sheetNavigator = Navigator.of(sheetContext);
+    final rootNavigator = Navigator.of(context);
 
     final parts = quoteRef.split('-');
 
@@ -636,10 +640,10 @@ class _JournalScreenState extends State<JournalScreen> {
     if (!mounted) return;
 
     // 3) zamykamy bottomsheet ze szczegółami wpisu
-    Navigator.of(sheetContext).pop();
+    sheetNavigator.pop();
 
     // 4) otwieramy czytnik bezpośrednio
-    await Navigator.of(context).push(
+    await rootNavigator.push(
       AppPageRoute.fade(
         settings: const RouteSettings(name: '/reader/from-journal'),
         builder: (_) => const ReaderScreen(),

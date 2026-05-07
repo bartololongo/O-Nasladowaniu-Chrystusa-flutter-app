@@ -8,10 +8,7 @@ import '../../shared/navigation/main_tabs.dart';
 class ReadingChallengeScreen extends StatefulWidget {
   final void Function(int tabIndex)? onNavigateToTab;
 
-  const ReadingChallengeScreen({
-    super.key,
-    this.onNavigateToTab,
-  });
+  const ReadingChallengeScreen({super.key, this.onNavigateToTab});
 
   @override
   State<ReadingChallengeScreen> createState() => _ReadingChallengeScreenState();
@@ -127,7 +124,8 @@ class _ReadingChallengeScreenState extends State<ReadingChallengeScreen> {
   }
 
   Future<void> _resetChallenge() async {
-    final confirmed = await showDialog<bool>(
+    final confirmed =
+        await showDialog<bool>(
           context: context,
           builder: (ctx) => AlertDialog(
             title: const Text('Zresetować wyzwanie?'),
@@ -171,8 +169,7 @@ class _ReadingChallengeScreenState extends State<ReadingChallengeScreen> {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content:
-            Text('Wyzwanie zresetowane. Zaczynasz od początku książki.'),
+        content: Text('Wyzwanie zresetowane. Zaczynasz od początku książki.'),
       ),
     );
   }
@@ -182,14 +179,12 @@ class _ReadingChallengeScreenState extends State<ReadingChallengeScreen> {
     final state = _state;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Wyzwanie: Czytaj całość'),
-      ),
+      appBar: AppBar(title: const Text('Wyzwanie: Czytaj całość')),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : (state == null || !state.isActive)
-              ? _buildInactiveBody(context)
-              : _buildActiveBody(context, state),
+          ? _buildInactiveBody(context)
+          : _buildActiveBody(context, state),
     );
   }
 
@@ -221,8 +216,9 @@ class _ReadingChallengeScreenState extends State<ReadingChallengeScreen> {
 
   Widget _buildActiveBody(BuildContext context, ReadingChallengeState state) {
     final colorScheme = Theme.of(context).colorScheme;
-    final startedStr =
-        state.startedAt != null ? _formatDate(state.startedAt!) : '—';
+    final startedStr = state.startedAt != null
+        ? _formatDate(state.startedAt!)
+        : '—';
     final progress = _progressValue;
     final percent = (progress * 100).round();
     final done = _furthestChapterIndex ?? 0;
@@ -245,7 +241,7 @@ class _ReadingChallengeScreenState extends State<ReadingChallengeScreen> {
                 'Rozpoczęte: $startedStr',
                 style: TextStyle(
                   fontSize: 13,
-                  color: colorScheme.onSurface.withOpacity(0.7),
+                  color: colorScheme.onSurface.withValues(alpha: 0.7),
                 ),
               ),
               const SizedBox(height: 12),
@@ -254,16 +250,17 @@ class _ReadingChallengeScreenState extends State<ReadingChallengeScreen> {
                 child: LinearProgressIndicator(
                   value: progress,
                   minHeight: 6,
-                  backgroundColor:
-                      colorScheme.onSurface.withOpacity(0.15),
+                  backgroundColor: colorScheme.onSurface.withValues(
+                    alpha: 0.15,
+                  ),
                 ),
               ),
               const SizedBox(height: 6),
               Text(
-                'Przeczytano: $done / $total (${percent}%)',
+                'Przeczytano: $done / $total ($percent%)',
                 style: TextStyle(
                   fontSize: 13,
-                  color: colorScheme.onSurface.withOpacity(0.8),
+                  color: colorScheme.onSurface.withValues(alpha: 0.8),
                 ),
               ),
               const SizedBox(height: 8),
@@ -336,7 +333,7 @@ class _ReadingChallengeScreenState extends State<ReadingChallengeScreen> {
     return ListView.separated(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
       itemCount: _chapters.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 4),
+      separatorBuilder: (_, _) => const SizedBox(height: 4),
       itemBuilder: (context, index) {
         final item = _chapters[index];
         final furthestIndex = _furthestChapterIndex ?? 0;
@@ -354,7 +351,7 @@ class _ReadingChallengeScreenState extends State<ReadingChallengeScreen> {
           iconColor = colorScheme.primary;
         } else {
           icon = Icons.radio_button_unchecked;
-          iconColor = colorScheme.onSurface.withOpacity(0.4);
+          iconColor = colorScheme.onSurface.withValues(alpha: 0.4);
         }
 
         final tile = ListTile(
@@ -363,8 +360,7 @@ class _ReadingChallengeScreenState extends State<ReadingChallengeScreen> {
           title: Text(
             item.title,
             style: TextStyle(
-              fontWeight:
-                  isCurrent ? FontWeight.w600 : FontWeight.normal,
+              fontWeight: isCurrent ? FontWeight.w600 : FontWeight.normal,
             ),
           ),
           subtitle: Text(
@@ -377,7 +373,7 @@ class _ReadingChallengeScreenState extends State<ReadingChallengeScreen> {
         if (isCurrent) {
           return Container(
             decoration: BoxDecoration(
-              color: colorScheme.primary.withOpacity(0.06),
+              color: colorScheme.primary.withValues(alpha: 0.06),
               borderRadius: BorderRadius.circular(12),
             ),
             child: tile,
@@ -419,10 +415,7 @@ class _ReadingChallengeScreenState extends State<ReadingChallengeScreen> {
             const SizedBox(height: 16),
             Text(
               'Przeczytano $done z $total rozdziałów.',
-              style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-              ),
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 8),
@@ -432,7 +425,7 @@ class _ReadingChallengeScreenState extends State<ReadingChallengeScreen> {
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 13,
-                  color: colorScheme.onSurface.withOpacity(0.8),
+                  color: colorScheme.onSurface.withValues(alpha: 0.8),
                 ),
               ),
               const SizedBox(height: 4),
@@ -444,7 +437,7 @@ class _ReadingChallengeScreenState extends State<ReadingChallengeScreen> {
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 13,
-                color: colorScheme.onSurface.withOpacity(0.8),
+                color: colorScheme.onSurface.withValues(alpha: 0.8),
               ),
             ),
           ],
@@ -470,7 +463,4 @@ class _ChapterItem {
   });
 }
 
-enum _ChallengeTab {
-  chapters,
-  stats,
-}
+enum _ChallengeTab { chapters, stats }

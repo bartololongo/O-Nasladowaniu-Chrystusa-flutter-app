@@ -334,7 +334,7 @@ class _HomeScreenState extends State<HomeScreen>
                     locationText,
                     style: TextStyle(
                       fontSize: 12,
-                      color: colorScheme.onSurface.withOpacity(0.7),
+                      color: colorScheme.onSurface.withValues(alpha: 0.7),
                     ),
                   ),
                   const SizedBox(height: 16),
@@ -345,14 +345,16 @@ class _HomeScreenState extends State<HomeScreen>
                           icon: const Icon(Icons.favorite_border),
                           label: const Text('Ulubione'),
                           onPressed: () async {
+                            final sheetNavigator = Navigator.of(sheetContext);
+                            final messenger = ScaffoldMessenger.of(context);
                             await _favoritesService
                                 .addOrUpdateFavoriteForParagraph(
                                   paragraph,
                                   note: null,
                                 );
                             if (!mounted) return;
-                            Navigator.of(sheetContext).pop();
-                            ScaffoldMessenger.of(context).showSnackBar(
+                            sheetNavigator.pop();
+                            messenger.showSnackBar(
                               const SnackBar(
                                 content: Text('Dodano cytat do ulubionych.'),
                               ),
@@ -534,6 +536,8 @@ class _HomeScreenState extends State<HomeScreen>
                             const SizedBox(width: 8),
                             ElevatedButton(
                               onPressed: () async {
+                                final sheetNavigator = Navigator.of(ctx);
+                                final messenger = ScaffoldMessenger.of(context);
                                 final note = controller.text.trim();
 
                                 await _journalService.addEntry(
@@ -543,8 +547,8 @@ class _HomeScreenState extends State<HomeScreen>
                                 );
 
                                 if (!mounted) return;
-                                Navigator.of(ctx).pop();
-                                ScaffoldMessenger.of(context).showSnackBar(
+                                sheetNavigator.pop();
+                                messenger.showSnackBar(
                                   const SnackBar(
                                     content: Text('Dodano wpis do dziennika.'),
                                   ),
@@ -969,9 +973,9 @@ class _HomeScreenState extends State<HomeScreen>
       onTap: _openFormationChallengeScreen,
       child: Container(
         decoration: BoxDecoration(
-          color: colorScheme.surface.withOpacity(0.1),
+          color: colorScheme.surface.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: colorScheme.primary.withOpacity(0.3)),
+          border: Border.all(color: colorScheme.primary.withValues(alpha: 0.3)),
         ),
         padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
         child: Row(
@@ -997,7 +1001,7 @@ class _HomeScreenState extends State<HomeScreen>
                     'Codzienna medytacja z książką',
                     style: TextStyle(
                       fontSize: 14,
-                      color: colorScheme.onSurface.withOpacity(0.7),
+                      color: colorScheme.onSurface.withValues(alpha: 0.7),
                     ),
                   ),
                 ],
@@ -1020,9 +1024,9 @@ class _HomeScreenState extends State<HomeScreen>
       },
       child: Container(
         decoration: BoxDecoration(
-          color: colorScheme.surface.withOpacity(0.1),
+          color: colorScheme.surface.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: colorScheme.primary.withOpacity(0.3)),
+          border: Border.all(color: colorScheme.primary.withValues(alpha: 0.3)),
         ),
         padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
         child: Row(
@@ -1064,9 +1068,11 @@ class _HomeScreenState extends State<HomeScreen>
         onTap: _openSupportLink,
         child: Container(
           decoration: BoxDecoration(
-            color: colorScheme.surface.withOpacity(0.08),
+            color: colorScheme.surface.withValues(alpha: 0.08),
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: colorScheme.primary.withOpacity(0.25)),
+            border: Border.all(
+              color: colorScheme.primary.withValues(alpha: 0.25),
+            ),
           ),
           padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
           child: Row(
@@ -1091,7 +1097,7 @@ class _HomeScreenState extends State<HomeScreen>
                       'Jeśli aplikacja jest dla Ciebie pomocna, możesz postawić mi „wirtualną kawę”.',
                       style: TextStyle(
                         fontSize: 14,
-                        color: colorScheme.onSurface.withOpacity(0.7),
+                        color: colorScheme.onSurface.withValues(alpha: 0.7),
                       ),
                     ),
                   ],
@@ -1129,8 +1135,10 @@ class _QuickActionChip extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(999),
-          color: colorScheme.surface.withOpacity(0.16),
-          border: Border.all(color: colorScheme.primary.withOpacity(0.35)),
+          color: colorScheme.surface.withValues(alpha: 0.16),
+          border: Border.all(
+            color: colorScheme.primary.withValues(alpha: 0.35),
+          ),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -1141,7 +1149,7 @@ class _QuickActionChip extends StatelessWidget {
               label,
               style: TextStyle(
                 fontSize: 13,
-                color: colorScheme.onSurface.withOpacity(0.9),
+                color: colorScheme.onSurface.withValues(alpha: 0.9),
               ),
             ),
           ],

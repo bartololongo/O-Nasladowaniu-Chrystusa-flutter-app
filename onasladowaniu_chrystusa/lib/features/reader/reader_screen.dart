@@ -41,7 +41,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
       GlobalKey<SelectionAreaState>();
 
   double _fontSize = 18.0;
-  double _lineHeight = 1.5;
+  final double _lineHeight = 1.5;
   bool _isJustified = true;
 
   late Future<BookChapter> _chapterFuture;
@@ -209,10 +209,10 @@ class _ReaderScreenState extends State<ReaderScreen> {
     }
 
     if (!mounted) {
-      return chapter!;
+      return chapter;
     }
 
-    _currentChapterRef = chapter!.reference;
+    _currentChapterRef = chapter.reference;
     _visibleChapter = chapter;
     _paragraphKeys.clear();
     _setManualSelectionText(null);
@@ -547,7 +547,9 @@ class _ReaderScreenState extends State<ReaderScreen> {
                               width: 40,
                               height: 4,
                               decoration: BoxDecoration(
-                                color: colorScheme.onSurface.withOpacity(0.3),
+                                color: colorScheme.onSurface.withValues(
+                                  alpha: 0.3,
+                                ),
                                 borderRadius: BorderRadius.circular(2),
                               ),
                             ),
@@ -576,7 +578,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
                                 ),
                                 scrollDirection: Axis.horizontal,
                                 itemCount: books.length,
-                                separatorBuilder: (_, __) =>
+                                separatorBuilder: (_, _) =>
                                     const SizedBox(width: 8),
                                 itemBuilder: (context, index) {
                                   final book = books[index];
@@ -1250,7 +1252,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
             subtitle,
             style: TextStyle(
               fontSize: 12,
-              color: colorScheme.onSurface.withOpacity(0.7),
+              color: colorScheme.onSurface.withValues(alpha: 0.7),
             ),
           ),
         ],
@@ -1412,13 +1414,13 @@ class _ReaderScreenState extends State<ReaderScreen> {
         margin: const EdgeInsets.all(8),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-          color: colorScheme.surface.withOpacity(0.95),
+          color: colorScheme.surface.withValues(alpha: 0.95),
           borderRadius: BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(
               blurRadius: 8,
               offset: const Offset(0, -2),
-              color: Colors.black.withOpacity(0.4),
+              color: Colors.black.withValues(alpha: 0.4),
             ),
           ],
         ),
@@ -1431,7 +1433,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   fontSize: 12,
-                  color: colorScheme.onSurface.withOpacity(0.8),
+                  color: colorScheme.onSurface.withValues(alpha: 0.8),
                 ),
               ),
             ),
@@ -1524,7 +1526,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
                       height: 4,
                       margin: const EdgeInsets.only(top: 8, bottom: 16),
                       decoration: BoxDecoration(
-                        color: colorScheme.onSurface.withOpacity(0.25),
+                        color: colorScheme.onSurface.withValues(alpha: 0.25),
                         borderRadius: BorderRadius.circular(999),
                       ),
                     ),
@@ -1592,6 +1594,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
                         const SizedBox(width: 8),
                         ElevatedButton(
                           onPressed: () async {
+                            final sheetNavigator = Navigator.of(ctx);
+                            final messenger = ScaffoldMessenger.of(context);
                             final note = controller.text.trim();
 
                             await _journalService.addEntry(
@@ -1602,8 +1606,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
                             saved = true;
                             if (!mounted) return;
-                            Navigator.of(ctx).pop();
-                            ScaffoldMessenger.of(context).showSnackBar(
+                            sheetNavigator.pop();
+                            messenger.showSnackBar(
                               const SnackBar(
                                 content: Text('Dodano wpis do dziennika.'),
                               ),

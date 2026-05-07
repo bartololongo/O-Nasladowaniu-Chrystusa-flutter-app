@@ -848,8 +848,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                       'Wersja 2.0',
                                       style: TextStyle(
                                         fontSize: 13,
-                                        color: colorScheme.onSurface
-                                            .withOpacity(0.7),
+                                        color: colorScheme.onSurface.withValues(
+                                          alpha: 0.7,
+                                        ),
                                       ),
                                     ),
                                     const SizedBox(height: 16),
@@ -868,8 +869,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                       'Autor: Bartłomiej Kozak vel Bartolo Longo',
                                       style: TextStyle(
                                         fontSize: 13,
-                                        color: colorScheme.onSurface
-                                            .withOpacity(0.8),
+                                        color: colorScheme.onSurface.withValues(
+                                          alpha: 0.8,
+                                        ),
                                       ),
                                     ),
                                     const SizedBox(height: 4),
@@ -879,8 +881,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                       style: TextStyle(
                                         fontSize: 11,
                                         height: 1.3,
-                                        color: colorScheme.onSurface
-                                            .withOpacity(0.6),
+                                        color: colorScheme.onSurface.withValues(
+                                          alpha: 0.6,
+                                        ),
                                       ),
                                     ),
                                     const SizedBox(height: 16),

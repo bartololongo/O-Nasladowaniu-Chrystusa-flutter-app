@@ -119,7 +119,7 @@ class BackupService {
       );
     }
 
-    final dataMap = Map<String, dynamic>.from(rawData as Map);
+    final dataMap = Map<String, dynamic>.from(rawData);
     final rawPrefsSection = dataMap['shared_preferences'];
 
     if (rawPrefsSection is! Map) {

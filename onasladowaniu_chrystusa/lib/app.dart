@@ -44,7 +44,7 @@ class ImitationOfChristApp extends StatelessWidget {
         bottomNavigationBarTheme: BottomNavigationBarThemeData(
           backgroundColor: backgroundColor,
           selectedItemColor: colorScheme.secondary,
-          unselectedItemColor: colorScheme.onSurface.withOpacity(0.7),
+          unselectedItemColor: colorScheme.onSurface.withValues(alpha: 0.7),
         ),
         appBarTheme: const AppBarTheme(
           centerTitle: false,
