@@ -10,6 +10,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../data/audio_track.dart';
+import 'audio_download_service.dart';
 
 class AppAudioPlayerService {
   AppAudioPlayerService._();
@@ -17,6 +18,8 @@ class AppAudioPlayerService {
   static final AppAudioPlayerService instance = AppAudioPlayerService._();
 
   final AudioPlayer _player = AudioPlayer();
+  final AudioDownloadService _audioDownloadService =
+      const AudioDownloadService();
   final StreamController<AudioTrack?> _currentTrackController =
       StreamController<AudioTrack?>.broadcast();
   final StreamController<double> _playbackSpeedController =
@@ -240,9 +243,14 @@ class AppAudioPlayerService {
   Future<AudioSource> _audioSourceForTrack(AudioTrack track) async {
     final mediaTitle = 'Rozdział ${track.chapterNumber} — ${track.title}';
     final artworkUri = await _getLockScreenArtworkUri();
+    final downloadedFile = await _audioDownloadService.downloadedFileForTrack(
+      track,
+    );
 
     return AudioSource.uri(
-      Uri.parse(track.url),
+      downloadedFile != null
+          ? Uri.file(downloadedFile.path)
+          : Uri.parse(track.url),
       tag: MediaItem(
         id: track.id,
         album: 'O naśladowaniu Chrystusa',
