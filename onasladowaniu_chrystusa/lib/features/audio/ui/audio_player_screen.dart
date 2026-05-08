@@ -1334,14 +1334,25 @@ class _AudioSeekButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox.square(
-      dimension: size,
-      child: IconButton.filledTonal(
-        tooltip: tooltip,
-        onPressed: onPressed,
-        icon: Text(
-          label,
-          style: TextStyle(fontSize: fontSize, fontWeight: FontWeight.w700),
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Tooltip(
+      message: tooltip,
+      child: SizedBox(
+        height: size,
+        width: size + 22,
+        child: FilledButton.tonal(
+          style: FilledButton.styleFrom(
+            foregroundColor: colorScheme.primary,
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            shape: const StadiumBorder(),
+            textStyle: TextStyle(
+              fontSize: fontSize,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          onPressed: onPressed,
+          child: Text(label, maxLines: 1),
         ),
       ),
     );
