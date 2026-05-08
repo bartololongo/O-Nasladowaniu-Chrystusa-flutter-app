@@ -9,6 +9,7 @@ import '../../shared/services/content_update_service.dart';
 import '../../shared/navigation/app_page_route.dart';
 import '../../shared/widgets/section_header.dart';
 import '../audio/services/app_audio_player_service.dart';
+import '../audio/ui/offline_audio_screen.dart';
 import 'backup_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -774,6 +775,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       'Rozdziały audio będą odtwarzane od początku.',
                     ),
                     onTap: _clearAudioPlaybackProgress,
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.download_done_rounded),
+                    title: const Text('Nagrania offline'),
+                    subtitle: const Text(
+                      'Zarządzaj pobranymi rozdziałami audio.',
+                    ),
+                    onTap: () {
+                      Navigator.of(context).push(
+                        AppPageRoute.fade(
+                          settings: const RouteSettings(name: '/offline-audio'),
+                          builder: (_) => const OfflineAudioScreen(),
+                        ),
+                      );
+                    },
                   ),
                   FutureBuilder<bool>(
                     future: _keepScreenOnInPlayerFuture,

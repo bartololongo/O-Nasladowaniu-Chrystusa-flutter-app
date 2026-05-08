@@ -4,6 +4,20 @@ import 'package:path_provider/path_provider.dart';
 
 import '../data/audio_track.dart';
 
+class AudioDownloadedTrackInfo {
+  final AudioTrack track;
+  final File file;
+  final int sizeBytes;
+  final DateTime? downloadedAt;
+
+  const AudioDownloadedTrackInfo({
+    required this.track,
+    required this.file,
+    required this.sizeBytes,
+    required this.downloadedAt,
+  });
+}
+
 class AudioDownloadService {
   const AudioDownloadService();
 
@@ -22,6 +36,55 @@ class AudioDownloadService {
   Future<File> localFileForTrack(AudioTrack track) async {
     final directory = await _downloadsDirectory();
     return File('${directory.path}/${_safeTrackFileName(track)}');
+  }
+
+  Future<List<AudioDownloadedTrackInfo>> listDownloads(
+    Iterable<AudioTrack> tracks,
+  ) async {
+    final downloads = <AudioDownloadedTrackInfo>[];
+
+    for (final track in tracks) {
+      final file = await downloadedFileForTrack(track);
+      if (file == null) continue;
+
+      final stat = await file.stat();
+      downloads.add(
+        AudioDownloadedTrackInfo(
+          track: track,
+          file: file,
+          sizeBytes: stat.size,
+          downloadedAt: stat.modified,
+        ),
+      );
+    }
+
+    downloads.sort((a, b) {
+      final bookComparison = a.track.bookNumber.compareTo(b.track.bookNumber);
+      if (bookComparison != 0) return bookComparison;
+
+      return a.track.chapterNumber.compareTo(b.track.chapterNumber);
+    });
+
+    return downloads;
+  }
+
+  Future<int> getTotalDownloadedBytes(Iterable<AudioTrack> tracks) async {
+    final downloads = await listDownloads(tracks);
+    return downloads.fold<int>(0, (sum, info) => sum + info.sizeBytes);
+  }
+
+  Future<bool> deleteDownload(AudioTrack track) async {
+    final file = await localFileForTrack(track);
+    if (!await file.exists()) return false;
+
+    await file.delete();
+    return true;
+  }
+
+  Future<void> deleteAllDownloads(Iterable<AudioTrack> tracks) async {
+    for (final track in tracks) {
+      await deleteDownload(track);
+    }
   }
 
   Future<File> downloadTrack(AudioTrack track) async {

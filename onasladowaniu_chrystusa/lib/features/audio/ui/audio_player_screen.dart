@@ -371,6 +371,7 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
     if (!mounted) return;
 
     await _applyKeepScreenOnSetting();
+    unawaited(_loadDownloadStatus());
   }
 
   void _showChapterPicker() {
