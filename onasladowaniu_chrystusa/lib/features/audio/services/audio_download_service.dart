@@ -18,6 +18,61 @@ class AudioDownloadedTrackInfo {
   });
 }
 
+class AudioBatchDownloadResult {
+  final int requestedCount;
+  final int downloadedCount;
+  final int skippedCount;
+  final int failedCount;
+  final bool cancelled;
+
+  const AudioBatchDownloadResult({
+    required this.requestedCount,
+    required this.downloadedCount,
+    required this.skippedCount,
+    required this.failedCount,
+    required this.cancelled,
+  });
+}
+
+class AudioDownloadCancelToken {
+  final List<void Function()> _listeners = <void Function()>[];
+  bool _isCancelled = false;
+
+  bool get isCancelled => _isCancelled;
+
+  void cancel() {
+    if (_isCancelled) return;
+
+    _isCancelled = true;
+    for (final listener in List<void Function()>.from(_listeners)) {
+      listener();
+    }
+  }
+
+  void addListener(void Function() listener) {
+    if (_isCancelled) {
+      listener();
+      return;
+    }
+
+    _listeners.add(listener);
+  }
+
+  void removeListener(void Function() listener) {
+    _listeners.remove(listener);
+  }
+
+  void throwIfCancelled() {
+    if (_isCancelled) {
+      throw const AudioDownloadCancelledException();
+    }
+  }
+}
+
+class AudioDownloadCancelledException implements Exception {
+  const AudioDownloadCancelledException();
+}
+
 class AudioDownloadService {
   const AudioDownloadService();
 
@@ -73,6 +128,61 @@ class AudioDownloadService {
     return downloads.fold<int>(0, (sum, info) => sum + info.sizeBytes);
   }
 
+  Future<List<AudioTrack>> missingDownloads(Iterable<AudioTrack> tracks) async {
+    final missingTracks = <AudioTrack>[];
+
+    for (final track in tracks) {
+      if (!await isTrackDownloaded(track)) {
+        missingTracks.add(track);
+      }
+    }
+
+    return missingTracks;
+  }
+
+  Future<AudioBatchDownloadResult> downloadMissingTracks(
+    Iterable<AudioTrack> tracks, {
+    AudioDownloadCancelToken? cancelToken,
+    void Function(int completed, int total, AudioTrack track)? onProgress,
+  }) async {
+    final allTracks = tracks.toList(growable: false);
+    final missingTracks = await missingDownloads(allTracks);
+    var downloadedCount = 0;
+    var failedCount = 0;
+    var cancelled = false;
+
+    for (final track in missingTracks) {
+      if (cancelToken?.isCancelled ?? false) {
+        cancelled = true;
+        break;
+      }
+
+      try {
+        await downloadTrack(track, cancelToken: cancelToken);
+        downloadedCount += 1;
+      } on AudioDownloadCancelledException {
+        cancelled = true;
+        break;
+      } catch (_) {
+        failedCount += 1;
+      }
+
+      onProgress?.call(
+        downloadedCount + failedCount,
+        missingTracks.length,
+        track,
+      );
+    }
+
+    return AudioBatchDownloadResult(
+      requestedCount: missingTracks.length,
+      downloadedCount: downloadedCount,
+      skippedCount: allTracks.length - missingTracks.length,
+      failedCount: failedCount,
+      cancelled: cancelled,
+    );
+  }
+
   Future<bool> deleteDownload(AudioTrack track) async {
     final file = await localFileForTrack(track);
     if (!await file.exists()) return false;
@@ -87,7 +197,12 @@ class AudioDownloadService {
     }
   }
 
-  Future<File> downloadTrack(AudioTrack track) async {
+  Future<File> downloadTrack(
+    AudioTrack track, {
+    AudioDownloadCancelToken? cancelToken,
+  }) async {
+    cancelToken?.throwIfCancelled();
+
     final targetFile = await localFileForTrack(track);
     if (await targetFile.exists()) return targetFile;
 
@@ -100,9 +215,17 @@ class AudioDownloadService {
     }
 
     final client = HttpClient();
+    void cancelClient() {
+      client.close(force: true);
+    }
+
+    cancelToken?.addListener(cancelClient);
     try {
+      cancelToken?.throwIfCancelled();
       final request = await client.getUrl(Uri.parse(track.url));
+      cancelToken?.throwIfCancelled();
       final response = await request.close();
+      cancelToken?.throwIfCancelled();
 
       if (response.statusCode != HttpStatus.ok) {
         throw HttpException(
@@ -117,6 +240,7 @@ class AudioDownloadService {
       } finally {
         await sink.close();
       }
+      cancelToken?.throwIfCancelled();
 
       if (await targetFile.exists()) {
         await tempFile.delete();
@@ -128,8 +252,12 @@ class AudioDownloadService {
       if (await tempFile.exists()) {
         await tempFile.delete();
       }
+      if (cancelToken?.isCancelled ?? false) {
+        throw const AudioDownloadCancelledException();
+      }
       rethrow;
     } finally {
+      cancelToken?.removeListener(cancelClient);
       client.close(force: true);
     }
   }

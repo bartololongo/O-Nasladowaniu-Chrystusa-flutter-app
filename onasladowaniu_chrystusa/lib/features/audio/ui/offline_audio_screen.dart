@@ -19,9 +19,14 @@ class _OfflineAudioScreenState extends State<OfflineAudioScreen> {
   final AppAudioPlayerService _audioService = AppAudioPlayerService.instance;
   final BookRepository _bookRepository = BookRepository();
 
-  late Future<List<AudioDownloadedTrackInfo>> _downloadsFuture;
+  late Future<_OfflineDownloadsData> _downloadsFuture;
   final Set<String> _deletingTrackIds = <String>{};
   bool _isDeletingAll = false;
+  bool _isDownloadingAll = false;
+  bool _isCancellingDownload = false;
+  int _downloadCompleted = 0;
+  int _downloadTotal = 0;
+  AudioDownloadCancelToken? _downloadCancelToken;
 
   @override
   void initState() {
@@ -29,9 +34,10 @@ class _OfflineAudioScreenState extends State<OfflineAudioScreen> {
     _downloadsFuture = _loadDownloads();
   }
 
-  Future<List<AudioDownloadedTrackInfo>> _loadDownloads() async {
+  Future<_OfflineDownloadsData> _loadDownloads() async {
     final tracks = await _loadKnownTracks();
-    return _downloadService.listDownloads(tracks);
+    final downloads = await _downloadService.listDownloads(tracks);
+    return _OfflineDownloadsData(tracks: tracks, downloads: downloads);
   }
 
   Future<List<AudioTrack>> _loadKnownTracks() async {
@@ -66,8 +72,16 @@ class _OfflineAudioScreenState extends State<OfflineAudioScreen> {
     return _audioService.currentTrack?.id == track.id;
   }
 
+  @override
+  void dispose() {
+    _downloadCancelToken?.cancel();
+    super.dispose();
+  }
+
   Future<void> _deleteDownload(AudioDownloadedTrackInfo info) async {
     final messenger = ScaffoldMessenger.of(context);
+
+    if (_isDownloadingAll) return;
 
     if (_isCurrentTrack(info.track)) {
       _showSnackBar(
@@ -77,7 +91,7 @@ class _OfflineAudioScreenState extends State<OfflineAudioScreen> {
       return;
     }
 
-    final confirmed = await _confirmDelete(
+    final confirmed = await _confirmAction(
       title: 'Usunąć pobrane nagranie?',
       message: 'Nagranie będzie ponownie odtwarzane z internetu.',
       confirmLabel: 'Usuń',
@@ -112,6 +126,8 @@ class _OfflineAudioScreenState extends State<OfflineAudioScreen> {
   ) async {
     final messenger = ScaffoldMessenger.of(context);
 
+    if (_isDownloadingAll) return;
+
     if (downloads.any((info) => _isCurrentTrack(info.track))) {
       _showSnackBar(
         messenger,
@@ -120,7 +136,7 @@ class _OfflineAudioScreenState extends State<OfflineAudioScreen> {
       return;
     }
 
-    final confirmed = await _confirmDelete(
+    final confirmed = await _confirmAction(
       title: 'Usunąć wszystkie pobrane nagrania?',
       message: 'Rozdziały audio będą ponownie odtwarzane z internetu.',
       confirmLabel: 'Usuń wszystkie',
@@ -152,9 +168,120 @@ class _OfflineAudioScreenState extends State<OfflineAudioScreen> {
     }
   }
 
-  Future<bool> _confirmDelete({
+  Future<void> _downloadAllMissing(List<AudioTrack> tracks) async {
+    final messenger = ScaffoldMessenger.of(context);
+
+    if (_isDownloadingAll) return;
+
+    final missingTracks = await _downloadService.missingDownloads(tracks);
+    if (!mounted) return;
+
+    if (missingTracks.isEmpty) {
+      _showSnackBar(messenger, 'Wszystkie nagrania są już pobrane.');
+      return;
+    }
+
+    final confirmed = await _confirmAction(
+      title: 'Pobrać wszystkie nagrania?',
+      message:
+          'Nagrania zostaną zapisane na urządzeniu i będą dostępne offline.\n\n'
+          'To może potrwać chwilę i zużyć transfer danych.',
+      confirmLabel: 'Pobierz',
+    );
+    if (!mounted || !confirmed) return;
+
+    setState(() {
+      _isDownloadingAll = true;
+      _isCancellingDownload = false;
+      _downloadCompleted = 0;
+      _downloadTotal = missingTracks.length;
+      _downloadCancelToken = AudioDownloadCancelToken();
+    });
+
+    try {
+      final result = await _downloadService.downloadMissingTracks(
+        missingTracks,
+        cancelToken: _downloadCancelToken,
+        onProgress: (completed, total, _) {
+          if (!mounted) return;
+
+          setState(() {
+            _downloadCompleted = completed;
+            _downloadTotal = total;
+          });
+        },
+      );
+      if (!mounted) return;
+
+      _refreshDownloads();
+
+      if (result.cancelled) {
+        _showSnackBar(
+          messenger,
+          'Pobieranie przerwane. Pobrano ${result.downloadedCount} nagrań.',
+        );
+      } else if (result.requestedCount == 0) {
+        _showSnackBar(messenger, 'Wszystkie nagrania są już pobrane.');
+      } else if (result.failedCount == 0) {
+        _showSnackBar(messenger, 'Pobrano wszystkie nagrania.');
+      } else {
+        _showSnackBar(
+          messenger,
+          'Pobrano ${result.downloadedCount} nagrań. '
+          'Nie udało się pobrać ${result.failedCount}.',
+        );
+      }
+    } catch (_) {
+      if (!mounted) return;
+
+      _showSnackBar(messenger, 'Nie udało się rozpocząć pobierania nagrań.');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isDownloadingAll = false;
+          _isCancellingDownload = false;
+          _downloadCancelToken = null;
+        });
+      }
+    }
+  }
+
+  void _cancelBulkDownload() {
+    if (!_isDownloadingAll || _isCancellingDownload) return;
+
+    setState(() {
+      _isCancellingDownload = true;
+    });
+    _downloadCancelToken?.cancel();
+  }
+
+  Future<void> _handleBackDuringDownload() async {
+    if (!_isDownloadingAll) {
+      Navigator.of(context).maybePop();
+      return;
+    }
+
+    final shouldLeave = await _confirmAction(
+      title: 'Trwa pobieranie nagrań',
+      message:
+          'Jeśli teraz wyjdziesz, pobieranie zostanie przerwane. '
+          'Pobrane już nagrania zostaną zachowane.',
+      cancelLabel: 'Zostań',
+      confirmLabel: 'Przerwij i wyjdź',
+    );
+    if (!mounted || !shouldLeave) return;
+
+    _downloadCancelToken?.cancel();
+    setState(() {
+      _isCancellingDownload = true;
+    });
+    Navigator.of(context).pop();
+  }
+
+  Future<bool> _confirmAction({
     required String title,
     required String message,
+    String cancelLabel = 'Anuluj',
     required String confirmLabel,
   }) async {
     final result = await showModalBottomSheet<bool>(
@@ -200,7 +327,7 @@ class _OfflineAudioScreenState extends State<OfflineAudioScreen> {
                     Expanded(
                       child: OutlinedButton(
                         onPressed: () => Navigator.of(context).pop(false),
-                        child: const Text('Anuluj'),
+                        child: Text(cancelLabel),
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -229,62 +356,65 @@ class _OfflineAudioScreenState extends State<OfflineAudioScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: SafeArea(
-        child: Column(
-          children: [
-            SectionHeader(
-              title: 'Nagrania offline',
-              subtitle: 'Pobrane rozdziały dostępne bez internetu.',
-              icon: Icons.download_done_rounded,
-              showBackButton: Navigator.canPop(context),
-            ),
-            Expanded(
-              child: FutureBuilder<List<AudioDownloadedTrackInfo>>(
-                future: _downloadsFuture,
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
-
-                  if (snapshot.hasError) {
-                    return _OfflineMessage(
-                      icon: Icons.error_outline_rounded,
-                      title: 'Nie udało się odczytać pobranych nagrań.',
-                      subtitle: 'Spróbuj ponownie za chwilę.',
-                      action: TextButton.icon(
-                        onPressed: _refreshDownloads,
-                        icon: const Icon(Icons.refresh_rounded),
-                        label: const Text('Odśwież'),
-                      ),
-                    );
-                  }
-
-                  final downloads =
-                      snapshot.data ?? const <AudioDownloadedTrackInfo>[];
-                  if (downloads.isEmpty) {
-                    return const _OfflineMessage(
-                      icon: Icons.cloud_off_rounded,
-                      title: 'Nie masz jeszcze pobranych nagrań.',
-                      subtitle:
-                          'Pobieranie rozdziału znajdziesz w pełnym odtwarzaczu.',
-                    );
-                  }
-
-                  return _buildDownloadsList(context, downloads);
-                },
+    return PopScope(
+      canPop: !_isDownloadingAll,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        _handleBackDuringDownload();
+      },
+      child: Scaffold(
+        body: SafeArea(
+          child: Column(
+            children: [
+              SectionHeader(
+                title: 'Nagrania offline',
+                subtitle: 'Pobrane rozdziały dostępne bez internetu.',
+                icon: Icons.download_done_rounded,
+                showBackButton: Navigator.canPop(context),
+                onBack: _handleBackDuringDownload,
               ),
-            ),
-          ],
+              Expanded(
+                child: FutureBuilder<_OfflineDownloadsData>(
+                  future: _downloadsFuture,
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+
+                    if (snapshot.hasError) {
+                      return _OfflineMessage(
+                        icon: Icons.error_outline_rounded,
+                        title: 'Nie udało się odczytać pobranych nagrań.',
+                        subtitle: 'Spróbuj ponownie za chwilę.',
+                        action: TextButton.icon(
+                          onPressed: _refreshDownloads,
+                          icon: const Icon(Icons.refresh_rounded),
+                          label: const Text('Odśwież'),
+                        ),
+                      );
+                    }
+
+                    final data = snapshot.data ?? const _OfflineDownloadsData();
+                    return _buildDownloadsList(context, data);
+                  },
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildDownloadsList(
-    BuildContext context,
-    List<AudioDownloadedTrackInfo> downloads,
-  ) {
+  Widget _buildDownloadsList(BuildContext context, _OfflineDownloadsData data) {
+    final downloads = data.downloads;
+    final allDownloaded =
+        data.tracks.isNotEmpty && downloads.length >= data.tracks.length;
+    final canDownloadAll =
+        data.tracks.isNotEmpty &&
+        !allDownloaded &&
+        !_isDownloadingAll &&
+        !_isDeletingAll;
     final totalBytes = downloads.fold<int>(
       0,
       (sum, info) => sum + info.sizeBytes,
@@ -296,24 +426,44 @@ class _OfflineAudioScreenState extends State<OfflineAudioScreen> {
         _DownloadsSummaryCard(
           count: downloads.length,
           totalSize: _formatBytes(totalBytes),
+          isDownloadingAll: _isDownloadingAll,
+          isCancellingDownload: _isCancellingDownload,
+          downloadCompleted: _downloadCompleted,
+          downloadTotal: _downloadTotal,
+          onCancelDownload: _isDownloadingAll && !_isCancellingDownload
+              ? _cancelBulkDownload
+              : null,
+          onDownloadAll: canDownloadAll
+              ? () => _downloadAllMissing(data.tracks)
+              : null,
           isDeletingAll: _isDeletingAll,
-          onDeleteAll: _isDeletingAll
+          onDeleteAll: downloads.isEmpty || _isDeletingAll
               ? null
               : () => _deleteAllDownloads(downloads),
         ),
         const SizedBox(height: 12),
-        for (final info in downloads) ...[
-          _DownloadedTrackTile(
-            info: info,
-            sizeLabel: _formatBytes(info.sizeBytes),
-            downloadedAtLabel: _formatDate(info.downloadedAt),
-            isCurrentTrack: _isCurrentTrack(info.track),
-            isDeleting:
-                _isDeletingAll || _deletingTrackIds.contains(info.track.id),
-            onDelete: () => _deleteDownload(info),
-          ),
-          const SizedBox(height: 8),
-        ],
+        if (downloads.isEmpty)
+          const _OfflineMessage(
+            icon: Icons.cloud_off_rounded,
+            title: 'Nie masz jeszcze pobranych nagrań.',
+            subtitle:
+                'Możesz pobrać wszystkie rozdziały albo pojedyncze nagranie z pełnego odtwarzacza.',
+          )
+        else
+          for (final info in downloads) ...[
+            _DownloadedTrackTile(
+              info: info,
+              sizeLabel: _formatBytes(info.sizeBytes),
+              downloadedAtLabel: _formatDate(info.downloadedAt),
+              isCurrentTrack: _isCurrentTrack(info.track),
+              isDeleting:
+                  _isDeletingAll ||
+                  _isDownloadingAll ||
+                  _deletingTrackIds.contains(info.track.id),
+              onDelete: () => _deleteDownload(info),
+            ),
+            const SizedBox(height: 8),
+          ],
       ],
     );
   }
@@ -338,15 +488,37 @@ class _OfflineAudioScreenState extends State<OfflineAudioScreen> {
   }
 }
 
+class _OfflineDownloadsData {
+  final List<AudioTrack> tracks;
+  final List<AudioDownloadedTrackInfo> downloads;
+
+  const _OfflineDownloadsData({
+    this.tracks = const <AudioTrack>[],
+    this.downloads = const <AudioDownloadedTrackInfo>[],
+  });
+}
+
 class _DownloadsSummaryCard extends StatelessWidget {
   final int count;
   final String totalSize;
+  final bool isDownloadingAll;
+  final bool isCancellingDownload;
+  final int downloadCompleted;
+  final int downloadTotal;
+  final VoidCallback? onCancelDownload;
+  final VoidCallback? onDownloadAll;
   final bool isDeletingAll;
   final VoidCallback? onDeleteAll;
 
   const _DownloadsSummaryCard({
     required this.count,
     required this.totalSize,
+    required this.isDownloadingAll,
+    required this.isCancellingDownload,
+    required this.downloadCompleted,
+    required this.downloadTotal,
+    required this.onCancelDownload,
+    required this.onDownloadAll,
     required this.isDeletingAll,
     required this.onDeleteAll,
   });
@@ -383,8 +555,38 @@ class _DownloadsSummaryCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 14),
+          FilledButton.icon(
+            onPressed: onDownloadAll,
+            icon: isDownloadingAll
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.download_rounded),
+            label: Text(
+              isDownloadingAll
+                  ? isCancellingDownload
+                        ? 'Anulowanie...'
+                        : 'Pobieranie $downloadCompleted z $downloadTotal'
+                  : 'Pobierz wszystkie',
+            ),
+          ),
+          if (isDownloadingAll && downloadTotal > 0) ...[
+            const SizedBox(height: 10),
+            LinearProgressIndicator(value: downloadCompleted / downloadTotal),
+          ],
+          if (isDownloadingAll) ...[
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              onPressed: onCancelDownload,
+              icon: const Icon(Icons.close_rounded),
+              label: Text(isCancellingDownload ? 'Anulowanie...' : 'Anuluj'),
+            ),
+          ],
+          const SizedBox(height: 10),
           OutlinedButton.icon(
-            onPressed: onDeleteAll,
+            onPressed: isDownloadingAll ? null : onDeleteAll,
             icon: isDeletingAll
                 ? const SizedBox(
                     width: 16,
