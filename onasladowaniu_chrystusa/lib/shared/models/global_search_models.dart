@@ -1,9 +1,4 @@
-enum GlobalSearchResultType {
-  bookParagraph,
-  bookmark,
-  favorite,
-  journalEntry,
-}
+enum GlobalSearchResultType { bookParagraph, bookmark, favorite, journalEntry }
 
 class GlobalSearchResult {
   final String id;

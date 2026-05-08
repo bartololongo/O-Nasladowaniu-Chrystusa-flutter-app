@@ -68,10 +68,10 @@ class _RootScreen extends StatefulWidget {
 }
 
 class _RootScreenState extends State<_RootScreen> with WidgetsBindingObserver {
-  /// Bazowa zakładka (Start / Droga / Czytaj / Słuchaj).
+  /// Bazowa zakładka (Start / Droga / Czytaj / Dziennik / Słuchaj).
   int _baseTabIndex = MainTabs.start;
 
-  /// Aktualnie podświetlana zakładka w BottomNavigationBar (Start/Droga/Czytaj/Słuchaj).
+  /// Aktualnie podświetlana zakładka w BottomNavigationBar.
   int _selectedIndex = MainTabs.start;
 
   /// ID instancji Readera.
@@ -80,7 +80,7 @@ class _RootScreenState extends State<_RootScreen> with WidgetsBindingObserver {
   String? _activeMoreRouteName;
 
   /// Wewnętrzny Navigator, w którym renderujemy:
-  /// - ekrany z bottom nav (Start, Droga, Czytaj, Słuchaj),
+  /// - ekrany z bottom nav (Start, Droga, Czytaj, Dziennik, Słuchaj),
   /// - oraz dodatkowe ekrany: Dziennik, Ulubione, Ustawienia itp.
   ///
   /// Dzięki temu dolny pasek jest zawsze widoczny.
@@ -359,8 +359,7 @@ class _RootScreenState extends State<_RootScreen> with WidgetsBindingObserver {
     );
   }
 
-  /// Buduje ekran odpowiadający aktualnie wybranemu bazowemu tabowi
-  /// (Start/Droga/Czytaj/Słuchaj).
+  /// Buduje ekran odpowiadający aktualnie wybranemu bazowemu tabowi.
   Widget _buildTabBody() {
     switch (_baseTabIndex) {
       case MainTabs.start:
@@ -379,6 +378,8 @@ class _RootScreenState extends State<_RootScreen> with WidgetsBindingObserver {
           onOpenSearchResults: _openSearchResultsFromReader,
           onNavigateToTab: _onTabSelected,
         );
+      case MainTabs.journal:
+        return JournalScreen(onNavigateToTab: _onTabSelected);
       case MainTabs.listen:
         return ListenScreen(onNavigateToTab: _onTabSelected);
       default:
@@ -432,6 +433,10 @@ class _RootScreenState extends State<_RootScreen> with WidgetsBindingObserver {
           BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Start'),
           BottomNavigationBarItem(icon: Icon(Icons.route), label: 'Droga'),
           BottomNavigationBarItem(icon: Icon(Icons.menu_book), label: 'Czytaj'),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.edit_note_rounded),
+            label: 'Dziennik',
+          ),
           BottomNavigationBarItem(
             icon: Icon(Icons.headphones_rounded),
             label: 'Słuchaj',

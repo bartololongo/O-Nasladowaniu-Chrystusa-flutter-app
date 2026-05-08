@@ -5,7 +5,6 @@ import '../../shared/navigation/app_page_route.dart';
 import '../../shared/widgets/section_header.dart';
 import '../bookmarks/bookmarks_screen.dart';
 import '../favorites/favorites_screen.dart';
-import '../journal/journal_screen.dart';
 import '../reader/reader_screen.dart';
 import '../search/search_screen.dart';
 import '../settings/settings_screen.dart';
@@ -51,15 +50,6 @@ class ReadingHubScreen extends StatelessWidget {
       AppPageRoute.fade(
         settings: const RouteSettings(name: '/favorites/from-reading-hub'),
         builder: (_) => FavoritesScreen(onNavigateToTab: onNavigateToTab),
-      ),
-    );
-  }
-
-  void _openJournal(BuildContext context) {
-    Navigator.of(context).push(
-      AppPageRoute.fade(
-        settings: const RouteSettings(name: '/journal/from-reading-hub'),
-        builder: (_) => JournalScreen(onNavigateToTab: onNavigateToTab),
       ),
     );
   }
@@ -122,15 +112,8 @@ class ReadingHubScreen extends StatelessWidget {
                     onTap: () => _openReader(context),
                   ),
                   const SizedBox(height: 20),
-                  const _ReadingHubSectionTitle('Twoje miejsca i refleksje'),
+                  const _ReadingHubSectionTitle('Zapisane miejsca'),
                   const SizedBox(height: 8),
-                  _ReadingHubTile(
-                    icon: Icons.edit_note,
-                    title: 'Dziennik duchowy',
-                    subtitle: 'Twoje notatki, refleksje i odpowiedzi.',
-                    onTap: () => _openJournal(context),
-                  ),
-                  const SizedBox(height: 12),
                   _ReadingHubTile(
                     icon: Icons.format_quote,
                     title: 'Ulubione',

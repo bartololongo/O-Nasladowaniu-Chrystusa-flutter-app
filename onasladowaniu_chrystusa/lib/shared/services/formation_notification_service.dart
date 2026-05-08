@@ -30,10 +30,7 @@ class FormationReminderTime {
   final int hour;
   final int minute;
 
-  const FormationReminderTime({
-    required this.hour,
-    required this.minute,
-  });
+  const FormationReminderTime({required this.hour, required this.minute});
 
   String get formatted {
     final h = hour.toString().padLeft(2, '0');
@@ -52,8 +49,9 @@ class FormationNotificationService {
   static const String _keyReminderMinute = 'formation_reminder_minute';
   static const String _keyPendingPayload = 'formation_pending_payload';
   static const int _notificationId = 1001;
-  static const MethodChannel _nativeTapChannel =
-      MethodChannel('formation_notification_taps');
+  static const MethodChannel _nativeTapChannel = MethodChannel(
+    'formation_notification_taps',
+  );
 
   static final FormationNotificationService instance =
       FormationNotificationService._();
@@ -116,8 +114,8 @@ class FormationNotificationService {
 
     _initialized = true;
 
-    final launchDetails =
-        await _notifications.getNotificationAppLaunchDetails();
+    final launchDetails = await _notifications
+        .getNotificationAppLaunchDetails();
     if ((launchDetails?.didNotificationLaunchApp ?? false) &&
         launchDetails?.notificationResponse?.payload != null) {
       final payload = launchDetails!.notificationResponse!.payload!;
@@ -135,27 +133,15 @@ class FormationNotificationService {
       if (call.method != 'notificationTap') return;
 
       final payload = call.arguments as String?;
-      handleNotificationResponse(
-        payload,
-        source: 'native notification tap',
-      );
+      handleNotificationResponse(payload, source: 'native notification tap');
     });
     _nativeTapHandlerRegistered = true;
   }
 
-  void handleNotificationResponse(
-    String? payload, {
-    required String source,
-  }) {
+  void handleNotificationResponse(String? payload, {required String source}) {
     if (payload == null || payload.isEmpty) return;
 
-    unawaited(
-      _setPendingPayload(
-        payload,
-        source: source,
-        emitToStream: true,
-      ),
-    );
+    unawaited(_setPendingPayload(payload, source: source, emitToStream: true));
   }
 
   Future<void> _setPendingPayload(
@@ -206,10 +192,7 @@ class FormationNotificationService {
     }
   }
 
-  Future<void> setReminderTime({
-    required int hour,
-    required int minute,
-  }) async {
+  Future<void> setReminderTime({required int hour, required int minute}) async {
     final safeHour = hour.clamp(0, 23);
     final safeMinute = minute.clamp(0, 59);
 
@@ -251,7 +234,7 @@ class FormationNotificationService {
   }
 
   Future<List<PendingNotificationRequest>>
-      getPendingNotificationRequests() async {
+  getPendingNotificationRequests() async {
     await initialize();
     return _notifications.pendingNotificationRequests();
   }
@@ -265,9 +248,9 @@ class FormationNotificationService {
       id: _notificationId + 1,
       title: 'Droga naśladowania',
       body: 'Znajdź dzisiaj chwilę na medytację',
-      scheduledDate: tz.TZDateTime.now(tz.local).add(
-        const Duration(seconds: 10),
-      ),
+      scheduledDate: tz.TZDateTime.now(
+        tz.local,
+      ).add(const Duration(seconds: 10)),
       notificationDetails: const NotificationDetails(
         android: AndroidNotificationDetails(
           'formation_reminder',
@@ -292,15 +275,18 @@ class FormationNotificationService {
   Future<void> _requestPermissions() async {
     await _notifications
         .resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin>()
+          AndroidFlutterLocalNotificationsPlugin
+        >()
         ?.requestNotificationsPermission();
     await _notifications
         .resolvePlatformSpecificImplementation<
-            IOSFlutterLocalNotificationsPlugin>()
+          IOSFlutterLocalNotificationsPlugin
+        >()
         ?.requestPermissions(alert: true, badge: true, sound: true);
     await _notifications
         .resolvePlatformSpecificImplementation<
-            MacOSFlutterLocalNotificationsPlugin>()
+          MacOSFlutterLocalNotificationsPlugin
+        >()
         ?.requestPermissions(alert: true, badge: true, sound: true);
   }
 

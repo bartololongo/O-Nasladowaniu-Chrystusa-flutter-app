@@ -4,9 +4,8 @@ import 'book_repository.dart';
 class FormationChallengeService {
   final BookRepository _bookRepository;
 
-  FormationChallengeService({
-    BookRepository? bookRepository,
-  }) : _bookRepository = bookRepository ?? BookRepository();
+  FormationChallengeService({BookRepository? bookRepository})
+    : _bookRepository = bookRepository ?? BookRepository();
 
   Future<List<FormationChallengeDay>> getDays() async {
     final collection = await _bookRepository.getCollection();
@@ -49,11 +48,7 @@ class FormationChallengeService {
       localStartDate.month,
       localStartDate.day,
     );
-    final currentDay = DateTime(
-      localNow.year,
-      localNow.month,
-      localNow.day,
-    );
+    final currentDay = DateTime(localNow.year, localNow.month, localNow.day);
 
     final dayNumber = currentDay.difference(startDay).inDays + 1;
     final clampedDayNumber = dayNumber.clamp(1, days.length);

@@ -50,8 +50,7 @@ class BookmarksService {
 
   Future<void> removeBookmarkForChapterRef(String chapterRef) async {
     final list = await _loadBookmarks();
-    final updated =
-        list.where((b) => b.chapterRef != chapterRef).toList();
+    final updated = list.where((b) => b.chapterRef != chapterRef).toList();
     await _saveBookmarks(updated);
   }
 }

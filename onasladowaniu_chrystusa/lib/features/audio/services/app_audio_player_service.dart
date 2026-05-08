@@ -39,6 +39,10 @@ class AppAudioPlayerService {
 
   Duration get currentPosition => _player.position;
 
+  Duration? get duration => _player.duration;
+
+  bool get isPlaying => _player.playing;
+
   Stream<Duration> get positionStream => _player.positionStream;
 
   Stream<Duration?> get durationStream => _player.durationStream;
