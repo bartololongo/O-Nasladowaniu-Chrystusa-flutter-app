@@ -13,6 +13,7 @@ import 'features/audio/ui/listen_screen.dart';
 import 'features/search/search_screen.dart';
 import 'shared/navigation/app_page_route.dart';
 import 'shared/navigation/main_tabs.dart';
+import 'shared/navigation/navigation_guard_service.dart';
 import 'shared/services/content_update_service.dart';
 import 'shared/services/formation_notification_service.dart';
 import 'shared/services/formation_widget_snapshot_service.dart';
@@ -262,6 +263,18 @@ class _RootScreenState extends State<_RootScreen> with WidgetsBindingObserver {
   }
 
   void _onTabSelected(int index) {
+    unawaited(_handleTabSelected(index));
+  }
+
+  Future<void> _handleTabSelected(int index) async {
+    if (NavigationGuardService.instance.hasGuard) {
+      final canNavigate = await NavigationGuardService.instance
+          .confirmNavigation(
+            const NavigationGuardRequest(confirmLabel: 'Przerwij i przejdź'),
+          );
+      if (!mounted || !canNavigate) return;
+    }
+
     final nav = _innerNavigatorKey.currentState;
     final atRoot = !(nav?.canPop() ?? false);
 

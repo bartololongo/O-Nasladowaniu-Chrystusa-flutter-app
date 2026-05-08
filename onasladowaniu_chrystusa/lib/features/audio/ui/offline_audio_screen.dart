@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../shared/navigation/navigation_guard_service.dart';
 import '../../../shared/services/book_repository.dart';
 import '../../../shared/widgets/section_header.dart';
 import '../data/audio_catalog.dart';
@@ -18,12 +19,14 @@ class _OfflineAudioScreenState extends State<OfflineAudioScreen> {
   final AudioDownloadService _downloadService = const AudioDownloadService();
   final AppAudioPlayerService _audioService = AppAudioPlayerService.instance;
   final BookRepository _bookRepository = BookRepository();
+  final Object _navigationGuardOwner = Object();
 
   late Future<_OfflineDownloadsData> _downloadsFuture;
   final Set<String> _deletingTrackIds = <String>{};
   bool _isDeletingAll = false;
   bool _isDownloadingAll = false;
   bool _isCancellingDownload = false;
+  bool _isShowingLeaveConfirmation = false;
   int _downloadCompleted = 0;
   int _downloadTotal = 0;
   AudioDownloadCancelToken? _downloadCancelToken;
@@ -75,7 +78,23 @@ class _OfflineAudioScreenState extends State<OfflineAudioScreen> {
   @override
   void dispose() {
     _downloadCancelToken?.cancel();
+    _clearNavigationGuard();
     super.dispose();
+  }
+
+  void _setNavigationGuard() {
+    NavigationGuardService.instance.setGuard(
+      _navigationGuardOwner,
+      _confirmGuardedNavigation,
+    );
+  }
+
+  void _clearNavigationGuard() {
+    NavigationGuardService.instance.clearGuard(_navigationGuardOwner);
+  }
+
+  Future<bool> _confirmGuardedNavigation(NavigationGuardRequest request) async {
+    return _confirmLeaveDuringDownload(confirmLabel: request.confirmLabel);
   }
 
   Future<void> _deleteDownload(AudioDownloadedTrackInfo info) async {
@@ -197,6 +216,7 @@ class _OfflineAudioScreenState extends State<OfflineAudioScreen> {
       _downloadTotal = missingTracks.length;
       _downloadCancelToken = AudioDownloadCancelToken();
     });
+    _setNavigationGuard();
 
     try {
       final result = await _downloadService.downloadMissingTracks(
@@ -237,6 +257,7 @@ class _OfflineAudioScreenState extends State<OfflineAudioScreen> {
       _showSnackBar(messenger, 'Nie udało się rozpocząć pobierania nagrań.');
     } finally {
       if (mounted) {
+        _clearNavigationGuard();
         setState(() {
           _isDownloadingAll = false;
           _isCancellingDownload = false;
@@ -261,21 +282,45 @@ class _OfflineAudioScreenState extends State<OfflineAudioScreen> {
       return;
     }
 
+    final shouldLeave = await _confirmLeaveDuringDownload(
+      confirmLabel: 'Przerwij i wyjdź',
+    );
+    if (!mounted || !shouldLeave) return;
+
+    Navigator.of(context).pop();
+  }
+
+  Future<bool> _confirmLeaveDuringDownload({
+    required String confirmLabel,
+  }) async {
+    if (!_isDownloadingAll) return true;
+    if (_isShowingLeaveConfirmation) return false;
+
+    setState(() {
+      _isShowingLeaveConfirmation = true;
+    });
+
     final shouldLeave = await _confirmAction(
       title: 'Trwa pobieranie nagrań',
       message:
           'Jeśli teraz wyjdziesz, pobieranie zostanie przerwane. '
           'Pobrane już nagrania zostaną zachowane.',
       cancelLabel: 'Zostań',
-      confirmLabel: 'Przerwij i wyjdź',
+      confirmLabel: confirmLabel,
     );
-    if (!mounted || !shouldLeave) return;
+    if (!mounted) return false;
+
+    setState(() {
+      _isShowingLeaveConfirmation = false;
+    });
+
+    if (!shouldLeave) return false;
 
     _downloadCancelToken?.cancel();
     setState(() {
       _isCancellingDownload = true;
     });
-    Navigator.of(context).pop();
+    return true;
   }
 
   Future<bool> _confirmAction({
