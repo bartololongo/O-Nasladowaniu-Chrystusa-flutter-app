@@ -10,6 +10,7 @@ import '../../../shared/services/book_repository.dart';
 import '../data/audio_catalog.dart';
 import '../data/audio_track.dart';
 import '../services/app_audio_player_service.dart';
+import '../services/audio_download_service.dart';
 import '../../settings/settings_screen.dart';
 
 class AudioPlayerScreen extends StatefulWidget {
@@ -24,6 +25,8 @@ class AudioPlayerScreen extends StatefulWidget {
 class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
   final AppAudioPlayerService _audioService = AppAudioPlayerService.instance;
   final BookRepository _bookRepository = BookRepository();
+  final AudioDownloadService _audioDownloadService =
+      const AudioDownloadService();
 
   StreamSubscription<PlaybackEvent>? _playbackErrorSubscription;
   StreamSubscription<PlayerState>? _playerStateSubscription;
@@ -35,6 +38,8 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
   bool _isLoadingAdjacentTracks = false;
   bool _isChangingTrack = false;
   bool _handledCompletedTrack = false;
+  bool _isCurrentTrackDownloaded = false;
+  bool _isDownloadingCurrentTrack = false;
 
   @override
   void initState() {
@@ -66,6 +71,7 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
     unawaited(_applyKeepScreenOnSetting());
     unawaited(_loadAutoAdvanceSetting());
     unawaited(_loadAdjacentTracks());
+    unawaited(_loadDownloadStatus());
     unawaited(_startPlayback(_track));
   }
 
@@ -105,6 +111,56 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
       _autoAdvanceEnabled = enabled;
     });
     await _audioService.setAutoAdvanceEnabled(enabled);
+  }
+
+  Future<void> _loadDownloadStatus() async {
+    final track = _track;
+    final isDownloaded = await _audioDownloadService.isTrackDownloaded(track);
+    if (!mounted || _track.id != track.id) return;
+
+    setState(() {
+      _isCurrentTrackDownloaded = isDownloaded;
+    });
+  }
+
+  Future<void> _downloadCurrentTrack() async {
+    if (_isDownloadingCurrentTrack || _isCurrentTrackDownloaded) return;
+
+    final track = _track;
+    setState(() {
+      _isDownloadingCurrentTrack = true;
+    });
+
+    try {
+      await _audioDownloadService.downloadTrack(track);
+      if (!mounted || _track.id != track.id) return;
+
+      setState(() {
+        _isCurrentTrackDownloaded = true;
+      });
+
+      final messenger = ScaffoldMessenger.of(context);
+      messenger.clearSnackBars();
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('Nagranie pobrane. Będzie dostępne offline.'),
+        ),
+      );
+    } catch (error) {
+      if (!mounted || _track.id != track.id) return;
+
+      final messenger = ScaffoldMessenger.of(context);
+      messenger.clearSnackBars();
+      messenger.showSnackBar(
+        SnackBar(content: Text('Nie udało się pobrać nagrania: $error')),
+      );
+    } finally {
+      if (mounted && _track.id == track.id) {
+        setState(() {
+          _isDownloadingCurrentTrack = false;
+        });
+      }
+    }
   }
 
   Future<void> _startPlayback(AudioTrack track) async {
@@ -173,10 +229,13 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
       _nextTrack = null;
       _isChangingTrack = true;
       _handledCompletedTrack = false;
+      _isCurrentTrackDownloaded = false;
+      _isDownloadingCurrentTrack = false;
     });
 
     try {
       await _loadAdjacentTracks();
+      unawaited(_loadDownloadStatus());
       await _startPlayback(track);
     } finally {
       if (mounted && _track.id == track.id) {
@@ -546,30 +605,38 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
   }
 
   Widget _buildProgressActions(BuildContext context) {
-    return Row(
-      children: [
-        _buildPlaybackSpeedButton(context),
-        const SizedBox(width: 10),
-        _AudioSeekButton(
-          tooltip: 'Cofnij o 10 sekund',
-          label: '-10',
-          size: 42,
-          fontSize: 13,
-          onPressed: () => unawaited(
-            _audioService.seekRelative(const Duration(seconds: -10)),
-          ),
+    return Center(
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _buildPlaybackSpeedButton(context),
+            const SizedBox(width: 8),
+            _AudioSeekButton(
+              tooltip: 'Cofnij o 10 sekund',
+              label: '-10',
+              size: 42,
+              fontSize: 13,
+              onPressed: () => unawaited(
+                _audioService.seekRelative(const Duration(seconds: -10)),
+              ),
+            ),
+            const SizedBox(width: 8),
+            _AudioSeekButton(
+              tooltip: 'Przewiń o 10 sekund',
+              label: '+10',
+              size: 42,
+              fontSize: 13,
+              onPressed: () => unawaited(
+                _audioService.seekRelative(const Duration(seconds: 10)),
+              ),
+            ),
+            const SizedBox(width: 8),
+            _buildDownloadButton(context),
+          ],
         ),
-        const SizedBox(width: 8),
-        _AudioSeekButton(
-          tooltip: 'Przewiń o 10 sekund',
-          label: '+10',
-          size: 42,
-          fontSize: 13,
-          onPressed: () => unawaited(
-            _audioService.seekRelative(const Duration(seconds: 10)),
-          ),
-        ),
-      ],
+      ),
     );
   }
 
@@ -692,6 +759,44 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
             ),
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildDownloadButton(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final isDownloaded = _isCurrentTrackDownloaded;
+    final isDownloading = _isDownloadingCurrentTrack;
+
+    return FilledButton.tonalIcon(
+      onPressed: isDownloaded || isDownloading
+          ? null
+          : () => unawaited(_downloadCurrentTrack()),
+      icon: isDownloading
+          ? SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: colorScheme.primary,
+              ),
+            )
+          : Icon(
+              isDownloaded
+                  ? Icons.download_done_rounded
+                  : Icons.download_rounded,
+            ),
+      label: Text(
+        isDownloading
+            ? 'Pobieranie'
+            : isDownloaded
+            ? 'Pobrane'
+            : 'Pobierz',
+      ),
+      style: FilledButton.styleFrom(
+        foregroundColor: colorScheme.primary,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        textStyle: const TextStyle(fontWeight: FontWeight.w700),
       ),
     );
   }
