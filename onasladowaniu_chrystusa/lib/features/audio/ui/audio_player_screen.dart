@@ -869,73 +869,272 @@ class _AudioProgressSlider extends StatefulWidget {
   State<_AudioProgressSlider> createState() => _AudioProgressSliderState();
 }
 
-class _AudioProgressSliderState extends State<_AudioProgressSlider> {
+class _AudioProgressSliderState extends State<_AudioProgressSlider>
+    with WidgetsBindingObserver {
+  StreamSubscription<Duration>? _positionSubscription;
+  StreamSubscription<Duration?>? _durationSubscription;
+  StreamSubscription<PlayerState>? _playerStateSubscription;
+  StreamSubscription<double>? _playbackSpeedSubscription;
+  StreamSubscription<AudioTrack?>? _trackSubscription;
+  Timer? _displayTicker;
+
   bool _isDraggingProgress = false;
   Duration _dragPosition = Duration.zero;
+  Duration _duration = Duration.zero;
+  Duration _anchorPosition = Duration.zero;
+  DateTime _anchorWallClock = DateTime.now();
+  bool _anchorIsPlaying = false;
+  double _anchorPlaybackSpeed = AppAudioPlayerService.defaultPlaybackSpeed;
+  bool _forceNextPositionSync = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _duration = widget.audioService.duration ?? Duration.zero;
+    _resetAnchor(
+      widget.audioService.currentPosition,
+      isPlaying: widget.audioService.isPlaying,
+      playbackSpeed: widget.audioService.playbackSpeed,
+    );
+    _subscribeToPlayer();
+    _updateDisplayTicker();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _displayTicker?.cancel();
+    _positionSubscription?.cancel();
+    _durationSubscription?.cancel();
+    _playerStateSubscription?.cancel();
+    _playbackSpeedSubscription?.cancel();
+    _trackSubscription?.cancel();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _updateAnchorPlaybackState();
+      _updateDisplayTicker();
+      if (mounted) setState(() {});
+    }
+  }
+
+  void _subscribeToPlayer() {
+    _durationSubscription = widget.audioService.durationStream.listen((
+      duration,
+    ) {
+      if (!mounted) return;
+      setState(() {
+        _duration = duration ?? Duration.zero;
+        _anchorPosition = _clampPosition(_anchorPosition, _duration);
+        _dragPosition = _clampPosition(_dragPosition, _duration);
+      });
+    });
+
+    _positionSubscription = widget.audioService.positionStream.listen(
+      _syncAnchorFromPlayerPosition,
+    );
+
+    _playerStateSubscription = widget.audioService.playerStateStream.listen((
+      _,
+    ) {
+      if (!mounted) return;
+      final displayPosition = _displayPosition();
+      setState(() {
+        _resetAnchor(
+          displayPosition,
+          isPlaying: widget.audioService.isPlaying,
+          playbackSpeed: widget.audioService.playbackSpeed,
+        );
+      });
+      _updateDisplayTicker();
+    });
+
+    _playbackSpeedSubscription = widget.audioService.playbackSpeedStream.listen(
+      (speed) {
+        if (!mounted) return;
+        final displayPosition = _displayPosition();
+        setState(() {
+          _resetAnchor(
+            displayPosition,
+            isPlaying: widget.audioService.isPlaying,
+            playbackSpeed: speed,
+          );
+        });
+      },
+    );
+
+    _trackSubscription = widget.audioService.currentTrackStream.listen((_) {
+      if (!mounted) return;
+      _forceNextPositionSync = true;
+      final playerPosition = widget.audioService.currentPosition;
+      setState(() {
+        _resetAnchor(
+          playerPosition,
+          isPlaying: widget.audioService.isPlaying,
+          playbackSpeed: widget.audioService.playbackSpeed,
+        );
+      });
+      _updateDisplayTicker();
+    });
+  }
+
+  void _syncAnchorFromPlayerPosition(Duration playerPosition) {
+    if (!mounted || _isDraggingProgress) return;
+
+    final clampedPlayerPosition = _clampPosition(playerPosition, _duration);
+    final displayPosition = _displayPosition();
+    final isPlaying = widget.audioService.isPlaying;
+    final playbackSpeed = widget.audioService.playbackSpeed;
+    final shouldSync = _shouldSyncAnchorToPlayerPosition(
+      playerPosition: clampedPlayerPosition,
+      displayPosition: displayPosition,
+      isPlaying: isPlaying,
+    );
+
+    if (!shouldSync) return;
+
+    setState(() {
+      _forceNextPositionSync = false;
+      _resetAnchor(
+        clampedPlayerPosition,
+        isPlaying: isPlaying,
+        playbackSpeed: playbackSpeed,
+      );
+    });
+    _updateDisplayTicker();
+  }
+
+  bool _shouldSyncAnchorToPlayerPosition({
+    required Duration playerPosition,
+    required Duration displayPosition,
+    required bool isPlaying,
+  }) {
+    if (_forceNextPositionSync) return true;
+    if (!isPlaying) return true;
+    if (playerPosition >= displayPosition) return true;
+    return false;
+  }
+
+  void _resetAnchor(
+    Duration position, {
+    required bool isPlaying,
+    required double playbackSpeed,
+  }) {
+    _anchorPosition = _clampPosition(position, _duration);
+    _anchorWallClock = DateTime.now();
+    _anchorIsPlaying = isPlaying;
+    _anchorPlaybackSpeed = playbackSpeed;
+  }
+
+  void _updateAnchorPlaybackState() {
+    final displayPosition = _displayPosition();
+    _resetAnchor(
+      displayPosition,
+      isPlaying: widget.audioService.isPlaying,
+      playbackSpeed: widget.audioService.playbackSpeed,
+    );
+  }
+
+  void _updateDisplayTicker() {
+    final shouldTick = mounted && _anchorIsPlaying && !_isDraggingProgress;
+    if (!shouldTick) {
+      _displayTicker?.cancel();
+      _displayTicker = null;
+      return;
+    }
+
+    _displayTicker ??= Timer.periodic(_displayTickInterval, (_) {
+      if (!mounted) {
+        _displayTicker?.cancel();
+        _displayTicker = null;
+        return;
+      }
+
+      if (!_anchorIsPlaying || _isDraggingProgress) {
+        _updateDisplayTicker();
+        return;
+      }
+
+      setState(() {});
+    });
+  }
+
+  Duration _displayPosition() {
+    if (_isDraggingProgress) {
+      return _clampPosition(_dragPosition, _duration);
+    }
+
+    if (!_anchorIsPlaying) {
+      return _clampPosition(_anchorPosition, _duration);
+    }
+
+    final elapsed = DateTime.now().difference(_anchorWallClock);
+    return _clampPosition(
+      _anchorPosition + _scaleDuration(elapsed, _anchorPlaybackSpeed),
+      _duration,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<Duration?>(
-      stream: widget.audioService.durationStream,
-      builder: (context, durationSnapshot) {
-        final duration = durationSnapshot.data ?? Duration.zero;
+    final position = _displayPosition();
+    final remaining = _remainingDuration(position, _duration);
+    final sliderValue = _duration == Duration.zero
+        ? 0.0
+        : position.inMilliseconds.toDouble();
 
-        return StreamBuilder<Duration>(
-          stream: widget.audioService.positionStream,
-          builder: (context, positionSnapshot) {
-            final streamedPosition = _clampPosition(
-              positionSnapshot.data ?? Duration.zero,
-              duration,
-            );
-            final position = _isDraggingProgress
-                ? _clampPosition(_dragPosition, duration)
-                : streamedPosition;
-
-            return Column(
-              children: [
-                Slider(
-                  value: position.inMilliseconds.toDouble(),
-                  max: duration.inMilliseconds > 0
-                      ? duration.inMilliseconds.toDouble()
-                      : 1,
-                  onChanged: duration == Duration.zero
-                      ? null
-                      : (value) {
-                          setState(() {
-                            _isDraggingProgress = true;
-                            _dragPosition = _durationFromSliderValue(
-                              value,
-                              duration,
-                            );
-                          });
-                        },
-                  onChangeEnd: duration == Duration.zero
-                      ? null
-                      : (value) =>
-                            unawaited(_seekToSliderValue(value, duration)),
-                ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(_formatDuration(position)),
-                      Text(_formatDuration(duration)),
-                    ],
-                  ),
-                ),
-              ],
-            );
-          },
-        );
-      },
+    return Column(
+      children: [
+        Slider(
+          value: sliderValue,
+          max: _duration.inMilliseconds > 0
+              ? _duration.inMilliseconds.toDouble()
+              : 1,
+          onChanged: _duration == Duration.zero
+              ? null
+              : (value) {
+                  _displayTicker?.cancel();
+                  _displayTicker = null;
+                  setState(() {
+                    _isDraggingProgress = true;
+                    _dragPosition = _durationFromSliderValue(value, _duration);
+                  });
+                },
+          onChangeEnd: _duration == Duration.zero
+              ? null
+              : (value) => unawaited(_seekToSliderValue(value, _duration)),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(_formatDuration(position)),
+              Text('-${_formatDuration(remaining)}'),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
   Duration _clampPosition(Duration position, Duration duration) {
+    if (position < Duration.zero) return Duration.zero;
     if (duration == Duration.zero) return position;
     if (position > duration) return duration;
     return position;
+  }
+
+  Duration _remainingDuration(Duration position, Duration duration) {
+    if (duration == Duration.zero || position >= duration) {
+      return Duration.zero;
+    }
+
+    return duration - position;
   }
 
   Duration _durationFromSliderValue(double value, Duration duration) {
@@ -948,16 +1147,37 @@ class _AudioProgressSliderState extends State<_AudioProgressSlider> {
 
   Future<void> _seekToSliderValue(double value, Duration duration) async {
     final target = _durationFromSliderValue(value, duration);
+    _forceNextPositionSync = true;
     try {
+      setState(() {
+        _dragPosition = target;
+        _isDraggingProgress = false;
+        _resetAnchor(
+          target,
+          isPlaying: widget.audioService.isPlaying,
+          playbackSpeed: widget.audioService.playbackSpeed,
+        );
+      });
+      _updateDisplayTicker();
       await widget.audioService.seek(target);
     } finally {
       if (mounted) {
         setState(() {
           _dragPosition = target;
           _isDraggingProgress = false;
+          _resetAnchor(
+            target,
+            isPlaying: widget.audioService.isPlaying,
+            playbackSpeed: widget.audioService.playbackSpeed,
+          );
         });
+        _updateDisplayTicker();
       }
     }
+  }
+
+  Duration _scaleDuration(Duration duration, double speed) {
+    return Duration(microseconds: (duration.inMicroseconds * speed).round());
   }
 
   String _formatDuration(Duration duration) {
@@ -971,6 +1191,8 @@ class _AudioProgressSliderState extends State<_AudioProgressSlider> {
 
     return '$minutes:$seconds';
   }
+
+  static const Duration _displayTickInterval = Duration(milliseconds: 250);
 }
 
 class _AudioPlayPauseButton extends StatelessWidget {
