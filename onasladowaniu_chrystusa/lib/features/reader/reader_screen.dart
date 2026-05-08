@@ -2,11 +2,16 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import '../../shared/models/book_models.dart';
+import '../../shared/navigation/app_page_route.dart';
 import '../../shared/services/book_repository.dart';
 import '../../shared/services/preferences_service.dart';
 import '../../shared/services/bookmarks_service.dart';
 import '../../shared/services/favorites_service.dart';
 import '../../shared/services/journal_service.dart';
+import '../audio/data/audio_catalog.dart';
+import '../audio/data/audio_track.dart';
+import '../audio/ui/audio_player_screen.dart';
+import '../settings/settings_screen.dart';
 
 class ReaderScreen extends StatefulWidget {
   final void Function(String query)? onOpenSearchResults;
@@ -32,9 +37,11 @@ class _ReaderScreenState extends State<ReaderScreen> {
   late final ScrollController _scrollController;
   late final TextEditingController _chapterSearchController;
   late final FocusNode _chapterSearchFocusNode;
+  final GlobalKey<SelectionAreaState> _selectionAreaKey =
+      GlobalKey<SelectionAreaState>();
 
   double _fontSize = 18.0;
-  double _lineHeight = 1.5;
+  final double _lineHeight = 1.5;
   bool _isJustified = true;
 
   late Future<BookChapter> _chapterFuture;
@@ -59,6 +66,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
   // aktualnie zaznaczony tekst (SelectionArea)
   String? _selectedText;
+  final ValueNotifier<String?> _selectedTextNotifier = ValueNotifier(null);
 
   // --- NOWE: obsługa skoku do konkretnego akapitu ---
   // numer akapitu (1-based) przekazany z zewnątrz
@@ -100,6 +108,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
     _chapterSearchController.removeListener(_onChapterSearchChanged);
     _chapterSearchController.dispose();
     _chapterSearchFocusNode.dispose();
+    _selectedTextNotifier.dispose();
     _scrollController.dispose();
     super.dispose();
   }
@@ -128,6 +137,23 @@ class _ReaderScreenState extends State<ReaderScreen> {
     if (!_scrollController.hasClients) return;
     final offset = _scrollController.offset;
     _prefs.saveScrollOffset(_currentChapterRef, offset);
+  }
+
+  void _clearManualSelection({bool clearNativeSelection = true}) {
+    _chapterSearchFocusNode.unfocus();
+    FocusScope.of(context).unfocus();
+
+    if (clearNativeSelection) {
+      _selectionAreaKey.currentState?.selectableRegion.clearSelection();
+    }
+
+    _setManualSelectionText(null);
+  }
+
+  void _setManualSelectionText(String? text) {
+    if (_selectedText == text) return;
+    _selectedText = text;
+    _selectedTextNotifier.value = text;
   }
 
   Future<void> _loadReaderFontSize() async {
@@ -183,13 +209,13 @@ class _ReaderScreenState extends State<ReaderScreen> {
     }
 
     if (!mounted) {
-      return chapter!;
+      return chapter;
     }
 
-    _currentChapterRef = chapter!.reference;
+    _currentChapterRef = chapter.reference;
     _visibleChapter = chapter;
     _paragraphKeys.clear();
-    _selectedText = null;
+    _setManualSelectionText(null);
     _resetChapterSearchForChapterChange();
     final pendingSearchRequest = await _prefs.takePendingReaderSearchRequest();
     _setPendingChapterSearchRequest(pendingSearchRequest);
@@ -233,9 +259,9 @@ class _ReaderScreenState extends State<ReaderScreen> {
   }
 
   void _openChapterSearch() {
+    _setManualSelectionText(null);
     setState(() {
       _isChapterSearchVisible = true;
-      _selectedText = null;
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -421,7 +447,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
         return chapter;
       });
       _pendingScrollOffset = null;
-      _selectedText = null;
+      _setManualSelectionText(null);
       _paragraphKeys.clear();
       _resetChapterSearchForChapterChange();
       // _jumpParagraphNumber / _pendingJumpToParagraph ustawiamy
@@ -521,7 +547,9 @@ class _ReaderScreenState extends State<ReaderScreen> {
                               width: 40,
                               height: 4,
                               decoration: BoxDecoration(
-                                color: colorScheme.onSurface.withOpacity(0.3),
+                                color: colorScheme.onSurface.withValues(
+                                  alpha: 0.3,
+                                ),
                                 borderRadius: BorderRadius.circular(2),
                               ),
                             ),
@@ -550,7 +578,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
                                 ),
                                 scrollDirection: Axis.horizontal,
                                 itemCount: books.length,
-                                separatorBuilder: (_, __) =>
+                                separatorBuilder: (_, _) =>
                                     const SizedBox(width: 8),
                                 itemBuilder: (context, index) {
                                   final book = books[index];
@@ -595,7 +623,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
                                     ),
                                     title: Text(chapter.title),
                                     subtitle: Text(
-                                      'Rozdział ${chapter.number} • ${chapter.reference}',
+                                      'Rozdział ${chapter.number}',
                                     ),
                                     trailing:
                                         _currentChapterRef == chapter.reference
@@ -705,6 +733,61 @@ class _ReaderScreenState extends State<ReaderScreen> {
         SnackBar(content: Text('Nie udało się zaktualizować zakładki: $e')),
       );
     }
+  }
+
+  AudioTrack? _audioTrackForCurrentChapter() {
+    final visibleChapter = _visibleChapter;
+    if (visibleChapter != null &&
+        visibleChapter.reference == _currentChapterRef) {
+      return _audioTrackForChapter(visibleChapter);
+    }
+
+    return AudioCatalog.trackForChapter(
+      chapterReference: _currentChapterRef,
+      title: _fallbackAudioTitleForReference(_currentChapterRef),
+      subtitle: _bookTitleForReference(_currentChapterRef),
+    );
+  }
+
+  AudioTrack? _audioTrackForChapter(BookChapter chapter) {
+    return AudioCatalog.trackForChapter(
+      chapterReference: chapter.reference,
+      title: chapter.title,
+      subtitle: _bookTitleForReference(chapter.reference),
+    );
+  }
+
+  String _bookTitleForReference(String chapterReference) {
+    final bookCode = chapterReference.split('-').first;
+
+    return switch (bookCode) {
+      'I' => 'Księga pierwsza',
+      'II' => 'Księga druga',
+      'III' => 'Księga trzecia',
+      'IV' => 'Księga czwarta',
+      _ => 'Księga $bookCode',
+    };
+  }
+
+  String _fallbackAudioTitleForReference(String chapterReference) {
+    final parts = chapterReference.split('-');
+    if (parts.length == 2) {
+      return 'Rozdział ${parts[1]}';
+    }
+
+    return 'Rozdział';
+  }
+
+  Future<void> _openAudioPlayerForCurrentChapter() async {
+    final track = _audioTrackForCurrentChapter();
+    if (track == null) return;
+
+    await Navigator.of(context).push(
+      AppPageRoute.fade(
+        settings: const RouteSettings(name: '/audio-player/from-reader'),
+        builder: (_) => AudioPlayerScreen(track: track),
+      ),
+    );
   }
 
   /// Zakładka z paska zaznaczenia – zawsze "dodaj", bez usuwania.
@@ -886,7 +969,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
     setState(() {
       _isChapterSearchVisible = true;
-      _selectedText = null;
+      _setManualSelectionText(null);
       _chapterSearchMatches = _findChapterSearchMatches(chapter, query);
       _activeChapterSearchIndex = 0;
       _chapterSearchOpenedFromGlobalSearch = true;
@@ -904,10 +987,21 @@ class _ReaderScreenState extends State<ReaderScreen> {
     widget.onOpenSearchResults?.call(query);
   }
 
+  void _openSettings() {
+    Navigator.of(context).push(
+      AppPageRoute.fade(
+        settings: const RouteSettings(name: '/settings'),
+        builder: (_) => const SettingsScreen(),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     // Przy każdym buildzie sprawdzamy, czy nie ma nowego "skoku" z zewnątrz
     _maybeHandleExternalJump();
+    final hasAudioForCurrentChapter =
+        AudioCatalog.audioUrlForReference(_currentChapterRef) != null;
 
     return Scaffold(
       appBar: AppBar(
@@ -920,6 +1014,12 @@ class _ReaderScreenState extends State<ReaderScreen> {
             tooltip: _isCurrentBookmarked ? 'Usuń zakładkę' : 'Dodaj zakładkę',
             onPressed: _toggleBookmarkForCurrentChapter,
           ),
+          if (hasAudioForCurrentChapter)
+            IconButton(
+              icon: const Icon(Icons.headphones_rounded),
+              tooltip: 'Posłuchaj rozdziału',
+              onPressed: _openAudioPlayerForCurrentChapter,
+            ),
           IconButton(
             icon: const Icon(Icons.search),
             tooltip: 'Znajdź w rozdziale',
@@ -929,6 +1029,11 @@ class _ReaderScreenState extends State<ReaderScreen> {
             icon: const Icon(Icons.menu_book_outlined),
             tooltip: 'Wybierz księgę i rozdział',
             onPressed: _showChapterPicker,
+          ),
+          IconButton(
+            icon: const Icon(Icons.settings),
+            tooltip: 'Ustawienia',
+            onPressed: _openSettings,
           ),
         ],
       ),
@@ -1147,7 +1252,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
             subtitle,
             style: TextStyle(
               fontSize: 12,
-              color: colorScheme.onSurface.withOpacity(0.7),
+              color: colorScheme.onSurface.withValues(alpha: 0.7),
             ),
           ),
         ],
@@ -1187,41 +1292,44 @@ class _ReaderScreenState extends State<ReaderScreen> {
       child: Stack(
         children: [
           SelectionArea(
+            key: _selectionAreaKey,
             onSelectionChanged: (selected) {
               final text = selected?.plainText;
               if (!mounted) return;
-              setState(() {
-                final trimmed = text?.trim();
-                _selectedText = (trimmed != null && trimmed.isNotEmpty)
-                    ? trimmed
-                    : null;
-              });
+              final trimmed = text?.trim();
+              _setManualSelectionText(
+                trimmed != null && trimmed.isNotEmpty ? trimmed : null,
+              );
             },
             child: SingleChildScrollView(
               controller: _scrollController,
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-              child: GestureDetector(
-                behavior: HitTestBehavior.translucent,
-                onTap: _chapterSearchFocusNode.unfocus,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    for (int i = 0; i < chapter.paragraphs.length; i++) ...[
-                      _buildParagraphText(chapter.paragraphs[i].text, i),
-                      const SizedBox(height: 12),
-                    ],
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  for (int i = 0; i < chapter.paragraphs.length; i++) ...[
+                    _buildParagraphText(chapter.paragraphs[i].text, i),
+                    const SizedBox(height: 12),
                   ],
-                ),
+                ],
               ),
             ),
           ),
-          if (_selectedText != null)
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: 0,
-              child: _buildSelectionToolbar(chapter),
-            ),
+          ValueListenableBuilder<String?>(
+            valueListenable: _selectedTextNotifier,
+            builder: (context, selectedText, child) {
+              if (selectedText == null) {
+                return const SizedBox.shrink();
+              }
+
+              return Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                child: _buildSelectionToolbar(chapter, selectedText),
+              );
+            },
+          ),
         ],
       ),
     );
@@ -1297,9 +1405,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
     return spans;
   }
 
-  Widget _buildSelectionToolbar(BookChapter chapter) {
+  Widget _buildSelectionToolbar(BookChapter chapter, String preview) {
     final colorScheme = Theme.of(context).colorScheme;
-    final preview = _selectedText ?? '';
 
     return SafeArea(
       top: false,
@@ -1307,13 +1414,13 @@ class _ReaderScreenState extends State<ReaderScreen> {
         margin: const EdgeInsets.all(8),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-          color: colorScheme.surface.withOpacity(0.95),
+          color: colorScheme.surface.withValues(alpha: 0.95),
           borderRadius: BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(
               blurRadius: 8,
               offset: const Offset(0, -2),
-              color: Colors.black.withOpacity(0.4),
+              color: Colors.black.withValues(alpha: 0.4),
             ),
           ],
         ),
@@ -1326,7 +1433,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   fontSize: 12,
-                  color: colorScheme.onSurface.withOpacity(0.8),
+                  color: colorScheme.onSurface.withValues(alpha: 0.8),
                 ),
               ),
             ),
@@ -1349,11 +1456,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
             IconButton(
               tooltip: 'Zamknij',
               icon: const Icon(Icons.close),
-              onPressed: () {
-                setState(() {
-                  _selectedText = null;
-                });
-              },
+              onPressed: _clearManualSelection,
             ),
           ],
         ),
@@ -1383,9 +1486,6 @@ class _ReaderScreenState extends State<ReaderScreen> {
           content: Text('Dodano zaznaczony fragment do ulubionych.'),
         ),
       );
-      setState(() {
-        _selectedText = null;
-      });
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1400,68 +1500,136 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
     final controller = TextEditingController();
 
-    await showDialog(
+    var saved = false;
+    await showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       builder: (ctx) {
-        return AlertDialog(
-          title: const Text('Dodaj do dziennika'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(text, style: const TextStyle(fontSize: 14)),
-                const SizedBox(height: 16),
-                const Text(
-                  'Twoja notatka:',
-                  style: TextStyle(fontWeight: FontWeight.w600),
-                ),
-                const SizedBox(height: 4),
-                TextField(
-                  controller: controller,
-                  maxLines: 4,
-                  decoration: const InputDecoration(
-                    border: OutlineInputBorder(),
-                    hintText:
-                        'Co mówi do Ciebie ten fragment? '
-                        'Jak chcesz na niego odpowiedzieć?',
+        final colorScheme = Theme.of(ctx).colorScheme;
+        final mediaQuery = MediaQuery.of(ctx);
+        final sheetMaxHeight = mediaQuery.size.height * 0.88;
+        final quoteMaxHeight = mediaQuery.size.height * 0.2;
+
+        return Padding(
+          padding: EdgeInsets.only(bottom: mediaQuery.viewInsets.bottom),
+          child: SafeArea(
+            top: false,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(maxHeight: sheetMaxHeight),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      margin: const EdgeInsets.only(top: 8, bottom: 16),
+                      decoration: BoxDecoration(
+                        color: colorScheme.onSurface.withValues(alpha: 0.25),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                    ),
                   ),
-                ),
-              ],
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 20),
+                    child: Text(
+                      'Dodaj do dziennika',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Flexible(
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          ConstrainedBox(
+                            constraints: BoxConstraints(
+                              maxHeight: quoteMaxHeight,
+                            ),
+                            child: SingleChildScrollView(
+                              child: Text(
+                                text,
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  height: 1.45,
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          const Text(
+                            'Twoja notatka:',
+                            style: TextStyle(fontWeight: FontWeight.w600),
+                          ),
+                          const SizedBox(height: 4),
+                          TextField(
+                            controller: controller,
+                            maxLines: 4,
+                            decoration: const InputDecoration(
+                              border: OutlineInputBorder(),
+                              hintText:
+                                  'Co mówi do Ciebie ten fragment? '
+                                  'Jak chcesz na niego odpowiedzieć?',
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 4, 20, 16),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        TextButton(
+                          onPressed: () => Navigator.of(ctx).pop(),
+                          child: const Text('Anuluj'),
+                        ),
+                        const SizedBox(width: 8),
+                        ElevatedButton(
+                          onPressed: () async {
+                            final sheetNavigator = Navigator.of(ctx);
+                            final messenger = ScaffoldMessenger.of(context);
+                            final note = controller.text.trim();
+
+                            await _journalService.addEntry(
+                              content: note.isEmpty ? text : note,
+                              quoteText: text,
+                              quoteRef: '${chapter.reference}-sel',
+                            );
+
+                            saved = true;
+                            if (!mounted) return;
+                            sheetNavigator.pop();
+                            messenger.showSnackBar(
+                              const SnackBar(
+                                content: Text('Dodano wpis do dziennika.'),
+                              ),
+                            );
+                          },
+                          child: const Text('Zapisz'),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text('Anuluj'),
-            ),
-            TextButton(
-              onPressed: () async {
-                final note = controller.text.trim();
-
-                await _journalService.addEntry(
-                  content: note.isEmpty ? text : note,
-                  quoteText: text,
-                  quoteRef: '${chapter.reference}-sel',
-                );
-
-                if (!mounted) return;
-                Navigator.of(ctx).pop();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Dodano wpis do dziennika.')),
-                );
-              },
-              child: const Text('Zapisz'),
-            ),
-          ],
         );
       },
     );
 
     if (!mounted) return;
-    setState(() {
-      _selectedText = null;
-    });
+    if (saved) {
+      _clearManualSelection();
+    }
   }
 }
 

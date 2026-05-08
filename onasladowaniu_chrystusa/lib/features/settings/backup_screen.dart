@@ -10,6 +10,7 @@ import 'package:share_plus/share_plus.dart';
 import '../../shared/services/backup_service.dart';
 import '../../shared/services/formation_notification_service.dart';
 import '../../shared/widgets/section_header.dart';
+import '../audio/services/app_audio_player_service.dart';
 
 class BackupScreen extends StatefulWidget {
   const BackupScreen({super.key});
@@ -30,8 +31,7 @@ class _BackupScreenState extends State<BackupScreen> {
 
     try {
       final backupJson = await backupService.createBackupJson();
-      final prettyJson =
-          const JsonEncoder.withIndent('  ').convert(backupJson);
+      final prettyJson = const JsonEncoder.withIndent('  ').convert(backupJson);
 
       final tempDir = await getTemporaryDirectory();
       final timestamp = DateTime.now()
@@ -57,11 +57,7 @@ class _BackupScreenState extends State<BackupScreen> {
       final result = await SharePlus.instance.share(
         ShareParams(
           files: [
-            XFile(
-              file.path,
-              mimeType: 'application/json',
-              name: fileName,
-            ),
+            XFile(file.path, mimeType: 'application/json', name: fileName),
           ],
           subject: 'Kopia danych – O naśladowaniu Chrystusa',
           text:
@@ -77,9 +73,7 @@ class _BackupScreenState extends State<BackupScreen> {
       }
 
       messenger.showSnackBar(
-        const SnackBar(
-          content: Text('Kopia danych została utworzona.'),
-        ),
+        const SnackBar(content: Text('Kopia danych została utworzona.')),
       );
     } catch (e) {
       assert(() {
@@ -148,6 +142,7 @@ class _BackupScreenState extends State<BackupScreen> {
       }
 
       await backupService.restoreFromBackupJson(decoded);
+      await AppAudioPlayerService.instance.reloadCurrentTrackSavedPosition();
       await _syncFormationReminderAfterRestore();
 
       messenger.showSnackBar(
@@ -163,9 +158,7 @@ class _BackupScreenState extends State<BackupScreen> {
       );
     } catch (e) {
       messenger.showSnackBar(
-        SnackBar(
-          content: Text('Nie udało się zaimportować danych: $e'),
-        ),
+        SnackBar(content: Text('Nie udało się zaimportować danych: $e')),
       );
     } finally {
       if (mounted) {
@@ -204,40 +197,40 @@ class _BackupScreenState extends State<BackupScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-            const Text(
-              'Tutaj możesz wyeksportować swój dziennik, ulubione, zakładki, '
-              'postęp Drogi naśladowania, czas medytacji, przypomnienia oraz '
-              'ustawienia czytnika do pliku JSON '
-              'i później je przywrócić (również na nowszej wersji aplikacji).',
-              style: TextStyle(fontSize: 14, height: 1.4),
-            ),
-            const SizedBox(height: 24),
-            ElevatedButton.icon(
-              onPressed: isDisabled ? null : _exportBackup,
-              icon: const Icon(Icons.upload_file),
-              label: const Text('Eksportuj dane'),
-            ),
-            const SizedBox(height: 12),
-            OutlinedButton.icon(
-              onPressed: isDisabled ? null : _importBackup,
-              icon: const Icon(Icons.download),
-              label: const Text('Importuj dane'),
-            ),
-            const SizedBox(height: 16),
-            if (_isBusy)
-              const Center(
-                child: Padding(
-                  padding: EdgeInsets.only(top: 8.0),
-                  child: CircularProgressIndicator(),
-                ),
-              ),
-            const Spacer(),
-            const Text(
-              'Uwaga: import danych nadpisze aktualny dziennik, ulubione, '
-              'zakładki, postęp Drogi naśladowania, czas medytacji, '
-              'przypomnienia i preferencje czytnika.',
-              style: TextStyle(fontSize: 12, height: 1.3),
-            ),
+                    const Text(
+                      'Tutaj możesz wyeksportować swój dziennik, ulubione, zakładki, '
+                      'postęp Drogi naśladowania, czas medytacji, przypomnienia oraz '
+                      'ustawienia czytnika i postęp słuchania audio do pliku JSON '
+                      'i później je przywrócić (również na nowszej wersji aplikacji).',
+                      style: TextStyle(fontSize: 14, height: 1.4),
+                    ),
+                    const SizedBox(height: 24),
+                    ElevatedButton.icon(
+                      onPressed: isDisabled ? null : _exportBackup,
+                      icon: const Icon(Icons.upload_file),
+                      label: const Text('Eksportuj dane'),
+                    ),
+                    const SizedBox(height: 12),
+                    OutlinedButton.icon(
+                      onPressed: isDisabled ? null : _importBackup,
+                      icon: const Icon(Icons.download),
+                      label: const Text('Importuj dane'),
+                    ),
+                    const SizedBox(height: 16),
+                    if (_isBusy)
+                      const Center(
+                        child: Padding(
+                          padding: EdgeInsets.only(top: 8.0),
+                          child: CircularProgressIndicator(),
+                        ),
+                      ),
+                    const Spacer(),
+                    const Text(
+                      'Uwaga: import danych nadpisze aktualny dziennik, ulubione, '
+                      'zakładki, postęp Drogi naśladowania, czas medytacji, '
+                      'przypomnienia, preferencje czytnika i postęp słuchania audio.',
+                      style: TextStyle(fontSize: 12, height: 1.3),
+                    ),
                   ],
                 ),
               ),

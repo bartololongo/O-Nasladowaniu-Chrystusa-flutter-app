@@ -2,11 +2,21 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../audio/data/audio_catalog.dart';
+import '../audio/data/audio_track.dart';
+import '../audio/ui/inline_audio_player_card.dart';
+import '../settings/settings_screen.dart';
 import '../../shared/models/formation_challenge_models.dart';
+import '../../shared/navigation/app_page_route.dart';
 import '../../shared/services/formation_challenge_progress_service.dart';
 import '../../shared/services/formation_meditation_settings_service.dart';
 import '../../shared/services/formation_widget_snapshot_service.dart';
+import '../../shared/widgets/section_header.dart';
 import 'formation_journal_helpers.dart';
+
+enum _MeditationContentMode { read, listen }
+
+const double _meditationContentHeight = 312;
 
 class FormationMeditationScreen extends StatefulWidget {
   final FormationChallengeDay day;
@@ -38,6 +48,8 @@ class _FormationMeditationScreenState extends State<FormationMeditationScreen> {
   bool _isRunning = false;
   bool _isFinished = false;
   bool _completionSaved = false;
+  _MeditationContentMode _contentMode = _MeditationContentMode.read;
+  int _keepScreenOnRefreshToken = 0;
 
   @override
   void initState() {
@@ -206,6 +218,20 @@ class _FormationMeditationScreenState extends State<FormationMeditationScreen> {
     Navigator.of(context).pop();
   }
 
+  Future<void> _openSettings() async {
+    await Navigator.of(context).push(
+      AppPageRoute.fade(
+        settings: const RouteSettings(name: '/settings'),
+        builder: (_) => const SettingsScreen(),
+      ),
+    );
+    if (!mounted) return;
+
+    setState(() {
+      _keepScreenOnRefreshToken++;
+    });
+  }
+
   String get _timerText {
     final remaining = _remaining ?? Duration.zero;
     final minutes = remaining.inMinutes.toString().padLeft(2, '0');
@@ -242,49 +268,167 @@ class _FormationMeditationScreenState extends State<FormationMeditationScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final audioTrack = _audioTrackForDay(widget.day);
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Medytacja')),
-      body: _isLoadingSettings
-          ? const Center(child: CircularProgressIndicator())
-          : SafeArea(
-              child: ListView(
-                padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
-                children: [
-                  Text(
-                    'Dzień ${widget.day.dayNumber} z ${widget.totalDays}',
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    widget.day.chapterTitle,
-                    style: const TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w600,
-                      height: 1.2,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: TextButton.icon(
-                      onPressed: _isRunning || _isFinished
-                          ? null
-                          : _chooseDuration,
-                      icon: const Icon(Icons.timer_outlined),
-                      label: Text('Czas medytacji: $_durationMinutes min'),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  if (_isFinished) ...[
-                    _buildFinishedSection(context),
-                  ] else ...[
-                    _buildReadingSection(context),
-                    const SizedBox(height: 32),
-                    _buildTimerSection(context),
-                  ],
-                ],
+      body: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            SectionHeader(
+              title: 'Medytacja',
+              subtitle: 'Dzień ${widget.day.dayNumber} z ${widget.totalDays}',
+              icon: Icons.self_improvement,
+              showBackButton: true,
+              onBack: _returnToChallenge,
+              trailing: IconButton(
+                onPressed: _openSettings,
+                icon: const Icon(Icons.settings),
+                tooltip: 'Ustawienia',
               ),
             ),
+            Expanded(
+              child: _isLoadingSettings
+                  ? const Center(child: CircularProgressIndicator())
+                  : ListView(
+                      padding: const EdgeInsets.fromLTRB(20, 4, 20, 32),
+                      children: [
+                        Text(
+                          widget.day.chapterTitle,
+                          style: const TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.w600,
+                            height: 1.2,
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: TextButton.icon(
+                            onPressed: _isRunning || _isFinished
+                                ? null
+                                : _chooseDuration,
+                            icon: const Icon(Icons.timer_outlined),
+                            label: Text(
+                              'Czas medytacji: $_durationMinutes min',
+                            ),
+                          ),
+                        ),
+                        if (_isFinished) ...[
+                          const SizedBox(height: 14),
+                          _buildFinishedSection(context),
+                        ] else ...[
+                          const SizedBox(height: 10),
+                          _buildContentModeSelector(context, audioTrack),
+                          const SizedBox(height: 12),
+                          _buildContentSection(context, audioTrack),
+                          const SizedBox(height: 24),
+                          _buildTimerSection(context),
+                        ],
+                      ],
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildContentModeSelector(
+    BuildContext context,
+    AudioTrack? audioTrack,
+  ) {
+    return Row(
+      children: [
+        Expanded(
+          child: _buildContentModeButton(
+            context: context,
+            mode: _MeditationContentMode.read,
+            icon: Icons.menu_book_rounded,
+            label: 'Czytaj',
+          ),
+        ),
+        if (audioTrack != null) ...[
+          const SizedBox(width: 8),
+          Expanded(
+            child: _buildContentModeButton(
+              context: context,
+              mode: _MeditationContentMode.listen,
+              icon: Icons.headphones_rounded,
+              label: 'Słuchaj',
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildContentModeButton({
+    required BuildContext context,
+    required _MeditationContentMode mode,
+    required IconData icon,
+    required String label,
+  }) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final isSelected = _contentMode == mode;
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(999),
+      onTap: () {
+        setState(() {
+          _contentMode = mode;
+        });
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? colorScheme.primary.withValues(alpha: 0.16)
+              : colorScheme.surface.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(
+            color: isSelected
+                ? colorScheme.primary.withValues(alpha: 0.58)
+                : colorScheme.onSurface.withValues(alpha: 0.18),
+          ),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 18,
+              color: isSelected
+                  ? colorScheme.primary
+                  : colorScheme.onSurface.withValues(alpha: 0.64),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              label,
+              style: TextStyle(
+                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                color: isSelected
+                    ? colorScheme.primary
+                    : colorScheme.onSurface.withValues(alpha: 0.72),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildContentSection(BuildContext context, AudioTrack? audioTrack) {
+    return SizedBox(
+      height: _meditationContentHeight,
+      child: _contentMode == _MeditationContentMode.listen && audioTrack != null
+          ? InlineAudioPlayerCard(
+              track: audioTrack,
+              keepScreenOnRefreshToken: _keepScreenOnRefreshToken,
+            )
+          : _buildReadingSection(context),
     );
   }
 
@@ -298,7 +442,6 @@ class _FormationMeditationScreenState extends State<FormationMeditationScreen> {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: colorScheme.primary.withValues(alpha: 0.25)),
       ),
-      constraints: const BoxConstraints(maxHeight: 220),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -332,7 +475,7 @@ class _FormationMeditationScreenState extends State<FormationMeditationScreen> {
           child: Text(
             _timerText,
             style: const TextStyle(
-              fontSize: 56,
+              fontSize: 52,
               fontWeight: FontWeight.w600,
               letterSpacing: 0,
             ),
@@ -347,10 +490,10 @@ class _FormationMeditationScreenState extends State<FormationMeditationScreen> {
             ),
           ),
         ),
-        const SizedBox(height: 24),
+        const SizedBox(height: 22),
         Wrap(
           alignment: WrapAlignment.center,
-          spacing: 8,
+          spacing: 10,
           runSpacing: 8,
           children: [
             ElevatedButton.icon(
@@ -418,6 +561,14 @@ class _FormationMeditationScreenState extends State<FormationMeditationScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  AudioTrack? _audioTrackForDay(FormationChallengeDay day) {
+    return AudioCatalog.trackForChapter(
+      chapterReference: day.chapterReference,
+      title: day.chapterTitle,
+      subtitle: day.bookTitle,
     );
   }
 }

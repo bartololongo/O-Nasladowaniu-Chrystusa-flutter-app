@@ -35,11 +35,7 @@ class SectionHeader extends StatelessWidget {
             ),
             const SizedBox(width: 4),
           ],
-          Icon(
-            icon,
-            size: 30,
-            color: colorScheme.primary,
-          ),
+          Icon(icon, size: 30, color: colorScheme.primary),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -63,10 +59,7 @@ class SectionHeader extends StatelessWidget {
               ],
             ),
           ),
-          if (trailing != null) ...[
-            const SizedBox(width: 12),
-            trailing!,
-          ],
+          if (trailing != null) ...[const SizedBox(width: 12), trailing!],
         ],
       ),
     );

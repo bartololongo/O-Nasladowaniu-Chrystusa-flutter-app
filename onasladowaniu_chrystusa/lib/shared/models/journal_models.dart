@@ -1,7 +1,7 @@
 class JournalEntry {
   final String id;
   final DateTime createdAt;
-  final String content;   // Twoja notatka / treść wpisu
+  final String content; // Twoja notatka / treść wpisu
   final String? quoteText;
   final String? quoteRef;
 

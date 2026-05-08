@@ -5,7 +5,11 @@ import '../../shared/services/formation_challenge_progress_service.dart';
 import '../../shared/services/formation_meditation_settings_service.dart';
 import '../../shared/services/formation_notification_service.dart';
 import '../../shared/services/formation_widget_snapshot_service.dart';
+import '../../shared/services/content_update_service.dart';
+import '../../shared/navigation/app_page_route.dart';
 import '../../shared/widgets/section_header.dart';
+import '../audio/services/app_audio_player_service.dart';
+import '../audio/ui/offline_audio_screen.dart';
 import 'backup_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -28,13 +32,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
       FormationChallengeProgressService();
   final FormationWidgetSnapshotService _formationWidgetSnapshotService =
       FormationWidgetSnapshotService();
+  final AppAudioPlayerService _audioPlayerService =
+      AppAudioPlayerService.instance;
+  final ContentUpdateService _contentUpdateService = ContentUpdateService();
 
   late Future<_FormationSettingsState> _formationSettingsFuture;
+  late Future<_ContentSettingsState> _contentSettingsFuture;
+  late Future<bool> _keepScreenOnInPlayerFuture;
+  bool _isCheckingContentUpdate = false;
+  bool _isRestoringBundledContent = false;
 
   @override
   void initState() {
     super.initState();
     _formationSettingsFuture = _loadFormationSettings();
+    _contentSettingsFuture = _loadContentSettings();
+    _keepScreenOnInPlayerFuture = _audioPlayerService.getKeepScreenOnInPlayer();
   }
 
   Future<_FormationSettingsState> _loadFormationSettings() async {
@@ -55,6 +68,173 @@ class _SettingsScreenState extends State<SettingsScreen> {
     setState(() {
       _formationSettingsFuture = _loadFormationSettings();
     });
+  }
+
+  Future<_ContentSettingsState> _loadContentSettings() async {
+    final localVersion = await _contentUpdateService.getLocalContentVersion();
+    final hasLocalOverride = await _contentUpdateService.hasLocalOverride();
+
+    return _ContentSettingsState(
+      localVersion: localVersion,
+      hasLocalOverride: hasLocalOverride,
+    );
+  }
+
+  Future<void> _refreshContentSettings() async {
+    setState(() {
+      _contentSettingsFuture = _loadContentSettings();
+    });
+  }
+
+  Future<void> _checkContentUpdate() async {
+    if (_isCheckingContentUpdate) return;
+
+    setState(() {
+      _isCheckingContentUpdate = true;
+    });
+
+    String message;
+    try {
+      final result = await _contentUpdateService.checkAndDownloadLatest();
+      message = _contentUpdateMessage(result);
+    } catch (_) {
+      message = 'Wystąpił nieznany błąd.';
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isCheckingContentUpdate = false;
+          _contentSettingsFuture = _loadContentSettings();
+        });
+      }
+    }
+
+    if (!mounted) return;
+
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.clearSnackBars();
+    messenger.showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<void> _restoreBundledContent() async {
+    if (_isRestoringBundledContent) return;
+
+    final confirmed =
+        await showModalBottomSheet<bool>(
+          context: context,
+          isScrollControlled: false,
+          builder: (sheetContext) {
+            final colorScheme = Theme.of(sheetContext).colorScheme;
+
+            return SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.menu_book_outlined,
+                          size: 32,
+                          color: colorScheme.primary,
+                        ),
+                        const SizedBox(width: 12),
+                        const Expanded(
+                          child: Text(
+                            'Przywrócić tekst wbudowany?',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    const Text(
+                      'Usunie to pobraną wersję tekstu książki. Aplikacja '
+                      'wróci do tekstu dołączonego do tej wersji aplikacji.',
+                      style: TextStyle(fontSize: 14, height: 1.4),
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        TextButton(
+                          onPressed: () =>
+                              Navigator.of(sheetContext).pop(false),
+                          child: const Text('Anuluj'),
+                        ),
+                        const SizedBox(width: 8),
+                        ElevatedButton.icon(
+                          onPressed: () => Navigator.of(sheetContext).pop(true),
+                          icon: const Icon(Icons.restore),
+                          label: const Text('Przywróć'),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        ) ??
+        false;
+
+    if (!confirmed) return;
+
+    setState(() {
+      _isRestoringBundledContent = true;
+    });
+
+    try {
+      await _contentUpdateService.restoreBundledContent();
+      if (!mounted) return;
+      setState(() {
+        _isRestoringBundledContent = false;
+        _contentSettingsFuture = _loadContentSettings();
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Przywrócono tekst wbudowany. Zmiany będą widoczne po ponownym '
+            'otwarciu czytnika lub ponownym uruchomieniu aplikacji.',
+          ),
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _isRestoringBundledContent = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Nie udało się przywrócić tekstu.')),
+      );
+    }
+  }
+
+  String _contentUpdateMessage(ContentUpdateResult result) {
+    final suffix = result.status == ContentUpdateStatus.updated
+        ? ' Zmiany będą widoczne po ponownym otwarciu czytnika lub ponownym uruchomieniu aplikacji.'
+        : '';
+
+    final message = switch (result.status) {
+      ContentUpdateStatus.updated => 'Pobrano najnowszą wersję tekstu.',
+      ContentUpdateStatus.upToDate => 'Masz już najnowszą wersję tekstu.',
+      ContentUpdateStatus.skippedIncompatibleAppVersion =>
+        'Ta wersja tekstu wymaga nowszej wersji aplikacji.',
+      ContentUpdateStatus.manifestUnavailable =>
+        'Nie udało się sprawdzić aktualizacji tekstu.',
+      ContentUpdateStatus.downloadFailed => 'Nie udało się pobrać tekstu.',
+      ContentUpdateStatus.invalidHash =>
+        'Pobrany plik nie przeszedł weryfikacji.',
+      ContentUpdateStatus.invalidJson =>
+        'Pobrany tekst ma nieprawidłowy format.',
+      ContentUpdateStatus.unknownError => 'Wystąpił nieznany błąd.',
+    };
+
+    return '$message$suffix';
   }
 
   Future<void> _changeMeditationDuration(int currentMinutes) async {
@@ -188,6 +368,89 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
+  Future<void> _clearAudioPlaybackProgress() async {
+    final confirmed =
+        await showModalBottomSheet<bool>(
+          context: context,
+          isScrollControlled: false,
+          builder: (sheetContext) {
+            final colorScheme = Theme.of(sheetContext).colorScheme;
+
+            return SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.headphones_rounded,
+                          size: 32,
+                          color: colorScheme.primary,
+                        ),
+                        const SizedBox(width: 12),
+                        const Expanded(
+                          child: Text(
+                            'Wyczyścić postęp słuchania?',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    const Text(
+                      'Usunie to zapamiętane miejsca odtwarzania rozdziałów '
+                      'audio. Nagrania będą uruchamiać się od początku.',
+                      style: TextStyle(fontSize: 14, height: 1.4),
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        TextButton(
+                          onPressed: () =>
+                              Navigator.of(sheetContext).pop(false),
+                          child: const Text('Anuluj'),
+                        ),
+                        const SizedBox(width: 8),
+                        ElevatedButton.icon(
+                          onPressed: () => Navigator.of(sheetContext).pop(true),
+                          icon: const Icon(Icons.delete_sweep_outlined),
+                          label: const Text('Wyczyść'),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        ) ??
+        false;
+
+    if (!confirmed) return;
+
+    await _audioPlayerService.clearSavedPlaybackProgress();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Postęp słuchania został wyczyszczony.')),
+    );
+  }
+
+  Future<void> _setKeepScreenOnInPlayer(bool enabled) async {
+    await _audioPlayerService.setKeepScreenOnInPlayer(enabled);
+    if (!mounted) return;
+
+    setState(() {
+      _keepScreenOnInPlayerFuture = Future.value(enabled);
+    });
+  }
+
   Future<void> _launchUrl(
     BuildContext context,
     String url, {
@@ -238,7 +501,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             ),
                             const SizedBox(height: 2),
                             Text(
-                              'Wersja 1.5.2',
+                              'Wersja 2.0.0',
                               style: TextStyle(
                                 fontSize: 12,
                                 color: colorScheme.onSurface.withValues(
@@ -252,16 +515,77 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ],
                   ),
                   const SizedBox(height: 16),
+                  const Text(
+                    'Duża aktualizacja aplikacji: nowa nawigacja, odtwarzacz audio, '
+                    'słuchanie w tle, nagrania offline i wygodniejsze aktualizacje '
+                    'tekstu książki.',
+                    style: TextStyle(fontSize: 14, height: 1.4),
+                  ),
+                  const SizedBox(height: 18),
                   const _WhatsNewItem(
-                    title: 'qwerty',
+                    title: 'Nowa nawigacja',
                     description:
-                        'qwerty',
+                        '• Przebudowany dolny pasek nawigacji: Start, Droga, Czytaj, Dziennik i Słuchaj.\n'
+                        '• Dziennik duchowy jest teraz osobną zakładką, dzięki czemu można szybciej wracać do swoich refleksji.\n'
+                        '• Ekran Czytaj został uproszczony i skupia się na czytniku, ulubionych oraz zakładkach.\n'
+                        '• Ujednolicono nagłówki i skróty do ustawień na najważniejszych ekranach.',
                   ),
                   const _WhatsNewItem(
-                    title: 'Poprawki błędów',
+                    title: 'Nowy odtwarzacz audio',
                     description:
-                        'Poprawiono kilka drobnych błędów',
-                  ),                                      
+                        '• Dodano pełny odtwarzacz nagrań z wygodnym układem przycisków.\n'
+                        '• Dodano słuchanie w tle oraz obsługę ekranu blokady.\n'
+                        '• Na ekranie blokady wyświetla się tytuł rozdziału i grafika nagrania.\n'
+                        '• Dodano regulację tempa odtwarzania.\n'
+                        '• Dodano wygodne przewijanie o 10 sekund w tył i w przód.\n'
+                        '• Poprawiono przechodzenie do poprzedniego i następnego rozdziału.\n'
+                        '• Dodano opcję autoodtwarzania kolejnych rozdziałów.\n'
+                        '• Dodano opcję utrzymywania ekranu włączonego podczas korzystania z odtwarzacza.',
+                  ),
+                  const _WhatsNewItem(
+                    title: 'Nagrania offline',
+                    description:
+                        '• Można pobrać pojedynczy rozdział do słuchania offline.\n'
+                        '• Dodano ekran zarządzania pobranymi nagraniami.\n'
+                        '• Można pobrać wszystkie nagrania, usunąć pojedyncze pliki albo wyczyścić wszystkie pobrane nagrania.\n'
+                        '• Pobieranie można anulować.\n'
+                        '• Aplikacja chroni przed przypadkowym wyjściem z ekranu podczas pobierania wielu nagrań.',
+                  ),
+                  const _WhatsNewItem(
+                    title: 'Aktualizacje tekstu książki',
+                    description:
+                        '• Aplikacja może pobierać poprawioną wersję tekstu książki bez konieczności instalowania nowej wersji aplikacji.\n'
+                        '• Dodano sprawdzanie dostępności nowej wersji tekstu przy starcie aplikacji.\n'
+                        '• Nowy komunikat pozwala od razu pobrać aktualizację albo odłożyć ją na później.\n'
+                        '• Aktualizacje tekstu można nadal sprawdzić ręcznie w ustawieniach.\n'
+                        '• Dodano możliwość przywrócenia tekstu wbudowanego.',
+                  ),
+                  const _WhatsNewItem(
+                    title: 'Czytnik i wyszukiwanie',
+                    description:
+                        '• Poprawiono przejścia z wyników wyszukiwania bezpośrednio do czytnika.\n'
+                        '• Poprawiono przejścia z zakładek, ulubionych, dziennika i losowego cytatu do właściwego miejsca w książce.\n'
+                        '• Wyszukiwanie zakładek uwzględnia teraz treść rozdziałów, do których prowadzą.\n'
+                        '• Usprawniono zaznaczanie tekstu w czytniku.\n'
+                        '• Dodawanie zaznaczonego fragmentu do dziennika jest teraz wygodniejsze dzięki dolnemu arkuszowi zamiast klasycznego okna dialogowego.',
+                  ),
+                  const _WhatsNewItem(
+                    title: 'Dziennik duchowy',
+                    description:
+                        '• Dziennik jest teraz dostępny bezpośrednio z dolnego paska nawigacji.\n'
+                        '• Dodawanie nowych wpisów odbywa się w wygodnym dolnym arkuszu.\n'
+                        '• Dodawanie refleksji z czytnika i z losowego cytatu również korzysta z nowego, wygodniejszego formularza.\n'
+                        '• Poprawiono przejścia z wpisów dziennika do odpowiednich fragmentów książki.',
+                  ),
+                  const _WhatsNewItem(
+                    title: 'Usprawnienia techniczne i wizualne',
+                    description:
+                        '• Ujednolicono animacje przejść między ekranami.\n'
+                        '• Zablokowano obracanie aplikacji do poziomu na telefonie.\n'
+                        '• Poprawiono wygląd i ergonomię wielu mniejszych elementów interfejsu.\n'
+                        '• Dodano pierwsze testy regresyjne wyszukiwania.\n'
+                        '• Wyczyściliśmy ostrzeżenia z flutter analyze.',
+                  ),
                   const SizedBox(height: 8),
                   Align(
                     alignment: Alignment.centerRight,
@@ -350,6 +674,91 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
+  Widget _buildContentSettingsSection(BuildContext context) {
+    return FutureBuilder<_ContentSettingsState>(
+      future: _contentSettingsFuture,
+      builder: (context, snapshot) {
+        final state = snapshot.data;
+
+        if (snapshot.connectionState == ConnectionState.waiting &&
+            state == null) {
+          return const ListTile(
+            leading: Icon(Icons.menu_book_outlined),
+            title: Text('Tekst książki'),
+            subtitle: Text('Ładowanie informacji...'),
+          );
+        }
+
+        if (snapshot.hasError || state == null) {
+          return ListTile(
+            leading: const Icon(Icons.menu_book_outlined),
+            title: const Text('Tekst książki'),
+            subtitle: const Text('Nie udało się wczytać informacji'),
+            trailing: IconButton(
+              onPressed: _refreshContentSettings,
+              icon: const Icon(Icons.refresh),
+            ),
+          );
+        }
+
+        final versionLabel = state.localVersion == null
+            ? 'Wersja wbudowana'
+            : 'Pobrana wersja ${state.localVersion}';
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(16, 8, 16, 4),
+              child: Text(
+                'Tekst książki',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.menu_book_outlined),
+              title: const Text('Wersja tekstu'),
+              subtitle: Text(versionLabel),
+            ),
+            ListTile(
+              enabled: !_isCheckingContentUpdate,
+              leading: const Icon(Icons.system_update_alt),
+              title: const Text('Sprawdź aktualizacje tekstu'),
+              subtitle: const Text(
+                'Sprawdź i pobierz poprawki tekstu bez aktualizacji aplikacji.',
+              ),
+              trailing: _isCheckingContentUpdate
+                  ? const SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : null,
+              onTap: _isCheckingContentUpdate ? null : _checkContentUpdate,
+            ),
+            if (state.hasLocalOverride)
+              ListTile(
+                enabled: !_isRestoringBundledContent,
+                leading: const Icon(Icons.restore),
+                title: const Text('Przywróć tekst wbudowany'),
+                subtitle: const Text('Usuń pobraną wersję tekstu książki.'),
+                trailing: _isRestoringBundledContent
+                    ? const SizedBox(
+                        width: 22,
+                        height: 22,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : null,
+                onTap: _isRestoringBundledContent
+                    ? null
+                    : _restoreBundledContent,
+              ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -380,10 +789,55 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     subtitle: const Text('Zapisz lub przywróć dane aplikacji'),
                     onTap: () {
                       Navigator.of(context).push(
-                        MaterialPageRoute(builder: (_) => const BackupScreen()),
+                        AppPageRoute.fade(
+                          settings: const RouteSettings(name: '/backup'),
+                          builder: (_) => const BackupScreen(),
+                        ),
                       );
                     },
                   ),
+                  ListTile(
+                    leading: const Icon(Icons.headphones_rounded),
+                    title: const Text('Wyczyść postęp słuchania'),
+                    subtitle: const Text(
+                      'Rozdziały audio będą odtwarzane od początku.',
+                    ),
+                    onTap: _clearAudioPlaybackProgress,
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.download_done_rounded),
+                    title: const Text('Nagrania offline'),
+                    subtitle: const Text(
+                      'Zarządzaj pobranymi rozdziałami audio.',
+                    ),
+                    onTap: () {
+                      Navigator.of(context).push(
+                        AppPageRoute.fade(
+                          settings: const RouteSettings(name: '/offline-audio'),
+                          builder: (_) => const OfflineAudioScreen(),
+                        ),
+                      );
+                    },
+                  ),
+                  FutureBuilder<bool>(
+                    future: _keepScreenOnInPlayerFuture,
+                    builder: (context, snapshot) {
+                      final enabled = snapshot.data ?? false;
+
+                      return SwitchListTile(
+                        value: enabled,
+                        onChanged: _setKeepScreenOnInPlayer,
+                        secondary: const Icon(Icons.screen_lock_portrait),
+                        title: const Text('Ekran stale włączony w odtwarzaczu'),
+                        subtitle: const Text(
+                          'Zapobiega wygaszaniu ekranu podczas korzystania '
+                          'z pełnego odtwarzacza audio.',
+                        ),
+                      );
+                    },
+                  ),
+                  const Divider(),
+                  _buildContentSettingsSection(context),
                   const Divider(),
                   _buildFormationSettingsSection(context),
                   const Divider(),
@@ -435,11 +889,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                     ),
                                     const SizedBox(height: 8),
                                     Text(
-                                      'Wersja 1.5.2',
+                                      'Wersja 2.0',
                                       style: TextStyle(
                                         fontSize: 13,
-                                        color: colorScheme.onSurface
-                                            .withOpacity(0.7),
+                                        color: colorScheme.onSurface.withValues(
+                                          alpha: 0.7,
+                                        ),
                                       ),
                                     ),
                                     const SizedBox(height: 16),
@@ -458,8 +913,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                       'Autor: Bartłomiej Kozak vel Bartolo Longo',
                                       style: TextStyle(
                                         fontSize: 13,
-                                        color: colorScheme.onSurface
-                                            .withOpacity(0.8),
+                                        color: colorScheme.onSurface.withValues(
+                                          alpha: 0.8,
+                                        ),
                                       ),
                                     ),
                                     const SizedBox(height: 4),
@@ -469,8 +925,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                       style: TextStyle(
                                         fontSize: 11,
                                         height: 1.3,
-                                        color: colorScheme.onSurface
-                                            .withOpacity(0.6),
+                                        color: colorScheme.onSurface.withValues(
+                                          alpha: 0.6,
+                                        ),
                                       ),
                                     ),
                                     const SizedBox(height: 16),
@@ -559,6 +1016,16 @@ class _FormationSettingsState {
     required this.durationMinutes,
     required this.reminderEnabled,
     required this.reminderTime,
+  });
+}
+
+class _ContentSettingsState {
+  final String? localVersion;
+  final bool hasLocalOverride;
+
+  const _ContentSettingsState({
+    required this.localVersion,
+    required this.hasLocalOverride,
   });
 }
 

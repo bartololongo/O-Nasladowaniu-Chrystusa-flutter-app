@@ -49,11 +49,7 @@ class Book {
   final String title;
   final List<BookChapter> chapters;
 
-  Book({
-    required this.code,
-    required this.title,
-    required this.chapters,
-  });
+  Book({required this.code, required this.title, required this.chapters});
 
   factory Book.fromJson(Map<String, dynamic> json) {
     return Book(
@@ -128,10 +124,6 @@ class BookParagraph {
   }
 
   Map<String, dynamic> toJson() {
-    return {
-      'index': index,
-      'reference': reference,
-      'text': text,
-    };
+    return {'index': index, 'reference': reference, 'text': text};
   }
 }

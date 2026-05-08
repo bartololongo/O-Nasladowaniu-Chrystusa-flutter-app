@@ -41,8 +41,9 @@ class FavoritesService {
     final list = await _loadFavorites();
 
     // Usuń istniejące dla tego akapitu (jedna ulubiona pozycja na akapit)
-    final updated =
-        list.where((f) => f.paragraphRef != paragraph.reference).toList();
+    final updated = list
+        .where((f) => f.paragraphRef != paragraph.reference)
+        .toList();
 
     final favorite = FavoriteQuote(
       id: DateTime.now().microsecondsSinceEpoch.toString(),
@@ -58,8 +59,7 @@ class FavoritesService {
 
   Future<void> removeFavoriteByParagraphRef(String paragraphRef) async {
     final list = await _loadFavorites();
-    final updated =
-        list.where((f) => f.paragraphRef != paragraphRef).toList();
+    final updated = list.where((f) => f.paragraphRef != paragraphRef).toList();
     await _saveFavorites(updated);
   }
 }

@@ -3,11 +3,11 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../shared/models/global_search_models.dart';
+import '../../shared/navigation/app_page_route.dart';
 import '../../shared/services/global_search_service.dart';
 import '../../shared/services/preferences_service.dart';
-import '../bookmarks/bookmarks_screen.dart';
-import '../favorites/favorites_screen.dart';
 import '../journal/journal_screen.dart';
+import '../reader/reader_screen.dart';
 
 class SearchScreen extends StatefulWidget {
   final void Function(int tabIndex)? onNavigateToTab;
@@ -367,10 +367,10 @@ class _SearchScreenState extends State<SearchScreen> {
         await _openBookResult(result);
         return;
       case GlobalSearchResultType.bookmark:
-        _openBookmarksResult();
+        await _openBookmarkResult(result);
         return;
       case GlobalSearchResultType.favorite:
-        _openFavoritesResult();
+        await _openFavoriteResult(result);
         return;
     }
   }
@@ -387,7 +387,7 @@ class _SearchScreenState extends State<SearchScreen> {
     }
 
     Navigator.of(context).push(
-      MaterialPageRoute(
+      AppPageRoute.fade(
         settings: const RouteSettings(name: '/journal/from-search'),
         builder: (_) => screen,
       ),
@@ -416,35 +416,52 @@ class _SearchScreenState extends State<SearchScreen> {
       return;
     }
 
-    widget.onNavigateToTab?.call(1);
-  }
-
-  void _openBookmarksResult() {
-    if (widget.onNavigateToTab != null) {
-      widget.onNavigateToTab!(2);
-      return;
-    }
-
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        settings: const RouteSettings(name: '/bookmarks/from-search'),
-        builder: (_) => const BookmarksScreen(),
+    await Navigator.of(context).pushReplacement(
+      AppPageRoute.fade(
+        settings: const RouteSettings(name: '/reader/from-search'),
+        builder: (_) => const ReaderScreen(),
       ),
     );
   }
 
-  void _openFavoritesResult() {
-    final screen = FavoritesScreen(onNavigateToTab: widget.onNavigateToTab);
+  Future<void> _openBookmarkResult(GlobalSearchResult result) async {
+    final chapterRef = result.chapterRef;
+    if (chapterRef != null && chapterRef.isNotEmpty) {
+      await _preferencesService.setJumpChapterRef(chapterRef);
+    }
+    await _preferencesService.clearJumpParagraphNumber();
 
-    if (widget.onOpenMoreScreen != null) {
-      widget.onOpenMoreScreen!(screen);
-      return;
+    if (!mounted) return;
+
+    await Navigator.of(context).pushReplacement(
+      AppPageRoute.fade(
+        settings: const RouteSettings(name: '/reader/from-bookmark-search'),
+        builder: (_) => const ReaderScreen(),
+      ),
+    );
+  }
+
+  Future<void> _openFavoriteResult(GlobalSearchResult result) async {
+    final paragraphRef = result.paragraphRef;
+    final chapterRef = _chapterRefFromParagraphRef(paragraphRef);
+
+    if (chapterRef != null && chapterRef.isNotEmpty) {
+      await _preferencesService.setJumpChapterRef(chapterRef);
     }
 
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        settings: const RouteSettings(name: '/favorites/from-search'),
-        builder: (_) => screen,
+    final paragraphNumber = _paragraphNumberFromParagraphRef(paragraphRef);
+    if (paragraphNumber != null) {
+      await _preferencesService.setJumpParagraphNumber(paragraphNumber);
+    } else {
+      await _preferencesService.clearJumpParagraphNumber();
+    }
+
+    if (!mounted) return;
+
+    await Navigator.of(context).push(
+      AppPageRoute.fade(
+        settings: const RouteSettings(name: '/reader/from-favorite-search'),
+        builder: (_) => const ReaderScreen(),
       ),
     );
   }
@@ -456,6 +473,15 @@ class _SearchScreenState extends State<SearchScreen> {
     if (parts.length < 2) return paragraphRef;
 
     return '${parts[0]}-${parts[1]}';
+  }
+
+  int? _paragraphNumberFromParagraphRef(String? paragraphRef) {
+    if (paragraphRef == null || paragraphRef.isEmpty) return null;
+
+    final parts = paragraphRef.split('-');
+    if (parts.length < 3) return null;
+
+    return int.tryParse(parts[2]);
   }
 
   String _sectionTitle(GlobalSearchResultType type) {

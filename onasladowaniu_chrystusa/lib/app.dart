@@ -4,13 +4,17 @@ import 'package:flutter/material.dart';
 import 'package:home_widget/home_widget.dart';
 
 import 'features/home/home_screen.dart';
-import 'features/reader/reader_screen.dart';
-import 'features/bookmarks/bookmarks_screen.dart';
+import 'features/reading/reading_hub_screen.dart';
 import 'features/journal/journal_screen.dart';
 import 'features/settings/settings_screen.dart';
 import 'features/favorites/favorites_screen.dart';
 import 'features/formation_challenge/formation_challenge_screen.dart';
+import 'features/audio/ui/listen_screen.dart';
 import 'features/search/search_screen.dart';
+import 'shared/navigation/app_page_route.dart';
+import 'shared/navigation/main_tabs.dart';
+import 'shared/navigation/navigation_guard_service.dart';
+import 'shared/services/content_update_service.dart';
 import 'shared/services/formation_notification_service.dart';
 import 'shared/services/formation_widget_snapshot_service.dart';
 import 'app_route_observer.dart';
@@ -41,7 +45,7 @@ class ImitationOfChristApp extends StatelessWidget {
         bottomNavigationBarTheme: BottomNavigationBarThemeData(
           backgroundColor: backgroundColor,
           selectedItemColor: colorScheme.secondary,
-          unselectedItemColor: colorScheme.onSurface.withOpacity(0.7),
+          unselectedItemColor: colorScheme.onSurface.withValues(alpha: 0.7),
         ),
         appBarTheme: const AppBarTheme(
           centerTitle: false,
@@ -65,11 +69,11 @@ class _RootScreen extends StatefulWidget {
 }
 
 class _RootScreenState extends State<_RootScreen> with WidgetsBindingObserver {
-  /// Bazowa zakładka (Start / Czytanie / Zakładki).
-  int _baseTabIndex = 0;
+  /// Bazowa zakładka (Start / Droga / Czytaj / Dziennik / Słuchaj).
+  int _baseTabIndex = MainTabs.start;
 
-  /// Aktualnie podświetlana zakładka w BottomNavigationBar (Start/Czytanie/Zakładki/Więcej).
-  int _selectedIndex = 0;
+  /// Aktualnie podświetlana zakładka w BottomNavigationBar.
+  int _selectedIndex = MainTabs.start;
 
   /// ID instancji Readera.
   final int _readerInstanceId = 0;
@@ -77,8 +81,8 @@ class _RootScreenState extends State<_RootScreen> with WidgetsBindingObserver {
   String? _activeMoreRouteName;
 
   /// Wewnętrzny Navigator, w którym renderujemy:
-  /// - ekrany z bottom nav (Start, Czytanie, Zakładki),
-  /// - oraz stack "Więcej": Dziennik, Ulubione, Ustawienia itp.
+  /// - ekrany z bottom nav (Start, Droga, Czytaj, Dziennik, Słuchaj),
+  /// - oraz dodatkowe ekrany: Dziennik, Ulubione, Ustawienia itp.
   ///
   /// Dzięki temu dolny pasek jest zawsze widoczny.
   final GlobalKey<NavigatorState> _innerNavigatorKey =
@@ -87,6 +91,9 @@ class _RootScreenState extends State<_RootScreen> with WidgetsBindingObserver {
   StreamSubscription<Uri?>? _widgetClickSubscription;
   String? _pendingNotificationPayload;
   bool _isOpeningFormationFromNotification = false;
+  bool _hasCheckedContentUpdateOnLaunch = false;
+  bool _isShowingContentUpdatePrompt = false;
+  final ContentUpdateService _contentUpdateService = ContentUpdateService();
 
   @override
   void initState() {
@@ -110,6 +117,7 @@ class _RootScreenState extends State<_RootScreen> with WidgetsBindingObserver {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _checkPendingNotificationPayload('initState');
       _checkInitialWidgetUri();
+      unawaited(_checkContentUpdateOnLaunch());
     });
   }
 
@@ -152,6 +160,40 @@ class _RootScreenState extends State<_RootScreen> with WidgetsBindingObserver {
     } catch (_) {
       // Widget launch handling should not block app startup.
     }
+  }
+
+  Future<void> _checkContentUpdateOnLaunch() async {
+    if (_hasCheckedContentUpdateOnLaunch) return;
+    _hasCheckedContentUpdateOnLaunch = true;
+
+    final availability = await _contentUpdateService.checkAvailability();
+    if (!mounted) return;
+
+    if (!availability.isAvailable || availability.isDismissed) {
+      return;
+    }
+
+    final remoteVersion = availability.remoteVersion;
+    if (remoteVersion == null || remoteVersion.isEmpty) {
+      return;
+    }
+
+    if (_isShowingContentUpdatePrompt) return;
+    _isShowingContentUpdatePrompt = true;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (sheetContext) {
+        return _ContentUpdatePromptSheet(
+          remoteVersion: remoteVersion,
+          contentUpdateService: _contentUpdateService,
+        );
+      },
+    );
+
+    if (!mounted) return;
+    _isShowingContentUpdatePrompt = false;
   }
 
   void _handleWidgetUri(Uri? uri) {
@@ -208,7 +250,7 @@ class _RootScreenState extends State<_RootScreen> with WidgetsBindingObserver {
       }
       navigator
           .push(
-            MaterialPageRoute(
+            AppPageRoute.fade(
               settings: const RouteSettings(name: '/formation-challenge'),
               builder: (_) =>
                   FormationChallengeScreen(onNavigateToTab: _onTabSelected),
@@ -221,11 +263,16 @@ class _RootScreenState extends State<_RootScreen> with WidgetsBindingObserver {
   }
 
   void _onTabSelected(int index) {
-    // Ostatni przycisk ("Więcej") otwiera bottom sheet,
-    // nie zmieniamy wtedy bazowej zakładki.
-    if (index == 3) {
-      _showMoreSheet();
-      return;
+    unawaited(_handleTabSelected(index));
+  }
+
+  Future<void> _handleTabSelected(int index) async {
+    if (NavigationGuardService.instance.hasGuard) {
+      final canNavigate = await NavigationGuardService.instance
+          .confirmNavigation(
+            const NavigationGuardRequest(confirmLabel: 'Przerwij i przejdź'),
+          );
+      if (!mounted || !canNavigate) return;
     }
 
     final nav = _innerNavigatorKey.currentState;
@@ -247,79 +294,30 @@ class _RootScreenState extends State<_RootScreen> with WidgetsBindingObserver {
     });
 
     // Resetujemy stos wewnętrznego Navigatora do bazowego ekranu taba.
-    nav?.pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => _buildTabBody()),
-      (route) => false,
-    );
-  }
-
-  void _showMoreSheet() {
-    showModalBottomSheet(
-      context: context,
-      builder: (ctx) {
-        return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ListTile(
-                leading: const Icon(Icons.edit_note),
-                title: const Text('Dziennik duchowy'),
-                onTap: () {
-                  Navigator.of(ctx).pop(); // zamknij bottom sheet
-                  _openMoreScreen(
-                    JournalScreen(onNavigateToTab: _onTabSelected),
-                  );
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.format_quote),
-                title: const Text('Ulubione cytaty'),
-                onTap: () {
-                  Navigator.of(ctx).pop();
-                  _openMoreScreen(
-                    FavoritesScreen(onNavigateToTab: _onTabSelected),
-                  );
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.settings),
-                title: const Text('Ustawienia'),
-                onTap: () {
-                  Navigator.of(ctx).pop();
-                  _openMoreScreen(const SettingsScreen());
-                },
-              ),
-            ],
-          ),
-        );
-      },
-    );
+    nav?.popUntil((route) => route.isFirst);
   }
 
   /// Otwiera ekran z sekcji "Więcej" (Dziennik/Ulubione/Ustawienia).
-  /// Podświetla przycisk "Więcej", a po zamknięciu ekranu przywraca
-  /// podświetlenie bazowej zakładki (_baseTabIndex).
+  /// Zachowuje podświetlenie bazowej zakładki (_baseTabIndex).
   void _openMoreScreen(Widget screen) {
     final routeName = _moreRouteNameFor(screen);
     final navigator = _innerNavigatorKey.currentState;
     if (navigator == null) return;
 
-    if (_selectedIndex == 3 && _activeMoreRouteName == routeName) {
+    if (_activeMoreRouteName == routeName) {
       if (routeName == '/settings') {
         navigator.popUntil((route) => route.settings.name == routeName);
       }
       return;
     }
 
-    final replaceActiveMoreScreen =
-        _selectedIndex == 3 && _activeMoreRouteName != null;
+    final replaceActiveMoreScreen = _activeMoreRouteName != null;
 
     setState(() {
-      _selectedIndex = 3; // podświetl "Więcej"
       _activeMoreRouteName = routeName;
     });
 
-    final route = MaterialPageRoute(
+    final route = AppPageRoute.fade(
       settings: RouteSettings(name: routeName),
       builder: (_) => screen,
     );
@@ -359,7 +357,7 @@ class _RootScreenState extends State<_RootScreen> with WidgetsBindingObserver {
     if (navigator == null) return;
 
     navigator.push(
-      MaterialPageRoute(
+      AppPageRoute.fade(
         settings: const RouteSettings(name: '/search/from-reader'),
         builder: (_) => SearchScreen(
           initialQuery: query,
@@ -374,28 +372,53 @@ class _RootScreenState extends State<_RootScreen> with WidgetsBindingObserver {
     );
   }
 
-  /// Buduje ekran odpowiadający aktualnie wybranemu bazowemu tabowi
-  /// (Start/Czytanie/Zakładki).
+  /// Buduje ekran odpowiadający aktualnie wybranemu bazowemu tabowi.
   Widget _buildTabBody() {
     switch (_baseTabIndex) {
-      case 0:
+      case MainTabs.start:
         return HomeScreen(
           onNavigateToTab: _onTabSelected,
           onOpenMoreScreen: _openMoreScreenFromHome,
         );
-      case 1:
+      case MainTabs.formation:
+        return FormationChallengeScreen(onNavigateToTab: _onTabSelected);
+      case MainTabs.read:
         // ValueKey na podstawie _readerInstanceId wymusza nową instancję,
         // gdy ten licznik się zmieni.
-        return ReaderScreen(
-          key: ValueKey(_readerInstanceId),
-          onOpenSearchResults: _openSearchResultsFromReader,
+        return ReadingHubScreen(
+          readerScreenKey: ValueKey(_readerInstanceId),
           pendingReaderRequestSignal: _pendingReaderRequestSignal,
+          onOpenSearchResults: _openSearchResultsFromReader,
+          onNavigateToTab: _onTabSelected,
         );
-      case 2:
-        return BookmarksScreen(onNavigateToTab: _onTabSelected);
+      case MainTabs.journal:
+        return JournalScreen(onNavigateToTab: _onTabSelected);
+      case MainTabs.listen:
+        return ListenScreen(onNavigateToTab: _onTabSelected);
       default:
         return const SizedBox.shrink();
     }
+  }
+
+  Widget _buildAnimatedTabBody() {
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 200),
+      reverseDuration: const Duration(milliseconds: 160),
+      transitionBuilder: (child, animation) {
+        return FadeTransition(
+          opacity: CurvedAnimation(
+            parent: animation,
+            curve: Curves.easeOut,
+            reverseCurve: Curves.easeIn,
+          ),
+          child: child,
+        );
+      },
+      child: KeyedSubtree(
+        key: ValueKey<int>(_baseTabIndex),
+        child: _buildTabBody(),
+      ),
+    );
   }
 
   @override
@@ -410,7 +433,7 @@ class _RootScreenState extends State<_RootScreen> with WidgetsBindingObserver {
         onGenerateRoute: (settings) {
           // Pierwsza (bazowa) trasa – aktualny tab (Start domyślnie).
           return MaterialPageRoute(
-            builder: (_) => _buildTabBody(),
+            builder: (_) => _buildAnimatedTabBody(),
             settings: settings,
           );
         },
@@ -421,19 +444,160 @@ class _RootScreenState extends State<_RootScreen> with WidgetsBindingObserver {
         type: BottomNavigationBarType.fixed,
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Start'),
+          BottomNavigationBarItem(icon: Icon(Icons.route), label: 'Droga'),
+          BottomNavigationBarItem(icon: Icon(Icons.menu_book), label: 'Czytaj'),
           BottomNavigationBarItem(
-            icon: Icon(Icons.menu_book),
-            label: 'Czytanie',
+            icon: Icon(Icons.edit_note_rounded),
+            label: 'Dziennik',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.bookmark),
-            label: 'Zakładki',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.more_horiz),
-            label: 'Więcej',
+            icon: Icon(Icons.headphones_rounded),
+            label: 'Słuchaj',
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _ContentUpdatePromptSheet extends StatefulWidget {
+  final String remoteVersion;
+  final ContentUpdateService contentUpdateService;
+
+  const _ContentUpdatePromptSheet({
+    required this.remoteVersion,
+    required this.contentUpdateService,
+  });
+
+  @override
+  State<_ContentUpdatePromptSheet> createState() =>
+      _ContentUpdatePromptSheetState();
+}
+
+class _ContentUpdatePromptSheetState extends State<_ContentUpdatePromptSheet> {
+  bool _isDownloading = false;
+
+  Future<void> _dismissForNow() async {
+    await widget.contentUpdateService.dismissContentVersion(
+      widget.remoteVersion,
+    );
+    if (!mounted) return;
+    Navigator.of(context).pop();
+  }
+
+  Future<void> _download() async {
+    if (_isDownloading) return;
+
+    setState(() {
+      _isDownloading = true;
+    });
+
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+    final result = await widget.contentUpdateService.checkAndDownloadLatest();
+    if (!mounted) return;
+
+    final message = _contentUpdateMessage(result);
+    messenger.clearSnackBars();
+
+    if (result.status == ContentUpdateStatus.updated) {
+      navigator.pop();
+      messenger.showSnackBar(SnackBar(content: Text(message)));
+      return;
+    }
+
+    setState(() {
+      _isDownloading = false;
+    });
+    messenger.showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  String _contentUpdateMessage(ContentUpdateResult result) {
+    final suffix = result.status == ContentUpdateStatus.updated
+        ? ' Zmiany będą widoczne po ponownym otwarciu czytnika.'
+        : '';
+
+    final message = switch (result.status) {
+      ContentUpdateStatus.updated => 'Pobrano najnowszą wersję tekstu.',
+      ContentUpdateStatus.upToDate => 'Masz już najnowszą wersję tekstu.',
+      ContentUpdateStatus.skippedIncompatibleAppVersion =>
+        'Ta wersja tekstu wymaga nowszej wersji aplikacji.',
+      ContentUpdateStatus.manifestUnavailable =>
+        'Nie udało się sprawdzić aktualizacji tekstu.',
+      ContentUpdateStatus.downloadFailed => 'Nie udało się pobrać tekstu.',
+      ContentUpdateStatus.invalidHash =>
+        'Pobrany plik nie przeszedł weryfikacji.',
+      ContentUpdateStatus.invalidJson =>
+        'Pobrany tekst ma nieprawidłowy format.',
+      ContentUpdateStatus.unknownError => 'Wystąpił nieznany błąd.',
+    };
+
+    return '$message$suffix';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  Icons.menu_book_outlined,
+                  size: 32,
+                  color: colorScheme.primary,
+                ),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Text(
+                    'Dostępna aktualizacja tekstu',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              'Jest dostępna nowsza wersja tekstu książki. Może zawierać '
+              'poprawki literówek i dopasowanie tekstu do nagrań.',
+              style: TextStyle(fontSize: 14, height: 1.4),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Możesz to zrobić później w ustawieniach.',
+              style: TextStyle(fontSize: 14, height: 1.4),
+            ),
+            const SizedBox(height: 20),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton(
+                  onPressed: _isDownloading ? null : _dismissForNow,
+                  child: const Text('Nie teraz'),
+                ),
+                const SizedBox(width: 8),
+                ElevatedButton.icon(
+                  onPressed: _isDownloading ? null : _download,
+                  icon: _isDownloading
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.download_rounded),
+                  label: Text(_isDownloading ? 'Pobieranie...' : 'Pobierz'),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

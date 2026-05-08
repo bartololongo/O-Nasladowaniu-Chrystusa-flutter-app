@@ -1,11 +1,11 @@
 package com.example.onasladowaniu_chrystusa
 
 import android.content.Intent
-import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
+import com.ryanheise.audioservice.AudioServiceActivity
 
-class MainActivity : FlutterActivity() {
+class MainActivity : AudioServiceActivity() {
     private val notificationTapChannelName = "formation_notification_taps"
     private val selectNotificationAction = "SELECT_NOTIFICATION"
     private val payloadExtra = "payload"

@@ -4,10 +4,7 @@ class ReadingChallengeState {
   final DateTime? startedAt;
   final String? furthestChapterRef;
 
-  const ReadingChallengeState({
-    this.startedAt,
-    this.furthestChapterRef,
-  });
+  const ReadingChallengeState({this.startedAt, this.furthestChapterRef});
 
   bool get isActive => startedAt != null;
 }
@@ -34,10 +31,7 @@ class ReadingChallengeService {
 
   Future<void> startChallenge() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt(
-      _keyStartedAt,
-      DateTime.now().millisecondsSinceEpoch,
-    );
+    await prefs.setInt(_keyStartedAt, DateTime.now().millisecondsSinceEpoch);
     // przy starcie wyzwania czyścimy info o najdalszym rozdziale
     await prefs.remove(_keyFurthestChapterRef);
   }

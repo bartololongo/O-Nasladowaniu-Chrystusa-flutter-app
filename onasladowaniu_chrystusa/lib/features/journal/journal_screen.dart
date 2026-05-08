@@ -4,7 +4,10 @@ import '../../shared/services/journal_service.dart';
 import '../../shared/services/preferences_service.dart';
 import '../../shared/services/favorites_service.dart';
 import '../../shared/models/book_models.dart';
+import '../../shared/navigation/app_page_route.dart';
 import '../../shared/widgets/section_header.dart';
+import '../reader/reader_screen.dart';
+import '../settings/settings_screen.dart';
 
 class JournalScreen extends StatefulWidget {
   final void Function(int tabIndex)? onNavigateToTab;
@@ -430,11 +433,13 @@ class _JournalScreenState extends State<JournalScreen> {
     String? hintText,
     String? contentPrefix,
   }) async {
-    return await showDialog<bool>(
+    return await showModalBottomSheet<bool>(
           context: context,
-          barrierDismissible: true,
-          builder: (dialogContext) {
-            return _JournalEntryComposerDialog(
+          isScrollControlled: true,
+          backgroundColor: Colors.transparent,
+          isDismissible: true,
+          builder: (sheetContext) {
+            return _JournalEntryComposerSheet(
               initialContent: initialContent,
               title: title ?? 'Nowy wpis dziennika',
               hintText:
@@ -461,8 +466,8 @@ class _JournalScreenState extends State<JournalScreen> {
                   }
                   await _refresh();
                 }
-                if (!dialogContext.mounted) return;
-                Navigator.of(dialogContext).pop(text.isNotEmpty);
+                if (!sheetContext.mounted) return;
+                Navigator.of(sheetContext).pop(text.isNotEmpty);
               },
             );
           },
@@ -574,6 +579,8 @@ class _JournalScreenState extends State<JournalScreen> {
     }
 
     final paragraph = BookParagraph(index: index, reference: ref, text: text);
+    final sheetNavigator = Navigator.of(sheetContext);
+    final messenger = ScaffoldMessenger.of(context);
 
     await _favoritesService.addOrUpdateFavoriteForParagraph(
       paragraph,
@@ -583,16 +590,16 @@ class _JournalScreenState extends State<JournalScreen> {
     if (!mounted) return;
 
     // zamknij bottomsheet
-    Navigator.of(sheetContext).pop();
+    sheetNavigator.pop();
 
     // i pokaż komunikat
-    ScaffoldMessenger.of(context).showSnackBar(
+    messenger.showSnackBar(
       const SnackBar(content: Text('Cytat dodany do ulubionych.')),
     );
   }
 
   /// "Zobacz w książce" – ustawiamy jumpChapterRef + (jeśli się da) jumpParagraphNumber,
-  /// a potem przełączamy na zakładkę "Czytanie".
+  /// a potem otwieramy czytnik bezpośrednio.
   Future<void> _goToBookFromEntry(
     JournalEntry entry,
     BuildContext sheetContext,
@@ -602,6 +609,8 @@ class _JournalScreenState extends State<JournalScreen> {
       Navigator.of(sheetContext).pop();
       return;
     }
+    final sheetNavigator = Navigator.of(sheetContext);
+    final rootNavigator = Navigator.of(context);
 
     final parts = quoteRef.split('-');
 
@@ -631,15 +640,24 @@ class _JournalScreenState extends State<JournalScreen> {
     if (!mounted) return;
 
     // 3) zamykamy bottomsheet ze szczegółami wpisu
-    Navigator.of(sheetContext).pop();
+    sheetNavigator.pop();
 
-    // 4) przełączamy na tab "Czytanie"
-    widget.onNavigateToTab?.call(1);
+    // 4) otwieramy czytnik bezpośrednio
+    await rootNavigator.push(
+      AppPageRoute.fade(
+        settings: const RouteSettings(name: '/reader/from-journal'),
+        builder: (_) => const ReaderScreen(),
+      ),
+    );
+  }
 
-    // 5) zamykamy ekran dziennika (jeśli jest osobnym route’em)
-    if (Navigator.of(context).canPop()) {
-      Navigator.of(context).pop();
-    }
+  void _openSettings() {
+    Navigator.of(context).push(
+      AppPageRoute.fade(
+        settings: const RouteSettings(name: '/settings'),
+        builder: (_) => const SettingsScreen(),
+      ),
+    );
   }
 
   Future<void> _openEntryDetails(JournalEntry entry) async {
@@ -807,11 +825,16 @@ class _JournalScreenState extends State<JournalScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const SectionHeader(
+                SectionHeader(
                   title: 'Dziennik duchowy',
                   subtitle: 'Twoje refleksje i notatki z lektury.',
                   icon: Icons.edit_note,
                   showBackButton: true,
+                  trailing: IconButton(
+                    onPressed: _openSettings,
+                    icon: const Icon(Icons.settings),
+                    tooltip: 'Ustawienia',
+                  ),
                 ),
                 Expanded(child: _buildEntriesContent(context, snapshot)),
               ],
@@ -1383,13 +1406,13 @@ class _JournalMonthHeader extends StatelessWidget {
   }
 }
 
-class _JournalEntryComposerDialog extends StatefulWidget {
+class _JournalEntryComposerSheet extends StatefulWidget {
   final String? initialContent;
   final String title;
   final String hintText;
   final Future<void> Function(String text) onSave;
 
-  const _JournalEntryComposerDialog({
+  const _JournalEntryComposerSheet({
     required this.initialContent,
     required this.title,
     required this.hintText,
@@ -1397,8 +1420,8 @@ class _JournalEntryComposerDialog extends StatefulWidget {
   });
 
   @override
-  State<_JournalEntryComposerDialog> createState() =>
-      _JournalEntryComposerDialogState();
+  State<_JournalEntryComposerSheet> createState() =>
+      _JournalEntryComposerSheetState();
 }
 
 class _JournalEntryDisplayContent {
@@ -1411,8 +1434,8 @@ class _JournalEntryDisplayContent {
   });
 }
 
-class _JournalEntryComposerDialogState
-    extends State<_JournalEntryComposerDialog> {
+class _JournalEntryComposerSheetState
+    extends State<_JournalEntryComposerSheet> {
   late final TextEditingController _controller;
   bool _isSaving = false;
 
@@ -1448,34 +1471,92 @@ class _JournalEntryComposerDialogState
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: Text(widget.title),
-      content: TextField(
-        controller: _controller,
-        maxLines: 6,
-        decoration: InputDecoration(
-          border: const OutlineInputBorder(),
-          hintText: widget.hintText,
+    final colorScheme = Theme.of(context).colorScheme;
+    final mediaQuery = MediaQuery.of(context);
+    final sheetMaxHeight = mediaQuery.size.height * 0.88;
+
+    return Padding(
+      padding: EdgeInsets.only(bottom: mediaQuery.viewInsets.bottom),
+      child: SafeArea(
+        top: false,
+        child: Material(
+          color: colorScheme.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          clipBehavior: Clip.antiAlias,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxHeight: sheetMaxHeight),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    margin: const EdgeInsets.only(top: 8, bottom: 16),
+                    decoration: BoxDecoration(
+                      color: colorScheme.onSurface.withValues(alpha: 0.25),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Text(
+                    widget.title,
+                    style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Flexible(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+                    child: TextField(
+                      controller: _controller,
+                      minLines: 6,
+                      maxLines: 10,
+                      decoration: InputDecoration(
+                        border: const OutlineInputBorder(),
+                        hintText: widget.hintText,
+                      ),
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 4, 20, 16),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton(
+                        onPressed: _isSaving
+                            ? null
+                            : () => Navigator.of(context).pop(false),
+                        child: const Text('Anuluj'),
+                      ),
+                      const SizedBox(width: 8),
+                      ValueListenableBuilder<TextEditingValue>(
+                        valueListenable: _controller,
+                        builder: (context, value, child) {
+                          final canSave = value.text.trim().isNotEmpty;
+
+                          return ElevatedButton(
+                            onPressed: _isSaving || !canSave ? null : _save,
+                            child: const Text('Zapisz'),
+                          );
+                        },
+                        child: const Text('Zapisz'),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
-      actions: [
-        TextButton(
-          onPressed: _isSaving ? null : () => Navigator.of(context).pop(),
-          child: const Text('Anuluj'),
-        ),
-        ValueListenableBuilder<TextEditingValue>(
-          valueListenable: _controller,
-          builder: (context, value, child) {
-            final canSave = value.text.trim().isNotEmpty;
-
-            return TextButton(
-              onPressed: _isSaving || !canSave ? null : _save,
-              child: const Text('Zapisz'),
-            );
-          },
-          child: const Text('Zapisz'),
-        ),
-      ],
     );
   }
 }

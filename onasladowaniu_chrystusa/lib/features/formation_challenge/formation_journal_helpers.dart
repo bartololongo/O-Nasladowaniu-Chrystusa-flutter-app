@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../shared/models/formation_challenge_models.dart';
+import '../../shared/navigation/app_page_route.dart';
 import '../../shared/services/journal_service.dart';
 import '../journal/journal_screen.dart';
 
@@ -33,7 +34,7 @@ Future<bool> openFormationReflectionComposer({
   if (!context.mounted) return false;
 
   final saved = await Navigator.of(context).push<bool>(
-    MaterialPageRoute(
+    AppPageRoute.fade(
       settings: const RouteSettings(name: '/journal/from-formation'),
       builder: (_) => JournalScreen(
         openInitialComposer: true,
