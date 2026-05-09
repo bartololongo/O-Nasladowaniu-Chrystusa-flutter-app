@@ -209,8 +209,10 @@ class _FormationMeditationScreenState extends State<FormationMeditationScreen> {
     );
 
     if (!mounted || !saved) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Refleksja dodana do dziennika.')),
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.clearSnackBars();
+    messenger.showSnackBar(
+      const SnackBar(content: Text('Refleksja została zapisana w dzienniku.')),
     );
   }
 
@@ -508,6 +510,12 @@ class _FormationMeditationScreenState extends State<FormationMeditationScreen> {
                 label: const Text('Stop'),
               ),
           ],
+        ),
+        const SizedBox(height: 12),
+        FilledButton.tonalIcon(
+          onPressed: _addReflectionToJournal,
+          icon: const Icon(Icons.edit_note),
+          label: const Text('Dodaj refleksję do dziennika'),
         ),
       ],
     );
