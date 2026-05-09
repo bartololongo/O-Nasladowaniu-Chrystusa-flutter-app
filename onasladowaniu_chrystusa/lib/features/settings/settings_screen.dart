@@ -920,6 +920,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                     ),
                                     const SizedBox(height: 4),
                                     Text(
+                                      'Nagrania audio czyta: Marcin Nowakowski',
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        color: colorScheme.onSurface.withValues(
+                                          alpha: 0.8,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
                                       'Tekst książki: domena publiczna / zgodnie z prawami autorskimi zastosowanego '
                                       'tłumaczenia.',
                                       style: TextStyle(
