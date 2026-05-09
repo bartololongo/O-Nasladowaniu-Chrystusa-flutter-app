@@ -11,6 +11,7 @@ import '../settings/settings_screen.dart';
 
 class JournalScreen extends StatefulWidget {
   final void Function(int tabIndex)? onNavigateToTab;
+  final bool showBackButton;
   final bool openInitialComposer;
   final bool closeAfterInitialComposer;
   final String? initialContent;
@@ -25,6 +26,7 @@ class JournalScreen extends StatefulWidget {
   const JournalScreen({
     super.key,
     this.onNavigateToTab,
+    this.showBackButton = true,
     this.openInitialComposer = false,
     this.closeAfterInitialComposer = false,
     this.initialContent,
@@ -829,7 +831,7 @@ class _JournalScreenState extends State<JournalScreen> {
                   title: 'Dziennik duchowy',
                   subtitle: 'Twoje refleksje i notatki z lektury.',
                   icon: Icons.edit_note,
-                  showBackButton: true,
+                  showBackButton: widget.showBackButton,
                   trailing: IconButton(
                     onPressed: _openSettings,
                     icon: const Icon(Icons.settings),

@@ -392,7 +392,10 @@ class _RootScreenState extends State<_RootScreen> with WidgetsBindingObserver {
           onNavigateToTab: _onTabSelected,
         );
       case MainTabs.journal:
-        return JournalScreen(onNavigateToTab: _onTabSelected);
+        return JournalScreen(
+          onNavigateToTab: _onTabSelected,
+          showBackButton: false,
+        );
       case MainTabs.listen:
         return ListenScreen(onNavigateToTab: _onTabSelected);
       default:
