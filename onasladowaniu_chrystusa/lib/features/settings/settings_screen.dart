@@ -516,75 +516,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                   const SizedBox(height: 16),
                   const Text(
-                    'Duża aktualizacja aplikacji: nowa nawigacja, odtwarzacz audio, '
-                    'słuchanie w tle, nagrania offline i wygodniejsze aktualizacje '
-                    'tekstu książki.',
+                    'Z przyjemnością oddaję w Państwa ręce wiele nowości: nowa nawigacja, audiobook, '
+                    'nagrania offline, wygodniejsze aktualizacje tekstu'
+                    'i wiele innych.',
                     style: TextStyle(fontSize: 14, height: 1.4),
                   ),
                   const SizedBox(height: 18),
                   const _WhatsNewItem(
-                    title: 'Nowa nawigacja',
+                    title: 'Najważniejsze zmiany',
                     description:
-                        '• Przebudowany dolny pasek nawigacji: Start, Droga, Czytaj, Dziennik i Słuchaj.\n'
-                        '• Dziennik duchowy jest teraz osobną zakładką, dzięki czemu można szybciej wracać do swoich refleksji.\n'
-                        '• Ekran Czytaj został uproszczony i skupia się na czytniku, ulubionych oraz zakładkach.\n'
-                        '• Ujednolicono nagłówki i skróty do ustawień na najważniejszych ekranach.',
-                  ),
-                  const _WhatsNewItem(
-                    title: 'Nowy odtwarzacz audio',
-                    description:
-                        '• Dodano pełny odtwarzacz nagrań z wygodnym układem przycisków.\n'
-                        '• Dodano słuchanie w tle oraz obsługę ekranu blokady.\n'
-                        '• Na ekranie blokady wyświetla się tytuł rozdziału i grafika nagrania.\n'
-                        '• Dodano regulację tempa odtwarzania.\n'
-                        '• Dodano wygodne przewijanie o 10 sekund w tył i w przód.\n'
-                        '• Poprawiono przechodzenie do poprzedniego i następnego rozdziału.\n'
-                        '• Dodano opcję autoodtwarzania kolejnych rozdziałów.\n'
-                        '• Dodano opcję utrzymywania ekranu włączonego podczas korzystania z odtwarzacza.',
-                  ),
-                  const _WhatsNewItem(
-                    title: 'Nagrania offline',
-                    description:
-                        '• Można pobrać pojedynczy rozdział do słuchania offline.\n'
-                        '• Dodano ekran zarządzania pobranymi nagraniami.\n'
-                        '• Można pobrać wszystkie nagrania, usunąć pojedyncze pliki albo wyczyścić wszystkie pobrane nagrania.\n'
-                        '• Pobieranie można anulować.\n'
-                        '• Aplikacja chroni przed przypadkowym wyjściem z ekranu podczas pobierania wielu nagrań.',
-                  ),
-                  const _WhatsNewItem(
-                    title: 'Aktualizacje tekstu książki',
-                    description:
-                        '• Aplikacja może pobierać poprawioną wersję tekstu książki bez konieczności instalowania nowej wersji aplikacji.\n'
-                        '• Dodano sprawdzanie dostępności nowej wersji tekstu przy starcie aplikacji.\n'
-                        '• Nowy komunikat pozwala od razu pobrać aktualizację albo odłożyć ją na później.\n'
-                        '• Aktualizacje tekstu można nadal sprawdzić ręcznie w ustawieniach.\n'
-                        '• Dodano możliwość przywrócenia tekstu wbudowanego.',
-                  ),
-                  const _WhatsNewItem(
-                    title: 'Czytnik i wyszukiwanie',
-                    description:
-                        '• Poprawiono przejścia z wyników wyszukiwania bezpośrednio do czytnika.\n'
-                        '• Poprawiono przejścia z zakładek, ulubionych, dziennika i losowego cytatu do właściwego miejsca w książce.\n'
-                        '• Wyszukiwanie zakładek uwzględnia teraz treść rozdziałów, do których prowadzą.\n'
-                        '• Usprawniono zaznaczanie tekstu w czytniku.\n'
-                        '• Dodawanie zaznaczonego fragmentu do dziennika jest teraz wygodniejsze dzięki dolnemu arkuszowi zamiast klasycznego okna dialogowego.',
-                  ),
-                  const _WhatsNewItem(
-                    title: 'Dziennik duchowy',
-                    description:
-                        '• Dziennik jest teraz dostępny bezpośrednio z dolnego paska nawigacji.\n'
-                        '• Dodawanie nowych wpisów odbywa się w wygodnym dolnym arkuszu.\n'
-                        '• Dodawanie refleksji z czytnika i z losowego cytatu również korzysta z nowego, wygodniejszego formularza.\n'
-                        '• Poprawiono przejścia z wpisów dziennika do odpowiednich fragmentów książki.',
-                  ),
-                  const _WhatsNewItem(
-                    title: 'Usprawnienia techniczne i wizualne',
-                    description:
-                        '• Ujednolicono animacje przejść między ekranami.\n'
-                        '• Zablokowano obracanie aplikacji do poziomu na telefonie.\n'
-                        '• Poprawiono wygląd i ergonomię wielu mniejszych elementów interfejsu.\n'
-                        '• Dodano pierwsze testy regresyjne wyszukiwania.\n'
-                        '• Wyczyściliśmy ostrzeżenia z flutter analyze.',
+                        '• Nowy dolny pasek: Start, Droga, Czytaj, Dziennik i Słuchaj\n'
+                        '• Odtwarzacz audio ze słuchaniem w tle i obsługą ekranu blokady\n'
+                        '• Audiobook czytany przez Marcina Nowakowskiego\n'
+                        '• Pobieranie nagrań do słuchania offline oraz zarządzanie pobranymi plikami\n'
+                        '• Aktualizacje tekstu książki bez konieczności instalowania nowej wersji aplikacji\n'
+                        '• Dziennik duchowy dostępny bezpośrednio z dolnego paska\n'
+                        '• Liczne usprawnienia wyglądu i działania aplikacji',
                   ),
                   const SizedBox(height: 8),
                   Align(
