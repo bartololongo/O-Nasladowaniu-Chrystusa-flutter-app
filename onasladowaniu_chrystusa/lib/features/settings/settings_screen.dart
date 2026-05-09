@@ -516,9 +516,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                   const SizedBox(height: 16),
                   const Text(
-                    'Z przyjemnością oddaję w Państwa ręce wiele nowości: nowa nawigacja, audiobook, '
-                    'nagrania offline, wygodniejsze aktualizacje tekstu'
-                    'i wiele innych.',
+                    'Z przyjemnością oddaję w Państwa ręce wiele nowości',
                     style: TextStyle(fontSize: 14, height: 1.4),
                   ),
                   const SizedBox(height: 18),
@@ -528,9 +526,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         '• Nowy dolny pasek: Start, Droga, Czytaj, Dziennik i Słuchaj\n'
                         '• Odtwarzacz audio ze słuchaniem w tle i obsługą ekranu blokady\n'
                         '• Audiobook czytany przez Marcina Nowakowskiego\n'
-                        '• Pobieranie nagrań do słuchania offline oraz zarządzanie pobranymi plikami\n'
+                        '• Pobieranie nagrań do słuchania offline oraz zarządzanie nimi\n'
                         '• Aktualizacje tekstu książki bez konieczności instalowania nowej wersji aplikacji\n'
-                        '• Dziennik duchowy dostępny bezpośrednio z dolnego paska\n'
+                        '• Przydatne skróty na ekranie głównym\n'
                         '• Liczne usprawnienia wyglądu i działania aplikacji',
                   ),
                   const SizedBox(height: 8),
@@ -849,7 +847,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                       'Przejdź przez „O\u00A0naśladowaniu Chrystusa” dzień po dniu '
                                       'w\u00A0Drodze naśladowania. Otrzymasz fragment dnia, medytację, '
                                       'miejsce na refleksję, postęp i\u00A0przypomnienia. Aplikacja zawiera '
-                                      'też czytnik, zakładki, ulubione cytaty oraz wyszukiwanie.',
+                                      'też audiobook, czytnik, zakładki, ulubione cytaty oraz wyszukiwanie.',
                                       style: TextStyle(
                                         fontSize: 14,
                                         height: 1.4,
