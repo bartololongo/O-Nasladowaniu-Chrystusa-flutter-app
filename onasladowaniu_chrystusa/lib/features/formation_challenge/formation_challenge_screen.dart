@@ -13,7 +13,6 @@ import '../../shared/navigation/main_tabs.dart';
 import '../../shared/widgets/section_header.dart';
 import '../audio/data/audio_catalog.dart';
 import '../audio/data/audio_track.dart';
-import '../audio/ui/audio_player_screen.dart';
 import '../search/search_screen.dart';
 import '../settings/settings_screen.dart';
 import 'formation_journal_helpers.dart';
@@ -233,15 +232,6 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
     if (Navigator.of(context).canPop()) {
       Navigator.of(context).pop();
     }
-  }
-
-  Future<void> _openAudioPlayer(AudioTrack track) async {
-    await Navigator.of(context).push(
-      AppPageRoute.fade(
-        settings: const RouteSettings(name: '/audio-player'),
-        builder: (_) => AudioPlayerScreen(track: track),
-      ),
-    );
   }
 
   void _openSearch() {
@@ -527,10 +517,8 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
           ),
         ],
         const SizedBox(height: 20),
-        if (audioTrack != null) ...[
-          _buildAudioSection(context, audioTrack),
-          const SizedBox(height: 22),
-        ],
+        _buildMeditationSection(context, day, totalDays, audioTrack),
+        const SizedBox(height: 22),
         Text(day.text, style: const TextStyle(fontSize: 17, height: 1.55)),
         if (reflection != null) ...[
           const SizedBox(height: 24),
@@ -549,8 +537,16 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
     );
   }
 
-  Widget _buildAudioSection(BuildContext context, AudioTrack track) {
+  Widget _buildMeditationSection(
+    BuildContext context,
+    FormationChallengeDay day,
+    int totalDays,
+    AudioTrack? track,
+  ) {
     final colorScheme = Theme.of(context).colorScheme;
+    final subtitle = track == null
+        ? 'Tekst dnia, modlitwa i miejsce na refleksję'
+        : 'Księga ${track.bookNumber} · Rozdział ${track.chapterNumber}';
 
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
@@ -569,7 +565,10 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
               shape: BoxShape.circle,
               color: colorScheme.primary.withValues(alpha: 0.14),
             ),
-            child: Icon(Icons.headphones_rounded, color: colorScheme.primary),
+            child: Icon(
+              Icons.self_improvement_rounded,
+              color: colorScheme.primary,
+            ),
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -577,21 +576,21 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
-                  'Nagranie lektorskie',
+                  'Medytacja z dnia',
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Księga ${track.bookNumber} · Rozdział ${track.chapterNumber}',
+                  subtitle,
                   style: TextStyle(
                     color: colorScheme.onSurface.withValues(alpha: 0.72),
                   ),
                 ),
                 const SizedBox(height: 12),
-                OutlinedButton.icon(
-                  onPressed: () => unawaited(_openAudioPlayer(track)),
-                  icon: const Icon(Icons.play_arrow),
-                  label: const Text('Posłuchaj rozdziału'),
+                FilledButton.icon(
+                  onPressed: () => unawaited(_openMeditation(day, totalDays)),
+                  icon: const Icon(Icons.self_improvement_rounded),
+                  label: const Text('Rozpocznij medytację'),
                 ),
               ],
             ),
@@ -636,14 +635,6 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
                   onTap: () async {
                     Navigator.of(sheetContext).pop();
                     await _openDayInReader(day);
-                  },
-                ),
-                ListTile(
-                  leading: const Icon(Icons.self_improvement),
-                  title: const Text('Rozpocznij medytację'),
-                  onTap: () async {
-                    Navigator.of(sheetContext).pop();
-                    await _openMeditation(day, totalDays);
                   },
                 ),
                 ListTile(
