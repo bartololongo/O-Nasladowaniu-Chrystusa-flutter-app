@@ -9,10 +9,10 @@ import '../../shared/services/journal_service.dart';
 import '../../shared/services/preferences_service.dart';
 import '../../shared/services/formation_widget_snapshot_service.dart';
 import '../../shared/navigation/app_page_route.dart';
-import '../../shared/navigation/main_tabs.dart';
 import '../../shared/widgets/section_header.dart';
 import '../audio/data/audio_catalog.dart';
 import '../audio/data/audio_track.dart';
+import '../reader/reader_screen.dart';
 import '../search/search_screen.dart';
 import '../settings/settings_screen.dart';
 import 'formation_journal_helpers.dart';
@@ -227,11 +227,12 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
     await _preferencesService.clearJumpParagraphNumber();
 
     if (!mounted) return;
-    widget.onNavigateToTab?.call(MainTabs.read);
-
-    if (Navigator.of(context).canPop()) {
-      Navigator.of(context).pop();
-    }
+    await Navigator.of(context).push(
+      AppPageRoute.fade(
+        settings: const RouteSettings(name: '/reader/from-formation'),
+        builder: (_) => const ReaderScreen(),
+      ),
+    );
   }
 
   void _openSearch() {
