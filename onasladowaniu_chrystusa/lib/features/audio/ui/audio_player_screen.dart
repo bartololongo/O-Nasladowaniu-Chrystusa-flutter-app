@@ -27,6 +27,8 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
   final BookRepository _bookRepository = BookRepository();
   final AudioDownloadService _audioDownloadService =
       const AudioDownloadService();
+  final GlobalKey<_AudioProgressSliderState> _progressSliderKey =
+      GlobalKey<_AudioProgressSliderState>();
 
   StreamSubscription<PlaybackEvent>? _playbackErrorSubscription;
   StreamSubscription<PlayerState>? _playerStateSubscription;
@@ -602,7 +604,10 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
   }
 
   Widget _buildProgress(BuildContext context) {
-    return _AudioProgressSlider(audioService: _audioService);
+    return _AudioProgressSlider(
+      key: _progressSliderKey,
+      audioService: _audioService,
+    );
   }
 
   Widget _buildProgressActions(BuildContext context) {
@@ -891,8 +896,14 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
   }
 
   Future<void> _restartOrChangeToPreviousTrack() async {
-    if (_audioService.currentPosition > _previousTrackRestartThreshold) {
+    final progressPosition =
+        _progressSliderKey.currentState?.displayPosition ??
+        _audioService.currentPosition;
+
+    if (progressPosition > _previousTrackRestartThreshold) {
+      _progressSliderKey.currentState?.syncToPosition(Duration.zero);
       await _audioService.seek(Duration.zero);
+      _progressSliderKey.currentState?.syncToPosition(Duration.zero);
       return;
     }
 
@@ -969,7 +980,7 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
 class _AudioProgressSlider extends StatefulWidget {
   final AppAudioPlayerService audioService;
 
-  const _AudioProgressSlider({required this.audioService});
+  const _AudioProgressSlider({super.key, required this.audioService});
 
   @override
   State<_AudioProgressSlider> createState() => _AudioProgressSliderState();
@@ -1109,6 +1120,24 @@ class _AudioProgressSliderState extends State<_AudioProgressSlider>
         clampedPlayerPosition,
         isPlaying: isPlaying,
         playbackSpeed: playbackSpeed,
+      );
+    });
+    _updateDisplayTicker();
+  }
+
+  Duration get displayPosition => _displayPosition();
+
+  void syncToPosition(Duration position) {
+    if (!mounted) return;
+
+    setState(() {
+      _forceNextPositionSync = true;
+      _isDraggingProgress = false;
+      _dragPosition = position;
+      _resetAnchor(
+        position,
+        isPlaying: widget.audioService.isPlaying,
+        playbackSpeed: widget.audioService.playbackSpeed,
       );
     });
     _updateDisplayTicker();
