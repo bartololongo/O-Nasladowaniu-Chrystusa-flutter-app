@@ -287,7 +287,7 @@ class _OfflineAudioScreenState extends State<OfflineAudioScreen> {
     );
     if (!mounted || !shouldLeave) return;
 
-    Navigator.of(context).pop();
+    await Navigator.of(context).maybePop();
   }
 
   Future<bool> _confirmLeaveDuringDownload({

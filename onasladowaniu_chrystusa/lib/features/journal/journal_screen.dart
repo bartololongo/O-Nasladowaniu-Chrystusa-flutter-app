@@ -423,6 +423,8 @@ class _JournalScreenState extends State<JournalScreen> {
     );
 
     if (!mounted || !widget.closeAfterInitialComposer) return;
+    final route = ModalRoute.of(context);
+    if (route?.isCurrent != true) return;
     Navigator.of(context).pop(saved);
   }
 

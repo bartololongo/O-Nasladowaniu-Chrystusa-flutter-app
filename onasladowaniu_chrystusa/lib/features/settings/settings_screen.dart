@@ -529,8 +529,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         '• Nowy dolny pasek: Start, Droga, Książka, Dziennik i Ustawienia\n'
                         '• Ustawienia zostały przeniesione na dolny pasek nawigacyjny\n'
                         '• Dodano powiadomienie o dostępnej aktualizacji\n'
-                        '• Wprowadzono ekran Książka łączący poprzednie ekrany - Czytanie i Słuchanie\n'                        
-                        '• Ujednolicono nagłówek w czytniku z innymi ekranami\n'                                              
+                        '• Wprowadzono ekran Książka łączący poprzednie ekrany - Czytanie i Słuchanie\n'
+                        '• Ujednolicono nagłówek w czytniku z innymi ekranami\n'
                         '• Poprawiono błąd dotyczący przewijania nagrania do początku\n',
                   ),
                   const SizedBox(height: 8),

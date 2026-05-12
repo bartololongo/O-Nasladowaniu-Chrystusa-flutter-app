@@ -89,6 +89,8 @@ class _RootScreenState extends State<_RootScreen> with WidgetsBindingObserver {
   /// Dzięki temu dolny pasek jest zawsze widoczny.
   final GlobalKey<NavigatorState> _innerNavigatorKey =
       GlobalKey<NavigatorState>();
+  final _InnerNavigatorStackObserver _innerNavigatorStackObserver =
+      _InnerNavigatorStackObserver();
   StreamSubscription<String>? _notificationSubscription;
   StreamSubscription<Uri?>? _widgetClickSubscription;
   String? _pendingNotificationPayload;
@@ -321,7 +323,13 @@ class _RootScreenState extends State<_RootScreen> with WidgetsBindingObserver {
       if (!mounted || !canNavigate) return;
     }
 
-    final nav = _innerNavigatorKey.currentState;
+    var nav = _innerNavigatorKey.currentState;
+    if (nav != null) {
+      final canContinue = await _dismissInnerModalRouteIfNeeded(nav);
+      if (!mounted || !canContinue) return;
+    }
+
+    nav = _innerNavigatorKey.currentState;
     final atRoot = !(nav?.canPop() ?? false);
 
     if (index == MainTabs.settings && _shouldOpenContextualSettings(atRoot)) {
@@ -351,6 +359,14 @@ class _RootScreenState extends State<_RootScreen> with WidgetsBindingObserver {
 
     // Resetujemy stos wewnętrznego Navigatora do bazowego ekranu taba.
     nav?.popUntil((route) => route.isFirst);
+  }
+
+  Future<bool> _dismissInnerModalRouteIfNeeded(NavigatorState navigator) async {
+    if (!_innerNavigatorStackObserver.isTopRouteModal) return true;
+
+    final didPop = await navigator.maybePop();
+    await WidgetsBinding.instance.endOfFrame;
+    return didPop;
   }
 
   bool _shouldOpenContextualSettings(bool atRoot) {
@@ -403,9 +419,6 @@ class _RootScreenState extends State<_RootScreen> with WidgetsBindingObserver {
     if (navigator == null) return;
 
     if (_activeMoreRouteName == routeName) {
-      if (routeName == '/settings') {
-        navigator.popUntil((route) => route.settings.name == routeName);
-      }
       return;
     }
 
@@ -529,6 +542,7 @@ class _RootScreenState extends State<_RootScreen> with WidgetsBindingObserver {
       body: Navigator(
         key: _innerNavigatorKey,
         observers: [
+          _innerNavigatorStackObserver,
           appRouteObserver, // RouteObserver działa dla wewnętrznego stosu route’ów.
         ],
         onGenerateRoute: (settings) {
@@ -561,6 +575,53 @@ class _RootScreenState extends State<_RootScreen> with WidgetsBindingObserver {
         ],
       ),
     );
+  }
+}
+
+class _InnerNavigatorStackObserver extends NavigatorObserver {
+  final List<Route<dynamic>> _routes = [];
+
+  bool get isTopRouteModal {
+    if (_routes.isEmpty) return false;
+
+    return _routes.last is PopupRoute;
+  }
+
+  @override
+  void didPush(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    _routes.add(route);
+    super.didPush(route, previousRoute);
+  }
+
+  @override
+  void didPop(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    _routes.remove(route);
+    super.didPop(route, previousRoute);
+  }
+
+  @override
+  void didRemove(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    _routes.remove(route);
+    super.didRemove(route, previousRoute);
+  }
+
+  @override
+  void didReplace({Route<dynamic>? newRoute, Route<dynamic>? oldRoute}) {
+    if (oldRoute != null) {
+      final oldIndex = _routes.indexOf(oldRoute);
+      if (oldIndex != -1 && newRoute != null) {
+        _routes[oldIndex] = newRoute;
+      } else {
+        _routes.remove(oldRoute);
+        if (newRoute != null) {
+          _routes.add(newRoute);
+        }
+      }
+    } else if (newRoute != null) {
+      _routes.add(newRoute);
+    }
+
+    super.didReplace(newRoute: newRoute, oldRoute: oldRoute);
   }
 }
 
