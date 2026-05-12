@@ -70,7 +70,7 @@ class _RootScreen extends StatefulWidget {
 }
 
 class _RootScreenState extends State<_RootScreen> with WidgetsBindingObserver {
-  /// Bazowa zakładka (Start / Droga / Książka / Dziennik).
+  /// Bazowa zakładka (Start / Droga / Książka / Dziennik / Ustawienia).
   int _baseTabIndex = MainTabs.start;
 
   /// Aktualnie podświetlana zakładka w BottomNavigationBar.
@@ -80,9 +80,10 @@ class _RootScreenState extends State<_RootScreen> with WidgetsBindingObserver {
   final int _readerInstanceId = 0;
   final ValueNotifier<int> _pendingReaderRequestSignal = ValueNotifier<int>(0);
   String? _activeMoreRouteName;
+  bool _isContextualSettingsOpen = false;
 
   /// Wewnętrzny Navigator, w którym renderujemy:
-  /// - ekrany z bottom nav (Start, Droga, Książka, Dziennik),
+  /// - ekrany z bottom nav (Start, Droga, Książka, Dziennik, Ustawienia),
   /// - oraz dodatkowe ekrany: Dziennik, Ulubione, Ustawienia itp.
   ///
   /// Dzięki temu dolny pasek jest zawsze widoczny.
@@ -323,6 +324,15 @@ class _RootScreenState extends State<_RootScreen> with WidgetsBindingObserver {
     final nav = _innerNavigatorKey.currentState;
     final atRoot = !(nav?.canPop() ?? false);
 
+    if (index == MainTabs.settings && _shouldOpenContextualSettings(atRoot)) {
+      _openContextualSettings();
+      return;
+    }
+
+    if (index == MainTabs.settings && _isContextualSettingsOpen) {
+      return;
+    }
+
     // Jeśli jesteśmy już na bazowym ekranie tego taba,
     // nic nie rób – unikamy ponownej animacji/pushowania.
     if (index == _baseTabIndex && atRoot) {
@@ -334,12 +344,55 @@ class _RootScreenState extends State<_RootScreen> with WidgetsBindingObserver {
 
     setState(() {
       _activeMoreRouteName = null;
+      _isContextualSettingsOpen = false;
       _baseTabIndex = index;
       _selectedIndex = index;
     });
 
     // Resetujemy stos wewnętrznego Navigatora do bazowego ekranu taba.
     nav?.popUntil((route) => route.isFirst);
+  }
+
+  bool _shouldOpenContextualSettings(bool atRoot) {
+    if (_isContextualSettingsOpen) return false;
+    if (_baseTabIndex == MainTabs.settings) return false;
+
+    return _baseTabIndex != MainTabs.start || !atRoot;
+  }
+
+  void _openContextualSettings() {
+    final navigator = _innerNavigatorKey.currentState;
+    if (navigator == null) return;
+
+    setState(() {
+      _activeMoreRouteName = null;
+      _isContextualSettingsOpen = true;
+      _selectedIndex = MainTabs.settings;
+    });
+
+    navigator
+        .push(
+          AppPageRoute.fade(
+            settings: const RouteSettings(name: '/settings/contextual-tab'),
+            builder: (_) => SettingsScreen(
+              showBackButton: true,
+              onBack: _closeContextualSettings,
+            ),
+          ),
+        )
+        .whenComplete(() {
+          if (!mounted) return;
+          if (!_isContextualSettingsOpen) return;
+
+          setState(() {
+            _isContextualSettingsOpen = false;
+            _selectedIndex = _baseTabIndex;
+          });
+        });
+  }
+
+  void _closeContextualSettings() {
+    _innerNavigatorKey.currentState?.maybePop();
   }
 
   /// Otwiera ekran z sekcji "Więcej" (Dziennik/Ulubione/Ustawienia).
@@ -441,6 +494,8 @@ class _RootScreenState extends State<_RootScreen> with WidgetsBindingObserver {
           onNavigateToTab: _onTabSelected,
           showBackButton: false,
         );
+      case MainTabs.settings:
+        return const SettingsScreen(showBackButton: false);
       default:
         return const SizedBox.shrink();
     }
@@ -498,6 +553,10 @@ class _RootScreenState extends State<_RootScreen> with WidgetsBindingObserver {
           BottomNavigationBarItem(
             icon: Icon(Icons.edit_note_rounded),
             label: 'Dziennik',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.settings_rounded),
+            label: 'Ustawienia',
           ),
         ],
       ),

@@ -13,7 +13,10 @@ import '../audio/ui/offline_audio_screen.dart';
 import 'backup_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
-  const SettingsScreen({super.key});
+  final bool showBackButton;
+  final VoidCallback? onBack;
+
+  const SettingsScreen({super.key, this.showBackButton = true, this.onBack});
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
@@ -523,7 +526,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   const _WhatsNewItem(
                     title: 'Najważniejsze zmiany',
                     description:
-                        '• Nowy dolny pasek: Start, Droga, Książka i Dziennik\n'
+                        '• Nowy dolny pasek: Start, Droga, Książka, Dziennik i Ustawienia\n'
                         '• Odtwarzacz audio ze słuchaniem w tle i obsługą ekranu blokady\n'
                         '• Audiobook czytany przez Marcina Nowakowskiego\n'
                         '• Pobieranie nagrań do słuchania offline oraz zarządzanie nimi\n'
@@ -711,11 +714,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
         child: ListView(
           padding: const EdgeInsets.only(bottom: 16),
           children: [
-            const SectionHeader(
+            SectionHeader(
               title: 'Ustawienia',
               subtitle: 'Dostosuj aplikację do swojego sposobu korzystania.',
               icon: Icons.settings,
-              showBackButton: true,
+              showBackButton: widget.showBackButton,
+              onBack: widget.onBack,
             ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
