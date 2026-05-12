@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 2.0.0+2
+version: 2.1.0+3
 
 environment:
   sdk: ^3.8.1
@@ -60,6 +60,12 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
+
+dependency_overrides:
+  # path_provider_foundation 2.6.0 pulls package:objective_c, which currently
+  # embeds objective_c.framework in iOS archives and is rejected by App Store
+  # Connect because the arm64 slice references a simulator platform.
+  path_provider_foundation: 2.5.1
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
