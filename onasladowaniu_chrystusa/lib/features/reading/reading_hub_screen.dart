@@ -15,7 +15,6 @@ import '../bookmarks/bookmarks_screen.dart';
 import '../favorites/favorites_screen.dart';
 import '../reader/reader_screen.dart';
 import '../search/search_screen.dart';
-import '../settings/settings_screen.dart';
 
 class ReadingHubScreen extends StatefulWidget {
   final Key? readerScreenKey;
@@ -70,15 +69,6 @@ class _ReadingHubScreenState extends State<ReadingHubScreen> {
         settings: const RouteSettings(name: '/favorites/from-reading-hub'),
         builder: (_) =>
             FavoritesScreen(onNavigateToTab: widget.onNavigateToTab),
-      ),
-    );
-  }
-
-  void _openSettings(BuildContext context) {
-    Navigator.of(context).push(
-      AppPageRoute.fade(
-        settings: const RouteSettings(name: '/settings'),
-        builder: (_) => const SettingsScreen(),
       ),
     );
   }
@@ -180,11 +170,6 @@ class _ReadingHubScreenState extends State<ReadingHubScreen> {
                     onPressed: () => _openSearch(context),
                     icon: const Icon(Icons.search),
                     tooltip: 'Szukaj',
-                  ),
-                  IconButton(
-                    onPressed: () => _openSettings(context),
-                    icon: const Icon(Icons.settings),
-                    tooltip: 'Ustawienia',
                   ),
                 ],
               ),

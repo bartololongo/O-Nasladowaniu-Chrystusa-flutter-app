@@ -14,7 +14,6 @@ import '../audio/data/audio_catalog.dart';
 import '../audio/data/audio_track.dart';
 import '../reader/reader_screen.dart';
 import '../search/search_screen.dart';
-import '../settings/settings_screen.dart';
 import 'formation_journal_helpers.dart';
 import 'formation_meditation_screen.dart';
 
@@ -244,15 +243,6 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
     );
   }
 
-  void _openSettings() {
-    Navigator.of(context).push(
-      AppPageRoute.fade(
-        settings: const RouteSettings(name: '/settings'),
-        builder: (_) => const SettingsScreen(),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -271,11 +261,6 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
                     onPressed: _openSearch,
                     icon: const Icon(Icons.search),
                     tooltip: 'Szukaj',
-                  ),
-                  IconButton(
-                    onPressed: _openSettings,
-                    icon: const Icon(Icons.settings),
-                    tooltip: 'Ustawienia',
                   ),
                 ],
               ),

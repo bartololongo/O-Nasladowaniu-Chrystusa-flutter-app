@@ -11,7 +11,6 @@ import '../../shared/services/journal_service.dart';
 import '../audio/data/audio_catalog.dart';
 import '../audio/data/audio_track.dart';
 import '../audio/ui/audio_player_screen.dart';
-import '../settings/settings_screen.dart';
 
 class ReaderScreen extends StatefulWidget {
   final void Function(String query)? onOpenSearchResults;
@@ -987,15 +986,6 @@ class _ReaderScreenState extends State<ReaderScreen> {
     widget.onOpenSearchResults?.call(query);
   }
 
-  void _openSettings() {
-    Navigator.of(context).push(
-      AppPageRoute.fade(
-        settings: const RouteSettings(name: '/settings'),
-        builder: (_) => const SettingsScreen(),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     // Przy każdym buildzie sprawdzamy, czy nie ma nowego "skoku" z zewnątrz
@@ -1004,39 +994,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
         AudioCatalog.audioUrlForReference(_currentChapterRef) != null;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Czytanie'),
-        actions: [
-          IconButton(
-            icon: Icon(
-              _isCurrentBookmarked ? Icons.bookmark : Icons.bookmark_border,
-            ),
-            tooltip: _isCurrentBookmarked ? 'Usuń zakładkę' : 'Dodaj zakładkę',
-            onPressed: _toggleBookmarkForCurrentChapter,
-          ),
-          if (hasAudioForCurrentChapter)
-            IconButton(
-              icon: const Icon(Icons.headphones_rounded),
-              tooltip: 'Posłuchaj rozdziału',
-              onPressed: _openAudioPlayerForCurrentChapter,
-            ),
-          IconButton(
-            icon: const Icon(Icons.search),
-            tooltip: 'Znajdź w rozdziale',
-            onPressed: _openChapterSearch,
-          ),
-          IconButton(
-            icon: const Icon(Icons.menu_book_outlined),
-            tooltip: 'Wybierz księgę i rozdział',
-            onPressed: _showChapterPicker,
-          ),
-          IconButton(
-            icon: const Icon(Icons.settings),
-            tooltip: 'Ustawienia',
-            onPressed: _openSettings,
-          ),
-        ],
-      ),
+      appBar: _buildReaderHeader(hasAudioForCurrentChapter),
       body: Column(
         children: [
           _buildControls(),
@@ -1086,6 +1044,70 @@ class _ReaderScreenState extends State<ReaderScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  PreferredSizeWidget _buildReaderHeader(bool hasAudioForCurrentChapter) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return AppBar(
+      leading: IconButton(
+        onPressed: () => Navigator.of(context).maybePop(),
+        icon: const Icon(Icons.arrow_back),
+        tooltip: 'Wstecz',
+      ),
+      titleSpacing: 0,
+      title: Row(
+        children: [
+          Icon(Icons.menu_book_rounded, size: 28, color: colorScheme.primary),
+          const SizedBox(width: 12),
+          const Flexible(
+            child: Text(
+              'Czytanie',
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        _buildHeaderAction(
+          icon: _isCurrentBookmarked ? Icons.bookmark : Icons.bookmark_border,
+          tooltip: _isCurrentBookmarked ? 'Usuń zakładkę' : 'Dodaj zakładkę',
+          onPressed: _toggleBookmarkForCurrentChapter,
+        ),
+        if (hasAudioForCurrentChapter)
+          _buildHeaderAction(
+            icon: Icons.headphones_rounded,
+            tooltip: 'Posłuchaj rozdziału',
+            onPressed: _openAudioPlayerForCurrentChapter,
+          ),
+        _buildHeaderAction(
+          icon: Icons.search,
+          tooltip: 'Znajdź w rozdziale',
+          onPressed: _openChapterSearch,
+        ),
+        _buildHeaderAction(
+          icon: Icons.menu_book_outlined,
+          tooltip: 'Wybierz księgę i rozdział',
+          onPressed: _showChapterPicker,
+        ),
+        const SizedBox(width: 4),
+      ],
+    );
+  }
+
+  Widget _buildHeaderAction({
+    required IconData icon,
+    required String tooltip,
+    required VoidCallback onPressed,
+  }) {
+    return IconButton(
+      icon: Icon(icon),
+      tooltip: tooltip,
+      onPressed: onPressed,
+      constraints: const BoxConstraints(minWidth: 40, minHeight: 48),
+      padding: const EdgeInsets.symmetric(horizontal: 8),
     );
   }
 

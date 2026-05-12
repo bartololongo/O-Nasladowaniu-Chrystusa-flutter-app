@@ -11,7 +11,6 @@ import '../data/audio_track.dart';
 import '../services/app_audio_player_service.dart';
 import 'audio_player_screen.dart';
 import '../../search/search_screen.dart';
-import '../../settings/settings_screen.dart';
 
 class ListenScreen extends StatefulWidget {
   final void Function(int tabIndex)? onNavigateToTab;
@@ -98,15 +97,6 @@ class _ListenScreenState extends State<ListenScreen> {
     };
   }
 
-  void _openSettings() {
-    Navigator.of(context).push(
-      AppPageRoute.fade(
-        settings: const RouteSettings(name: '/settings'),
-        builder: (_) => const SettingsScreen(),
-      ),
-    );
-  }
-
   void _openSearch() {
     Navigator.of(context).push(
       AppPageRoute.fade(
@@ -135,11 +125,6 @@ class _ListenScreenState extends State<ListenScreen> {
                     onPressed: _openSearch,
                     icon: const Icon(Icons.search),
                     tooltip: 'Szukaj',
-                  ),
-                  IconButton(
-                    onPressed: _openSettings,
-                    icon: const Icon(Icons.settings),
-                    tooltip: 'Ustawienia',
                   ),
                 ],
               ),

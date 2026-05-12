@@ -19,7 +19,6 @@ import '../formation_challenge/formation_meditation_screen.dart';
 import '../journal/journal_screen.dart';
 import '../favorites/favorites_screen.dart';
 import '../reader/reader_screen.dart';
-import '../settings/settings_screen.dart';
 import '../search/search_screen.dart';
 import '../audio/data/audio_catalog.dart';
 import '../audio/data/audio_track.dart';
@@ -30,7 +29,7 @@ class HomeScreen extends StatefulWidget {
   final void Function(int tabIndex)? onNavigateToTab;
 
   /// NOWE: callback do otwierania ekranów z sekcji "Więcej"
-  /// (Dziennik, Ulubione, Ustawienia) tak, żeby RootScreen
+  /// (Dziennik, Ulubione) tak, żeby RootScreen
   /// mógł podświetlić ikonę "Więcej" i zarządzać powrotem.
   final void Function(Widget screen)? onOpenMoreScreen;
 
@@ -622,19 +621,6 @@ class _HomeScreenState extends State<HomeScreen>
     widget.onNavigateToTab?.call(MainTabs.book);
   }
 
-  void _openSettingsQuick() {
-    if (widget.onOpenMoreScreen != null) {
-      widget.onOpenMoreScreen!(const SettingsScreen());
-    } else {
-      Navigator.of(context).push(
-        AppPageRoute.fade(
-          settings: const RouteSettings(name: '/settings'),
-          builder: (_) => const SettingsScreen(),
-        ),
-      );
-    }
-  }
-
   void _openSearchScreen() {
     Navigator.of(context).push(
       AppPageRoute.fade(
@@ -689,11 +675,6 @@ class _HomeScreenState extends State<HomeScreen>
             onPressed: _openSearchScreen,
             icon: const Icon(Icons.search),
             tooltip: 'Szukaj',
-          ),
-          IconButton(
-            onPressed: _openSettingsQuick,
-            icon: const Icon(Icons.settings),
-            tooltip: 'Ustawienia',
           ),
         ],
       ),
@@ -792,13 +773,6 @@ class _HomeScreenState extends State<HomeScreen>
             label: 'Zakładki',
             colorScheme: colorScheme,
             onTap: _openBookmarksQuick,
-          ),
-          const SizedBox(width: 8),
-          _QuickActionChip(
-            icon: Icons.settings,
-            label: 'Ustawienia',
-            colorScheme: colorScheme,
-            onTap: _openSettingsQuick,
           ),
         ],
       ),

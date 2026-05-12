@@ -7,7 +7,6 @@ import '../../shared/models/book_models.dart';
 import '../../shared/navigation/app_page_route.dart';
 import '../../shared/widgets/section_header.dart';
 import '../reader/reader_screen.dart';
-import '../settings/settings_screen.dart';
 
 class JournalScreen extends StatefulWidget {
   final void Function(int tabIndex)? onNavigateToTab;
@@ -653,15 +652,6 @@ class _JournalScreenState extends State<JournalScreen> {
     );
   }
 
-  void _openSettings() {
-    Navigator.of(context).push(
-      AppPageRoute.fade(
-        settings: const RouteSettings(name: '/settings'),
-        builder: (_) => const SettingsScreen(),
-      ),
-    );
-  }
-
   Future<void> _openEntryDetails(JournalEntry entry) async {
     await showModalBottomSheet(
       context: context,
@@ -832,11 +822,6 @@ class _JournalScreenState extends State<JournalScreen> {
                   subtitle: 'Twoje refleksje i notatki z lektury.',
                   icon: Icons.edit_note,
                   showBackButton: widget.showBackButton,
-                  trailing: IconButton(
-                    onPressed: _openSettings,
-                    icon: const Icon(Icons.settings),
-                    tooltip: 'Ustawienia',
-                  ),
                 ),
                 Expanded(child: _buildEntriesContent(context, snapshot)),
               ],

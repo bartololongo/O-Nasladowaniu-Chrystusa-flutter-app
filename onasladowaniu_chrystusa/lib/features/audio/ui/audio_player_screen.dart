@@ -5,13 +5,11 @@ import 'package:just_audio/just_audio.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
 import '../../../shared/models/book_models.dart';
-import '../../../shared/navigation/app_page_route.dart';
 import '../../../shared/services/book_repository.dart';
 import '../data/audio_catalog.dart';
 import '../data/audio_track.dart';
 import '../services/app_audio_player_service.dart';
 import '../services/audio_download_service.dart';
-import '../../settings/settings_screen.dart';
 
 class AudioPlayerScreen extends StatefulWidget {
   final AudioTrack track;
@@ -353,27 +351,9 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
             onPressed: _showChapterPicker,
             icon: const Icon(Icons.format_list_bulleted_rounded),
           ),
-          IconButton(
-            tooltip: 'Ustawienia',
-            onPressed: _openSettings,
-            icon: const Icon(Icons.settings),
-          ),
         ],
       ),
     );
-  }
-
-  Future<void> _openSettings() async {
-    await Navigator.of(context).push(
-      AppPageRoute.fade(
-        settings: const RouteSettings(name: '/settings'),
-        builder: (_) => const SettingsScreen(),
-      ),
-    );
-    if (!mounted) return;
-
-    await _applyKeepScreenOnSetting();
-    unawaited(_loadDownloadStatus());
   }
 
   void _showChapterPicker() {

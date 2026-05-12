@@ -4,6 +4,7 @@ class MainTabs {
   static const int book = 2;
   static const int read = book;
   static const int journal = 3;
+  static const int settings = 4;
 
   const MainTabs._();
 }
