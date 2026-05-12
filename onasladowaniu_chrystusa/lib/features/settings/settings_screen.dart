@@ -523,7 +523,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   const _WhatsNewItem(
                     title: 'Najważniejsze zmiany',
                     description:
-                        '• Nowy dolny pasek: Start, Droga, Czytaj, Dziennik i Słuchaj\n'
+                        '• Nowy dolny pasek: Start, Droga, Książka i Dziennik\n'
                         '• Odtwarzacz audio ze słuchaniem w tle i obsługą ekranu blokady\n'
                         '• Audiobook czytany przez Marcina Nowakowskiego\n'
                         '• Pobieranie nagrań do słuchania offline oraz zarządzanie nimi\n'

@@ -1,15 +1,23 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../shared/navigation/app_page_route.dart';
+import '../../shared/models/book_models.dart';
+import '../../shared/services/book_repository.dart';
 import '../../shared/widgets/section_header.dart';
+import '../audio/data/audio_catalog.dart';
+import '../audio/data/audio_track.dart';
+import '../audio/services/app_audio_player_service.dart';
+import '../audio/ui/audio_player_screen.dart';
 import '../bookmarks/bookmarks_screen.dart';
 import '../favorites/favorites_screen.dart';
 import '../reader/reader_screen.dart';
 import '../search/search_screen.dart';
 import '../settings/settings_screen.dart';
 
-class ReadingHubScreen extends StatelessWidget {
+class ReadingHubScreen extends StatefulWidget {
   final Key? readerScreenKey;
   final ValueListenable<int>? pendingReaderRequestSignal;
   final void Function(String query)? onOpenSearchResults;
@@ -23,14 +31,24 @@ class ReadingHubScreen extends StatelessWidget {
     this.onNavigateToTab,
   });
 
+  @override
+  State<ReadingHubScreen> createState() => _ReadingHubScreenState();
+}
+
+class _ReadingHubScreenState extends State<ReadingHubScreen> {
+  final AppAudioPlayerService _audioService = AppAudioPlayerService.instance;
+  final BookRepository _bookRepository = BookRepository();
+
+  bool _isOpeningAudioPlayer = false;
+
   void _openReader(BuildContext context) {
     Navigator.of(context).push(
       AppPageRoute.fade(
         settings: const RouteSettings(name: '/reader/from-reading-hub'),
         builder: (_) => ReaderScreen(
-          key: readerScreenKey,
-          pendingReaderRequestSignal: pendingReaderRequestSignal,
-          onOpenSearchResults: onOpenSearchResults,
+          key: widget.readerScreenKey,
+          pendingReaderRequestSignal: widget.pendingReaderRequestSignal,
+          onOpenSearchResults: widget.onOpenSearchResults,
         ),
       ),
     );
@@ -40,7 +58,8 @@ class ReadingHubScreen extends StatelessWidget {
     Navigator.of(context).push(
       AppPageRoute.fade(
         settings: const RouteSettings(name: '/bookmarks/from-reading-hub'),
-        builder: (_) => BookmarksScreen(onNavigateToTab: onNavigateToTab),
+        builder: (_) =>
+            BookmarksScreen(onNavigateToTab: widget.onNavigateToTab),
       ),
     );
   }
@@ -49,7 +68,8 @@ class ReadingHubScreen extends StatelessWidget {
     Navigator.of(context).push(
       AppPageRoute.fade(
         settings: const RouteSettings(name: '/favorites/from-reading-hub'),
-        builder: (_) => FavoritesScreen(onNavigateToTab: onNavigateToTab),
+        builder: (_) =>
+            FavoritesScreen(onNavigateToTab: widget.onNavigateToTab),
       ),
     );
   }
@@ -67,9 +87,79 @@ class ReadingHubScreen extends StatelessWidget {
     Navigator.of(context).push(
       AppPageRoute.fade(
         settings: const RouteSettings(name: '/search'),
-        builder: (_) => SearchScreen(onNavigateToTab: onNavigateToTab),
+        builder: (_) => SearchScreen(onNavigateToTab: widget.onNavigateToTab),
       ),
     );
+  }
+
+  Future<void> _openAudioPlayer() async {
+    if (_isOpeningAudioPlayer) return;
+
+    setState(() {
+      _isOpeningAudioPlayer = true;
+    });
+
+    final track = await _lastAudioTrack() ?? await _firstAudioTrack();
+
+    if (!mounted) return;
+    setState(() {
+      _isOpeningAudioPlayer = false;
+    });
+
+    if (track == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Nie udało się przygotować odtwarzacza.')),
+      );
+      return;
+    }
+
+    await Navigator.of(context).push(
+      AppPageRoute.fade(
+        settings: const RouteSettings(name: '/audio-player/from-book-hub'),
+        builder: (_) => AudioPlayerScreen(track: track),
+      ),
+    );
+  }
+
+  Future<AudioTrack?> _lastAudioTrack() async {
+    final trackId = await _audioService.getLastTrackId();
+    if (trackId == null) return null;
+
+    final chapterReference = AudioCatalog.chapterReferenceForTrackId(trackId);
+    if (chapterReference == null) return null;
+
+    return _audioTrackForChapterReference(chapterReference);
+  }
+
+  Future<AudioTrack?> _firstAudioTrack() {
+    return _audioTrackForChapterReference('I-1');
+  }
+
+  Future<AudioTrack?> _audioTrackForChapterReference(
+    String chapterReference,
+  ) async {
+    final chapter = await _bookRepository.getChapterByReference(
+      chapterReference,
+    );
+    if (chapter == null) return null;
+
+    return AudioCatalog.trackForChapter(
+      chapterReference: chapter.reference,
+      title: chapter.title,
+      subtitle: _bookTitleForChapter(chapter),
+    );
+  }
+
+  String _bookTitleForChapter(BookChapter chapter) {
+    final bookCode = chapter.reference.split('-').first;
+
+    return switch (bookCode) {
+      'I' => 'Księga pierwsza',
+      'II' => 'Księga druga',
+      'III' => 'Księga trzecia',
+      'IV' => 'Księga czwarta',
+      _ => 'Księga $bookCode',
+    };
   }
 
   @override
@@ -80,9 +170,8 @@ class ReadingHubScreen extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             SectionHeader(
-              title: 'Czytaj',
-              subtitle:
-                  'Czytaj, wracaj do ważnych fragmentów i zapisuj swoje refleksje.',
+              title: 'Książka',
+              subtitle: 'Czytaj, słuchaj i wracaj do zapisanych miejsc.',
               icon: Icons.menu_book,
               trailing: Row(
                 mainAxisSize: MainAxisSize.min,
@@ -110,6 +199,16 @@ class ReadingHubScreen extends StatelessWidget {
                     subtitle: 'Wróć do ostatniego miejsca w książce.',
                     isPrimary: true,
                     onTap: () => _openReader(context),
+                  ),
+                  const SizedBox(height: 12),
+                  _ReadingHubTile(
+                    icon: Icons.headphones_rounded,
+                    title: 'Kontynuuj słuchanie',
+                    subtitle: 'Wróć do ostatniego rozdziału audio.',
+                    isLoading: _isOpeningAudioPlayer,
+                    onTap: _isOpeningAudioPlayer
+                        ? null
+                        : () => unawaited(_openAudioPlayer()),
                   ),
                   const SizedBox(height: 20),
                   const _ReadingHubSectionTitle('Zapisane miejsca'),
@@ -141,8 +240,9 @@ class _ReadingHubTile extends StatelessWidget {
   final IconData icon;
   final String title;
   final String subtitle;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
   final bool isPrimary;
+  final bool isLoading;
 
   const _ReadingHubTile({
     required this.icon,
@@ -150,6 +250,7 @@ class _ReadingHubTile extends StatelessWidget {
     required this.subtitle,
     required this.onTap,
     this.isPrimary = false,
+    this.isLoading = false,
   });
 
   @override
@@ -199,7 +300,14 @@ class _ReadingHubTile extends StatelessWidget {
                 ],
               ),
             ),
-            const Icon(Icons.chevron_right),
+            if (isLoading)
+              const SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            else
+              const Icon(Icons.chevron_right),
           ],
         ),
       ),

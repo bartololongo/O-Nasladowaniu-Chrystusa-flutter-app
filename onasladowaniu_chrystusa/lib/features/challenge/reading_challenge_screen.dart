@@ -114,8 +114,8 @@ class _ReadingChallengeScreenState extends State<ReadingChallengeScreen> {
 
     if (!mounted) return;
 
-    // przełącz na tab "Czytaj"
-    widget.onNavigateToTab?.call(MainTabs.read);
+    // przełącz na hub "Książka"
+    widget.onNavigateToTab?.call(MainTabs.book);
 
     // zamknij ekran wyzwania
     if (Navigator.of(context).canPop()) {

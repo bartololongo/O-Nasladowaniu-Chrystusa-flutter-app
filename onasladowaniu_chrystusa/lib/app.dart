@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:home_widget/home_widget.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'features/home/home_screen.dart';
 import 'features/reading/reading_hub_screen.dart';
@@ -9,11 +10,11 @@ import 'features/journal/journal_screen.dart';
 import 'features/settings/settings_screen.dart';
 import 'features/favorites/favorites_screen.dart';
 import 'features/formation_challenge/formation_challenge_screen.dart';
-import 'features/audio/ui/listen_screen.dart';
 import 'features/search/search_screen.dart';
 import 'shared/navigation/app_page_route.dart';
 import 'shared/navigation/main_tabs.dart';
 import 'shared/navigation/navigation_guard_service.dart';
+import 'shared/services/app_update_service.dart';
 import 'shared/services/content_update_service.dart';
 import 'shared/services/formation_notification_service.dart';
 import 'shared/services/formation_widget_snapshot_service.dart';
@@ -69,7 +70,7 @@ class _RootScreen extends StatefulWidget {
 }
 
 class _RootScreenState extends State<_RootScreen> with WidgetsBindingObserver {
-  /// Bazowa zakładka (Start / Droga / Czytaj / Dziennik / Słuchaj).
+  /// Bazowa zakładka (Start / Droga / Książka / Dziennik).
   int _baseTabIndex = MainTabs.start;
 
   /// Aktualnie podświetlana zakładka w BottomNavigationBar.
@@ -81,7 +82,7 @@ class _RootScreenState extends State<_RootScreen> with WidgetsBindingObserver {
   String? _activeMoreRouteName;
 
   /// Wewnętrzny Navigator, w którym renderujemy:
-  /// - ekrany z bottom nav (Start, Droga, Czytaj, Dziennik, Słuchaj),
+  /// - ekrany z bottom nav (Start, Droga, Książka, Dziennik),
   /// - oraz dodatkowe ekrany: Dziennik, Ulubione, Ustawienia itp.
   ///
   /// Dzięki temu dolny pasek jest zawsze widoczny.
@@ -92,7 +93,10 @@ class _RootScreenState extends State<_RootScreen> with WidgetsBindingObserver {
   String? _pendingNotificationPayload;
   bool _isOpeningFormationFromNotification = false;
   bool _hasCheckedContentUpdateOnLaunch = false;
+  bool _hasCheckedAppUpdateOnLaunch = false;
+  bool _isShowingAppUpdatePrompt = false;
   bool _isShowingContentUpdatePrompt = false;
+  final AppUpdateService _appUpdateService = AppUpdateService();
   final ContentUpdateService _contentUpdateService = ContentUpdateService();
 
   @override
@@ -117,7 +121,7 @@ class _RootScreenState extends State<_RootScreen> with WidgetsBindingObserver {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _checkPendingNotificationPayload('initState');
       _checkInitialWidgetUri();
-      unawaited(_checkContentUpdateOnLaunch());
+      unawaited(_checkLaunchUpdates());
     });
   }
 
@@ -194,6 +198,47 @@ class _RootScreenState extends State<_RootScreen> with WidgetsBindingObserver {
 
     if (!mounted) return;
     _isShowingContentUpdatePrompt = false;
+  }
+
+  Future<void> _checkLaunchUpdates() async {
+    await _checkAppUpdateOnLaunch();
+    if (!mounted) return;
+    await _checkContentUpdateOnLaunch();
+  }
+
+  Future<void> _checkAppUpdateOnLaunch() async {
+    if (_hasCheckedAppUpdateOnLaunch) return;
+    _hasCheckedAppUpdateOnLaunch = true;
+
+    final availability = await _appUpdateService.checkAvailability();
+    if (!mounted) return;
+
+    if (!availability.isAvailable || availability.isDismissed) {
+      return;
+    }
+
+    final remoteVersion = availability.remoteVersion;
+    if (remoteVersion == null || remoteVersion.isEmpty) {
+      return;
+    }
+
+    if (_isShowingAppUpdatePrompt || _isShowingContentUpdatePrompt) return;
+    _isShowingAppUpdatePrompt = true;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (sheetContext) {
+        return _AppUpdatePromptSheet(
+          remoteVersion: remoteVersion,
+          storeUrl: availability.storeUrl,
+          appUpdateService: _appUpdateService,
+        );
+      },
+    );
+
+    if (!mounted) return;
+    _isShowingAppUpdatePrompt = false;
   }
 
   void _handleWidgetUri(Uri? uri) {
@@ -382,7 +427,7 @@ class _RootScreenState extends State<_RootScreen> with WidgetsBindingObserver {
         );
       case MainTabs.formation:
         return FormationChallengeScreen(onNavigateToTab: _onTabSelected);
-      case MainTabs.read:
+      case MainTabs.book:
         // ValueKey na podstawie _readerInstanceId wymusza nową instancję,
         // gdy ten licznik się zmieni.
         return ReadingHubScreen(
@@ -396,8 +441,6 @@ class _RootScreenState extends State<_RootScreen> with WidgetsBindingObserver {
           onNavigateToTab: _onTabSelected,
           showBackButton: false,
         );
-      case MainTabs.listen:
-        return ListenScreen(onNavigateToTab: _onTabSelected);
       default:
         return const SizedBox.shrink();
     }
@@ -448,16 +491,143 @@ class _RootScreenState extends State<_RootScreen> with WidgetsBindingObserver {
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Start'),
           BottomNavigationBarItem(icon: Icon(Icons.route), label: 'Droga'),
-          BottomNavigationBarItem(icon: Icon(Icons.menu_book), label: 'Czytaj'),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.menu_book),
+            label: 'Książka',
+          ),
           BottomNavigationBarItem(
             icon: Icon(Icons.edit_note_rounded),
             label: 'Dziennik',
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.headphones_rounded),
-            label: 'Słuchaj',
-          ),
         ],
+      ),
+    );
+  }
+}
+
+class _AppUpdatePromptSheet extends StatefulWidget {
+  final String remoteVersion;
+  final String? storeUrl;
+  final AppUpdateService appUpdateService;
+
+  const _AppUpdatePromptSheet({
+    required this.remoteVersion,
+    required this.storeUrl,
+    required this.appUpdateService,
+  });
+
+  @override
+  State<_AppUpdatePromptSheet> createState() => _AppUpdatePromptSheetState();
+}
+
+class _AppUpdatePromptSheetState extends State<_AppUpdatePromptSheet> {
+  bool _isOpeningStore = false;
+
+  Future<void> _dismissForNow() async {
+    await widget.appUpdateService.dismissAppVersion(widget.remoteVersion);
+    if (!mounted) return;
+    Navigator.of(context).pop();
+  }
+
+  Future<void> _openStore() async {
+    if (_isOpeningStore) return;
+
+    final storeUrl = widget.storeUrl;
+    final uri = storeUrl == null ? null : Uri.tryParse(storeUrl);
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+
+    if (uri == null) {
+      messenger.clearSnackBars();
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Nie udało się otworzyć App Store.')),
+      );
+      return;
+    }
+
+    setState(() {
+      _isOpeningStore = true;
+    });
+
+    final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!mounted) return;
+
+    if (ok) {
+      navigator.pop();
+      return;
+    }
+
+    setState(() {
+      _isOpeningStore = false;
+    });
+    messenger.clearSnackBars();
+    messenger.showSnackBar(
+      const SnackBar(content: Text('Nie udało się otworzyć App Store.')),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  Icons.system_update_alt_rounded,
+                  size: 32,
+                  color: colorScheme.primary,
+                ),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Text(
+                    'Dostępna nowa wersja',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              'W App Store jest dostępna nowsza wersja aplikacji.',
+              style: TextStyle(fontSize: 14, height: 1.4),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Możesz zaktualizować aplikację teraz albo zrobić to później.',
+              style: TextStyle(fontSize: 14, height: 1.4),
+            ),
+            const SizedBox(height: 20),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton(
+                  onPressed: _isOpeningStore ? null : _dismissForNow,
+                  child: const Text('Nie teraz'),
+                ),
+                const SizedBox(width: 8),
+                ElevatedButton.icon(
+                  onPressed: _isOpeningStore ? null : _openStore,
+                  icon: _isOpeningStore
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.open_in_new_rounded),
+                  label: Text(_isOpeningStore ? 'Otwieranie...' : 'Aktualizuj'),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

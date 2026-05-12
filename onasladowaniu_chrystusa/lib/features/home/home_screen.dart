@@ -619,7 +619,7 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   void _openBookmarksQuick() {
-    widget.onNavigateToTab?.call(MainTabs.read);
+    widget.onNavigateToTab?.call(MainTabs.book);
   }
 
   void _openSettingsQuick() {
