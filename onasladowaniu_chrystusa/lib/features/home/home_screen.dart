@@ -20,9 +20,9 @@ import '../journal/journal_screen.dart';
 import '../favorites/favorites_screen.dart';
 import '../reader/reader_screen.dart';
 import '../search/search_screen.dart';
-import '../audio/data/audio_catalog.dart';
 import '../audio/data/audio_track.dart';
 import '../audio/services/app_audio_player_service.dart';
+import '../audio/services/audio_resume_service.dart';
 import '../audio/ui/audio_player_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -46,14 +46,17 @@ class _HomeScreenState extends State<HomeScreen>
   final JournalService _journalService = JournalService();
   final BookRepository _bookRepository = BookRepository();
   final AppAudioPlayerService _audioService = AppAudioPlayerService.instance;
+  final AudioResumeService _audioResumeService = AudioResumeService();
   final FormationChallengeService _formationChallengeService =
       FormationChallengeService();
   final FormationChallengeProgressService _formationProgressService =
       FormationChallengeProgressService();
 
   String? _lastChapterRef;
-  String? _lastAudioTrackId;
-  String _audioChapterMeta = 'Księga I, rozdział 1';
+  AudioResumeTileData _audioTileData = const AudioResumeTileData(
+    hasSavedProgress: false,
+    chapterReference: AudioResumeService.defaultChapterReference,
+  );
   FormationChallengeDay? _dailyMeditationDay;
   int? _dailyMeditationTotalDays;
   StreamSubscription<AudioTrack?>? _audioTrackSubscription;
@@ -102,16 +105,11 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   Future<void> _loadLastAudioTrack() async {
-    final trackId = await _audioService.getLastTrackId();
-    final lastChapterReference = trackId == null
-        ? null
-        : AudioCatalog.chapterReferenceForTrackId(trackId);
-    final chapterReference = lastChapterReference ?? 'I-1';
+    final tileData = await _audioResumeService.loadTileData();
 
     if (!mounted) return;
     setState(() {
-      _lastAudioTrackId = lastChapterReference == null ? null : trackId;
-      _audioChapterMeta = _chapterMetaForReference(chapterReference);
+      _audioTileData = tileData;
     });
   }
 
@@ -170,16 +168,8 @@ class _HomeScreenState extends State<HomeScreen>
     return 'Rozdział $_lastChapterRef';
   }
 
-  String get _continueListeningTitle {
-    if (_lastAudioTrackId == null || _lastAudioTrackId!.isEmpty) {
-      return 'Rozpocznij słuchanie';
-    }
-
-    return 'Kontynuuj słuchanie';
-  }
-
   Future<void> _openAudioQuick() async {
-    final track = await _lastAudioTrack() ?? await _firstAudioTrack();
+    final track = await _audioResumeService.lastOrFirstTrack();
     if (track == null || !mounted) return;
 
     await Navigator.of(context).push(
@@ -223,56 +213,6 @@ class _HomeScreenState extends State<HomeScreen>
 
     if (!mounted) return;
     await _loadDailyMeditationShortcut();
-  }
-
-  Future<AudioTrack?> _lastAudioTrack() async {
-    final trackId = await _audioService.getLastTrackId();
-    if (trackId == null) return null;
-
-    final chapterReference = AudioCatalog.chapterReferenceForTrackId(trackId);
-    if (chapterReference == null) return null;
-
-    return _audioTrackForChapterReference(chapterReference);
-  }
-
-  Future<AudioTrack?> _firstAudioTrack() {
-    return _audioTrackForChapterReference('I-1');
-  }
-
-  Future<AudioTrack?> _audioTrackForChapterReference(
-    String chapterReference,
-  ) async {
-    final chapter = await _bookRepository.getChapterByReference(
-      chapterReference,
-    );
-    if (chapter == null) return null;
-
-    return AudioCatalog.trackForChapter(
-      chapterReference: chapter.reference,
-      title: chapter.title,
-      subtitle: _bookTitleForReference(chapter.reference),
-    );
-  }
-
-  String _bookTitleForReference(String chapterReference) {
-    final bookCode = chapterReference.split('-').first;
-
-    return switch (bookCode) {
-      'I' => 'Księga pierwsza',
-      'II' => 'Księga druga',
-      'III' => 'Księga trzecia',
-      'IV' => 'Księga czwarta',
-      _ => 'Księga $bookCode',
-    };
-  }
-
-  String _chapterMetaForReference(String chapterReference) {
-    final parts = chapterReference.split('-');
-    if (parts.length == 2) {
-      return 'Księga ${parts[0]}, rozdział ${parts[1]}';
-    }
-
-    return 'Rozdział $chapterReference';
   }
 
   Future<void> _showRandomQuoteBottomSheet() async {
@@ -861,7 +801,7 @@ class _HomeScreenState extends State<HomeScreen>
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    _continueListeningTitle,
+                    _audioTileData.title,
                     style: const TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.w600,
@@ -869,7 +809,7 @@ class _HomeScreenState extends State<HomeScreen>
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    _audioChapterMeta,
+                    _audioTileData.subtitle,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(

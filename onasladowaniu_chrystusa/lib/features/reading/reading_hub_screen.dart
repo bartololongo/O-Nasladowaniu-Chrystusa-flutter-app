@@ -4,12 +4,10 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../shared/navigation/app_page_route.dart';
-import '../../shared/models/book_models.dart';
-import '../../shared/services/book_repository.dart';
 import '../../shared/widgets/section_header.dart';
-import '../audio/data/audio_catalog.dart';
 import '../audio/data/audio_track.dart';
 import '../audio/services/app_audio_player_service.dart';
+import '../audio/services/audio_resume_service.dart';
 import '../audio/ui/audio_player_screen.dart';
 import '../bookmarks/bookmarks_screen.dart';
 import '../favorites/favorites_screen.dart';
@@ -36,9 +34,38 @@ class ReadingHubScreen extends StatefulWidget {
 
 class _ReadingHubScreenState extends State<ReadingHubScreen> {
   final AppAudioPlayerService _audioService = AppAudioPlayerService.instance;
-  final BookRepository _bookRepository = BookRepository();
+  final AudioResumeService _audioResumeService = AudioResumeService();
 
   bool _isOpeningAudioPlayer = false;
+  AudioResumeTileData _audioTileData = const AudioResumeTileData(
+    hasSavedProgress: false,
+    chapterReference: AudioResumeService.defaultChapterReference,
+  );
+  StreamSubscription<AudioTrack?>? _audioTrackSubscription;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_loadAudioTileData());
+    _audioTrackSubscription = _audioService.currentTrackStream.listen((_) {
+      unawaited(_loadAudioTileData());
+    });
+  }
+
+  @override
+  void dispose() {
+    _audioTrackSubscription?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _loadAudioTileData() async {
+    final tileData = await _audioResumeService.loadTileData();
+
+    if (!mounted) return;
+    setState(() {
+      _audioTileData = tileData;
+    });
+  }
 
   void _openReader(BuildContext context) {
     Navigator.of(context).push(
@@ -89,7 +116,7 @@ class _ReadingHubScreenState extends State<ReadingHubScreen> {
       _isOpeningAudioPlayer = true;
     });
 
-    final track = await _lastAudioTrack() ?? await _firstAudioTrack();
+    final track = await _audioResumeService.lastOrFirstTrack();
 
     if (!mounted) return;
     setState(() {
@@ -109,47 +136,9 @@ class _ReadingHubScreenState extends State<ReadingHubScreen> {
         builder: (_) => AudioPlayerScreen(track: track),
       ),
     );
-  }
 
-  Future<AudioTrack?> _lastAudioTrack() async {
-    final trackId = await _audioService.getLastTrackId();
-    if (trackId == null) return null;
-
-    final chapterReference = AudioCatalog.chapterReferenceForTrackId(trackId);
-    if (chapterReference == null) return null;
-
-    return _audioTrackForChapterReference(chapterReference);
-  }
-
-  Future<AudioTrack?> _firstAudioTrack() {
-    return _audioTrackForChapterReference('I-1');
-  }
-
-  Future<AudioTrack?> _audioTrackForChapterReference(
-    String chapterReference,
-  ) async {
-    final chapter = await _bookRepository.getChapterByReference(
-      chapterReference,
-    );
-    if (chapter == null) return null;
-
-    return AudioCatalog.trackForChapter(
-      chapterReference: chapter.reference,
-      title: chapter.title,
-      subtitle: _bookTitleForChapter(chapter),
-    );
-  }
-
-  String _bookTitleForChapter(BookChapter chapter) {
-    final bookCode = chapter.reference.split('-').first;
-
-    return switch (bookCode) {
-      'I' => 'Księga pierwsza',
-      'II' => 'Księga druga',
-      'III' => 'Księga trzecia',
-      'IV' => 'Księga czwarta',
-      _ => 'Księga $bookCode',
-    };
+    if (!mounted) return;
+    await _loadAudioTileData();
   }
 
   @override
@@ -188,8 +177,8 @@ class _ReadingHubScreenState extends State<ReadingHubScreen> {
                   const SizedBox(height: 12),
                   _ReadingHubTile(
                     icon: Icons.headphones_rounded,
-                    title: 'Kontynuuj słuchanie',
-                    subtitle: 'Wróć do ostatniego rozdziału audio.',
+                    title: _audioTileData.title,
+                    subtitle: _audioTileData.subtitle,
                     isLoading: _isOpeningAudioPlayer,
                     onTap: _isOpeningAudioPlayer
                         ? null
