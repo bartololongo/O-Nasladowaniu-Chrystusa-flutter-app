@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/formation_widget_container"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/formation_widget_background"
+    android:orientation="vertical"
+    android:padding="16dp">
+
+    <TextView
+        android:id="@+id/formation_widget_title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:textColor="@color/formation_widget_gold_light"
+        android:textSize="16sp"
+        android:textStyle="bold"
+        tools:text="Droga naśladowania" />
+
+    <TextView
+        android:id="@+id/formation_widget_day"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:textColor="@android:color/white"
+        android:textSize="20sp"
+        android:textStyle="bold"
+        tools:text="Dzień 12 z 114" />
+
+    <ProgressBar
+        android:id="@+id/formation_widget_progress"
+        style="?android:attr/progressBarStyleHorizontal"
+        android:layout_width="match_parent"
+        android:layout_height="6dp"
+        android:layout_marginTop="8dp"
+        android:max="1000"
+        android:progressDrawable="@drawable/formation_widget_progress" />
+
+    <TextView
+        android:id="@+id/formation_widget_message"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_marginTop="10dp"
+        android:layout_weight="1"
+        android:ellipsize="end"
+        android:maxLines="3"
+        android:textColor="@color/formation_widget_text_secondary"
+        android:textSize="13sp"
+        tools:text="Dziś czeka na Ciebie kolejny krok Drogi." />
+
+    <TextView
+        android:id="@+id/formation_widget_status"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:textColor="@color/formation_widget_gold"
+        android:textSize="12sp"
+        android:textStyle="bold"
+        tools:text="Dziś kolejny krok" />
+</LinearLayout>

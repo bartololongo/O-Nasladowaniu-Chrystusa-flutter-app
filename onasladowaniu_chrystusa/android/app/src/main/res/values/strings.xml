@@ -1,4 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">O naśladowaniu Chrystusa</string>
+    <string name="formation_widget_label">Droga naśladowania</string>
+    <string name="formation_widget_description">Aktualny krok i postęp Drogi naśladowania.</string>
+    <string name="formation_widget_title">Droga naśladowania</string>
+    <string name="formation_widget_day">Dzień %1$d z %2$d</string>
+    <string name="formation_widget_start_hint">Rozpocznij Drogę</string>
+    <string name="formation_widget_completed_today">Ukończone dziś</string>
+    <string name="formation_widget_next_step">Dziś kolejny krok</string>
+    <plurals name="formation_widget_catch_up">
+        <item quantity="one">Do nadrobienia: %1$d dzień</item>
+        <item quantity="few">Do nadrobienia: %1$d dni</item>
+        <item quantity="many">Do nadrobienia: %1$d dni</item>
+        <item quantity="other">Do nadrobienia: %1$d dni</item>
+    </plurals>
 </resources>

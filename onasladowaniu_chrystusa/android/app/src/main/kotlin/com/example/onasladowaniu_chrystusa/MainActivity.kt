@@ -19,9 +19,19 @@ class MainActivity : AudioServiceActivity() {
             flutterEngine.dartExecutor.binaryMessenger,
             notificationTapChannelName
         )
+        notificationTapChannel?.setMethodCallHandler { call, result ->
+            if (call.method != "takePendingNotificationPayload") {
+                result.notImplemented()
+                return@setMethodCallHandler
+            }
+
+            val payload = pendingNotificationPayload
+            pendingNotificationPayload = null
+            clearNotificationIntent()
+            result.success(payload)
+        }
         pendingNotificationPayload?.let { payload ->
             sendNotificationPayload(payload)
-            pendingNotificationPayload = null
         }
     }
 
@@ -37,14 +47,12 @@ class MainActivity : AudioServiceActivity() {
     }
 
     private fun handleNotificationIntent(intent: Intent?) {
-        if (intent?.action != selectNotificationAction) return
+        if (intent == null) return
+        if (intent.action != selectNotificationAction && !intent.hasExtra(payloadExtra)) return
 
         val payload = intent.getStringExtra(payloadExtra) ?: return
         pendingNotificationPayload = payload
         sendNotificationPayload(payload)
-
-        intent.action = null
-        intent.removeExtra(payloadExtra)
     }
 
     private fun sendNotificationPayload(payload: String) {
@@ -54,6 +62,22 @@ class MainActivity : AudioServiceActivity() {
             return
         }
 
-        channel.invokeMethod("notificationTap", payload)
+        channel.invokeMethod("notificationTap", payload, object : MethodChannel.Result {
+            override fun success(result: Any?) {
+                if (pendingNotificationPayload == payload) {
+                    pendingNotificationPayload = null
+                    clearNotificationIntent()
+                }
+            }
+
+            override fun error(errorCode: String, errorMessage: String?, errorDetails: Any?) = Unit
+
+            override fun notImplemented() = Unit
+        })
+    }
+
+    private fun clearNotificationIntent() {
+        intent?.action = null
+        intent?.removeExtra(payloadExtra)
     }
 }

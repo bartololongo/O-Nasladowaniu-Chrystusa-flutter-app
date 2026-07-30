@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="formation_widget_background">#0F0A07</color>
+    <color name="formation_widget_gold_light">#F7E3BD</color>
+    <color name="formation_widget_gold">#DBA343</color>
+    <color name="formation_widget_text_secondary">#DBC9A8</color>
+    <color name="formation_widget_progress_background">#3A2D1C</color>
+</resources>

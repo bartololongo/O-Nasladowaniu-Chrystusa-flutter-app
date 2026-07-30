@@ -55,7 +55,11 @@ class FormationWidgetSnapshotService {
 
   Future<void> updateWidget() async {
     try {
-      await HomeWidget.updateWidget(name: _widgetName, iOSName: _widgetName);
+      await HomeWidget.updateWidget(
+        name: _widgetName,
+        androidName: 'FormationWidgetProvider',
+        iOSName: _widgetName,
+      );
     } catch (_) {
       // Native widget targets are not present yet. Snapshot saving should still
       // work, so updating the widget is best-effort in this preparation stage.

@@ -114,6 +114,11 @@ class FormationNotificationService {
 
     _initialized = true;
 
+    final nativePendingPayload = await _takeNativePendingPayload();
+    if (nativePendingPayload != null && nativePendingPayload.isNotEmpty) {
+      return nativePendingPayload;
+    }
+
     final launchDetails = await _notifications
         .getNotificationAppLaunchDetails();
     if ((launchDetails?.didNotificationLaunchApp ?? false) &&
@@ -122,8 +127,23 @@ class FormationNotificationService {
       return payload;
     }
 
+    final pendingPayload = _pendingPayload;
+    if (pendingPayload != null && pendingPayload.isNotEmpty) {
+      return pendingPayload;
+    }
+
     await clearPendingPayload();
     return null;
+  }
+
+  Future<String?> _takeNativePendingPayload() async {
+    try {
+      return await _nativeTapChannel.invokeMethod<String>(
+        'takePendingNotificationPayload',
+      );
+    } on MissingPluginException {
+      return null;
+    }
   }
 
   void _registerNativeTapHandler() {
@@ -240,6 +260,12 @@ class FormationNotificationService {
   }
 
   Future<void> scheduleTestNotificationInTenSeconds() async {
+    await scheduleTestNotification(delay: const Duration(seconds: 10));
+  }
+
+  Future<void> scheduleTestNotification({
+    Duration delay = const Duration(seconds: 10),
+  }) async {
     await initialize();
     await _configureLocalTimeZone();
     await _requestPermissions();
@@ -248,9 +274,7 @@ class FormationNotificationService {
       id: _notificationId + 1,
       title: 'Droga naśladowania',
       body: 'Znajdź dzisiaj chwilę na medytację',
-      scheduledDate: tz.TZDateTime.now(
-        tz.local,
-      ).add(const Duration(seconds: 10)),
+      scheduledDate: tz.TZDateTime.now(tz.local).add(delay),
       notificationDetails: const NotificationDetails(
         android: AndroidNotificationDetails(
           'formation_reminder',
