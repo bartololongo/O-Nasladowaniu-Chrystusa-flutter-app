@@ -1270,6 +1270,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
   Widget _buildTitle(BookChapter chapter) {
     final colorScheme = Theme.of(context).colorScheme;
+    final isCompact = context.isCompactAndroid;
+    final titleFontSize = _fontSize + 2;
 
     String subtitle;
     final parts = chapter.reference.split('-');
@@ -1293,12 +1295,15 @@ class _ReaderScreenState extends State<ReaderScreen> {
         children: [
           Text(
             chapter.title,
+            maxLines: isCompact ? 2 : null,
+            overflow: isCompact ? TextOverflow.ellipsis : TextOverflow.visible,
             style: TextStyle(
-              fontSize: _fontSize + 2,
+              fontSize: titleFontSize,
               fontWeight: FontWeight.bold,
+              height: isCompact ? 1.16 : null,
             ),
           ),
-          SizedBox(height: context.layoutValue(4, compact: 3)),
+          SizedBox(height: context.layoutValue(4, compact: 4)),
           Text(
             subtitle,
             style: TextStyle(
