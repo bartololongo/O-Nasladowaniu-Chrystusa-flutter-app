@@ -581,14 +581,22 @@ class _JournalScreenState extends State<JournalScreen> {
       }
     }
 
-    final paragraph = BookParagraph(index: index, reference: ref, text: text);
     final sheetNavigator = Navigator.of(sheetContext);
     final messenger = ScaffoldMessenger.of(context);
 
-    await _favoritesService.addOrUpdateFavoriteForParagraph(
-      paragraph,
-      note: null,
-    );
+    if (FavoritesService.isSelectionParagraphRef(ref)) {
+      await _favoritesService.addFavoriteForSelection(
+        chapterRef: '${parts[0]}-${parts[1]}',
+        text: text,
+        note: null,
+      );
+    } else {
+      final paragraph = BookParagraph(index: index, reference: ref, text: text);
+      await _favoritesService.addOrUpdateFavoriteForParagraph(
+        paragraph,
+        note: null,
+      );
+    }
 
     if (!mounted) return;
 

@@ -1535,14 +1535,9 @@ class _ReaderScreenState extends State<ReaderScreen> {
     if (text == null || text.isEmpty) return;
 
     try {
-      final paragraph = BookParagraph(
-        index: 0, // wymagany parametr – sztuczny indeks dla zaznaczenia
-        reference: '${chapter.reference}-sel',
+      await _favoritesService.addFavoriteForSelection(
+        chapterRef: chapter.reference,
         text: text,
-      );
-
-      await _favoritesService.addOrUpdateFavoriteForParagraph(
-        paragraph,
         note: null,
       );
 

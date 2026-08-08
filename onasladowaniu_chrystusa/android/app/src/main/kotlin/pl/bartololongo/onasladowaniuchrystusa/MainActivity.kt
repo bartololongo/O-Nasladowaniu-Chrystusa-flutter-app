@@ -1,4 +1,4 @@
-package com.example.onasladowaniu_chrystusa
+package pl.bartololongo.onasladowaniuchrystusa
 
 import android.content.Intent
 import io.flutter.embedding.engine.FlutterEngine
