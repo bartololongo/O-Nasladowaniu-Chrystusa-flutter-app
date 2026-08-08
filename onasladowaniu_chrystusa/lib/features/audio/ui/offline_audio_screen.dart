@@ -334,10 +334,16 @@ class _OfflineAudioScreenState extends State<OfflineAudioScreen> {
       context: context,
       builder: (context) {
         final colorScheme = Theme.of(context).colorScheme;
+        final isCompact = context.isCompactAndroid;
 
         return SafeArea(
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+            padding: EdgeInsets.fromLTRB(
+              isCompact ? 16 : 20,
+              8,
+              isCompact ? 16 : 20,
+              20,
+            ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -371,16 +377,23 @@ class _OfflineAudioScreenState extends State<OfflineAudioScreen> {
                 Row(
                   children: [
                     Expanded(
+                      flex: isCompact ? 2 : 1,
                       child: OutlinedButton(
                         onPressed: () => Navigator.of(context).pop(false),
-                        child: Text(cancelLabel),
+                        child: Text(cancelLabel, maxLines: 1),
                       ),
                     ),
-                    const SizedBox(width: 12),
+                    SizedBox(width: isCompact ? 8 : 12),
                     Expanded(
+                      flex: isCompact ? 3 : 1,
                       child: FilledButton(
                         onPressed: () => Navigator.of(context).pop(true),
-                        child: Text(confirmLabel),
+                        child: Text(
+                          confirmLabel,
+                          maxLines: 1,
+                          overflow: TextOverflow.visible,
+                          softWrap: false,
+                        ),
                       ),
                     ),
                   ],
