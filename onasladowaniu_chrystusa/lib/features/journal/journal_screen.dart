@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../../shared/services/journal_service.dart';
 import '../../shared/services/preferences_service.dart';
 import '../../shared/services/favorites_service.dart';
-import '../../shared/models/book_models.dart';
 import '../../shared/navigation/app_page_route.dart';
 import '../../shared/widgets/section_header.dart';
 import '../reader/reader_screen.dart';
@@ -553,59 +552,35 @@ class _JournalScreenState extends State<JournalScreen> {
     );
   }
 
-  /// Dodaje cytat z wpisu do ulubionych (jeśli cytat i referencja są dostępne)
-  /// i zamyka bottomsheet.
-  Future<void> _addEntryQuoteToFavorites(
-    JournalEntry entry,
-    BuildContext sheetContext,
-  ) async {
+  Future<bool> _isEntryQuoteFavorite(JournalEntry entry) async {
+    final ref = entry.quoteRef?.trim();
+    if (ref == null || ref.isEmpty) return false;
+
+    return _favoritesService.isJournalQuoteFavorite(
+      journalEntryId: entry.id,
+      quoteRef: ref,
+    );
+  }
+
+  Future<bool> _toggleEntryQuoteFavorite(JournalEntry entry) async {
     final text = entry.quoteText?.trim();
     final ref = entry.quoteRef?.trim();
 
     if (text == null || text.isEmpty || ref == null || ref.isEmpty) {
-      if (!mounted) return;
+      if (!mounted) return false;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Ten wpis nie ma cytatu do dodania do ulubionych.'),
         ),
       );
-      return;
+      return false;
     }
 
-    int index = 0;
-    final parts = ref.split('-');
-    if (parts.length >= 3) {
-      final parsed = int.tryParse(parts[2]);
-      if (parsed != null) {
-        index = parsed;
-      }
-    }
-
-    final sheetNavigator = Navigator.of(sheetContext);
-    final messenger = ScaffoldMessenger.of(context);
-
-    if (FavoritesService.isSelectionParagraphRef(ref)) {
-      await _favoritesService.addFavoriteForSelection(
-        chapterRef: '${parts[0]}-${parts[1]}',
-        text: text,
-        note: null,
-      );
-    } else {
-      final paragraph = BookParagraph(index: index, reference: ref, text: text);
-      await _favoritesService.addOrUpdateFavoriteForParagraph(
-        paragraph,
-        note: null,
-      );
-    }
-
-    if (!mounted) return;
-
-    // zamknij bottomsheet
-    sheetNavigator.pop();
-
-    // i pokaż komunikat
-    messenger.showSnackBar(
-      const SnackBar(content: Text('Cytat dodany do ulubionych.')),
+    return _favoritesService.toggleFavoriteForJournalQuote(
+      journalEntryId: entry.id,
+      quoteRef: ref,
+      text: text,
+      note: null,
     );
   }
 
@@ -676,117 +651,168 @@ class _JournalScreenState extends State<JournalScreen> {
             entry.quoteRef != null &&
             entry.quoteRef!.trim().isNotEmpty;
 
-        return SafeArea(
-          child: FractionallySizedBox(
-            heightFactor: 0.9,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-                  child: Row(
-                    children: [
-                      Icon(Icons.menu_book_rounded, color: colorScheme.primary),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          _formatDateTime(entry.createdAt),
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
+        return StatefulBuilder(
+          builder: (sheetContext, setSheetState) {
+            return SafeArea(
+              child: FractionallySizedBox(
+                heightFactor: 0.9,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.menu_book_rounded,
+                            color: colorScheme.primary,
                           ),
-                        ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              _formatDateTime(entry.createdAt),
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Expanded(
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        if (displayContent.reflectionText.isNotEmpty) ...[
-                          const Text(
-                            'Moja refleksja:',
-                            style: TextStyle(fontWeight: FontWeight.w600),
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            displayContent.reflectionText,
-                            style: const TextStyle(fontSize: 14, height: 1.4),
-                          ),
-                          const SizedBox(height: 12),
-                        ],
-                        if (displayContent.contextText.isNotEmpty) ...[
-                          Text(
-                            displayContent.contextText,
-                            style: TextStyle(
-                              fontSize: 13,
-                              height: 1.35,
-                              color: colorScheme.onSurface.withValues(
-                                alpha: 0.7,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                        ],
-                        if (entry.quoteText != null &&
-                            entry.quoteText!.trim().isNotEmpty) ...[
-                          const Divider(),
-                          const SizedBox(height: 8),
-                          const Text(
-                            'Fragment:',
-                            style: TextStyle(fontWeight: FontWeight.w600),
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            entry.quoteText!,
-                            style: TextStyle(
-                              fontStyle: FontStyle.italic,
-                              color: colorScheme.onSurface.withValues(
-                                alpha: 0.9,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ],
                     ),
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-                  child: Wrap(
-                    alignment: WrapAlignment.end,
-                    spacing: 8,
-                    runSpacing: 4,
-                    children: [
-                      if (hasQuote)
-                        TextButton.icon(
-                          icon: const Icon(Icons.favorite_border),
-                          label: const Text('Do ulubionych'),
-                          onPressed: () =>
-                              _addEntryQuoteToFavorites(entry, sheetContext),
+                    const SizedBox(height: 12),
+                    Expanded(
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            if (displayContent.reflectionText.isNotEmpty) ...[
+                              const Text(
+                                'Moja refleksja:',
+                                style: TextStyle(fontWeight: FontWeight.w600),
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                displayContent.reflectionText,
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  height: 1.4,
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                            ],
+                            if (displayContent.contextText.isNotEmpty) ...[
+                              Text(
+                                displayContent.contextText,
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  height: 1.35,
+                                  color: colorScheme.onSurface.withValues(
+                                    alpha: 0.7,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                            ],
+                            if (entry.quoteText != null &&
+                                entry.quoteText!.trim().isNotEmpty) ...[
+                              const Divider(),
+                              const SizedBox(height: 8),
+                              const Text(
+                                'Fragment:',
+                                style: TextStyle(fontWeight: FontWeight.w600),
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                entry.quoteText!,
+                                style: TextStyle(
+                                  fontStyle: FontStyle.italic,
+                                  color: colorScheme.onSurface.withValues(
+                                    alpha: 0.9,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
-                      if (entry.quoteRef != null &&
-                          entry.quoteRef!.trim().isNotEmpty)
-                        TextButton.icon(
-                          icon: const Icon(Icons.menu_book_outlined),
-                          label: const Text('Zobacz w książce'),
-                          onPressed: () =>
-                              _goToBookFromEntry(entry, sheetContext),
-                        ),
-                      TextButton(
-                        onPressed: () => Navigator.of(sheetContext).pop(),
-                        child: const Text('Zamknij'),
                       ),
-                    ],
-                  ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                      child: Wrap(
+                        alignment: WrapAlignment.end,
+                        spacing: 8,
+                        runSpacing: 4,
+                        children: [
+                          if (hasQuote)
+                            FutureBuilder<bool>(
+                              future: _isEntryQuoteFavorite(entry),
+                              builder: (context, snapshot) {
+                                final isFavorite = snapshot.data ?? false;
+                                final isLoading =
+                                    snapshot.connectionState ==
+                                    ConnectionState.waiting;
+
+                                return TextButton.icon(
+                                  icon: Icon(
+                                    isFavorite
+                                        ? Icons.favorite
+                                        : Icons.favorite_border,
+                                  ),
+                                  label: Text(
+                                    isFavorite
+                                        ? 'Usuń z ulubionych'
+                                        : 'Do ulubionych',
+                                  ),
+                                  onPressed: isLoading
+                                      ? null
+                                      : () async {
+                                          final messenger =
+                                              ScaffoldMessenger.of(context);
+                                          final isNowFavorite =
+                                              await _toggleEntryQuoteFavorite(
+                                                entry,
+                                              );
+                                          if (!mounted ||
+                                              !sheetContext.mounted) {
+                                            return;
+                                          }
+
+                                          setSheetState(() {});
+                                          messenger.showSnackBar(
+                                            SnackBar(
+                                              content: Text(
+                                                isNowFavorite
+                                                    ? 'Cytat dodany do ulubionych.'
+                                                    : 'Cytat usunięty z ulubionych.',
+                                              ),
+                                            ),
+                                          );
+                                        },
+                                );
+                              },
+                            ),
+                          if (entry.quoteRef != null &&
+                              entry.quoteRef!.trim().isNotEmpty)
+                            TextButton.icon(
+                              icon: const Icon(Icons.menu_book_outlined),
+                              label: const Text('Zobacz w książce'),
+                              onPressed: () =>
+                                  _goToBookFromEntry(entry, sheetContext),
+                            ),
+                          TextButton(
+                            onPressed: () => Navigator.of(sheetContext).pop(),
+                            child: const Text('Zamknij'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
-          ),
+              ),
+            );
+          },
         );
       },
     );

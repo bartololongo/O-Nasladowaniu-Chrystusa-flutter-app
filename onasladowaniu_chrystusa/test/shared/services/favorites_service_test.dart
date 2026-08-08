@@ -50,36 +50,147 @@ void main() {
       },
     );
 
-    test('updating the same paragraph favorite keeps the same record', () async {
-      final original = FavoriteQuote(
-        id: 'favorite-i-2-3',
-        paragraphRef: 'I-2-3',
-        text: 'Pierwotny tekst akapitu.',
-        note: 'stara notatka',
-        createdAt: DateTime(2026, 8, 1, 11),
-      );
-      await _storeFavorites([original]);
+    test(
+      'updating the same paragraph favorite keeps the same record',
+      () async {
+        final original = FavoriteQuote(
+          id: 'favorite-i-2-3',
+          paragraphRef: 'I-2-3',
+          text: 'Pierwotny tekst akapitu.',
+          note: 'stara notatka',
+          createdAt: DateTime(2026, 8, 1, 11),
+        );
+        await _storeFavorites([original]);
 
+        final service = FavoritesService();
+
+        await service.addOrUpdateFavoriteForParagraph(
+          BookParagraph(
+            index: 3,
+            reference: 'I-2-3',
+            text: 'Zaktualizowany tekst akapitu.',
+          ),
+          note: 'nowa notatka',
+        );
+
+        final favorites = await service.getFavorites();
+
+        expect(favorites, hasLength(1));
+        expect(favorites.single.id, original.id);
+        expect(favorites.single.paragraphRef, original.paragraphRef);
+        expect(favorites.single.createdAt, original.createdAt);
+        expect(favorites.single.text, 'Zaktualizowany tekst akapitu.');
+        expect(favorites.single.note, 'nowa notatka');
+      },
+    );
+
+    test('toggles a journal quote favorite on and off', () async {
       final service = FavoritesService();
 
-      await service.addOrUpdateFavoriteForParagraph(
-        BookParagraph(
-          index: 3,
-          reference: 'I-2-3',
-          text: 'Zaktualizowany tekst akapitu.',
+      expect(
+        await service.isJournalQuoteFavorite(
+          journalEntryId: 'journal-1',
+          quoteRef: 'I-1-sel',
         ),
-        note: 'nowa notatka',
+        isFalse,
       );
 
-      final favorites = await service.getFavorites();
+      final added = await service.toggleFavoriteForJournalQuote(
+        journalEntryId: 'journal-1',
+        quoteRef: 'I-1-sel',
+        text: 'Ten sam cytat z wpisu dziennika.',
+      );
 
-      expect(favorites, hasLength(1));
-      expect(favorites.single.id, original.id);
-      expect(favorites.single.paragraphRef, original.paragraphRef);
-      expect(favorites.single.createdAt, original.createdAt);
-      expect(favorites.single.text, 'Zaktualizowany tekst akapitu.');
-      expect(favorites.single.note, 'nowa notatka');
+      expect(added, isTrue);
+      expect(
+        await service.isJournalQuoteFavorite(
+          journalEntryId: 'journal-1',
+          quoteRef: 'I-1-sel',
+        ),
+        isTrue,
+      );
+
+      final removed = await service.toggleFavoriteForJournalQuote(
+        journalEntryId: 'journal-1',
+        quoteRef: 'I-1-sel',
+        text: 'Ten sam cytat z wpisu dziennika.',
+      );
+
+      expect(removed, isFalse);
+      expect(
+        await service.isJournalQuoteFavorite(
+          journalEntryId: 'journal-1',
+          quoteRef: 'I-1-sel',
+        ),
+        isFalse,
+      );
+      expect(await service.getFavorites(), isEmpty);
     });
+
+    test(
+      'repeatedly adding the same journal quote does not create duplicates',
+      () async {
+        final service = FavoritesService();
+
+        final first = await service.addFavoriteForJournalQuote(
+          journalEntryId: 'journal-1',
+          quoteRef: 'I-1-sel',
+          text: 'Ten sam cytat z wpisu dziennika.',
+        );
+        final second = await service.addFavoriteForJournalQuote(
+          journalEntryId: 'journal-1',
+          quoteRef: 'I-1-sel',
+          text: 'Ten sam cytat z wpisu dziennika.',
+        );
+
+        final favorites = await service.getFavorites();
+
+        expect(favorites, hasLength(1));
+        expect(second.id, first.id);
+        expect(
+          favorites.single.paragraphRef,
+          FavoritesService.journalQuoteParagraphRef(
+            journalEntryId: 'journal-1',
+            quoteRef: 'I-1-sel',
+          ),
+        );
+      },
+    );
+
+    test(
+      'journal quotes with identical text but different source references are distinct',
+      () async {
+        final service = FavoritesService();
+
+        await service.addFavoriteForJournalQuote(
+          journalEntryId: 'journal-1',
+          quoteRef: 'I-1-sel',
+          text: 'Identyczny tekst cytatu.',
+        );
+        await service.addFavoriteForJournalQuote(
+          journalEntryId: 'journal-2',
+          quoteRef: 'I-2-sel',
+          text: 'Identyczny tekst cytatu.',
+        );
+
+        final favorites = await service.getFavorites();
+
+        expect(favorites, hasLength(2));
+        expect(favorites.map((f) => f.text).toSet(), {
+          'Identyczny tekst cytatu.',
+        });
+        expect(favorites.map((f) => f.paragraphRef).toSet(), {
+          FavoritesService.journalQuoteParagraphRef(
+            journalEntryId: 'journal-1',
+            quoteRef: 'I-1-sel',
+          ),
+          FavoritesService.journalQuoteParagraphRef(
+            journalEntryId: 'journal-2',
+            quoteRef: 'I-2-sel',
+          ),
+        });
+      },
+    );
   });
 }
 

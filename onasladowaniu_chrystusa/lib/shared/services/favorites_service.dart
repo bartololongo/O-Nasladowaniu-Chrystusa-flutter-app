@@ -7,6 +7,7 @@ import '../models/book_models.dart';
 class FavoritesService {
   static const String _keyFavorites = 'reader_favorites_v1';
   static const String _selectionRefMarker = 'sel';
+  static const String _journalRefMarker = 'journal';
 
   Future<List<FavoriteQuote>> _loadFavorites() async {
     final prefs = await SharedPreferences.getInstance();
@@ -82,7 +83,11 @@ class FavoritesService {
   }) async {
     final trimmedText = text.trim();
     if (trimmedText.isEmpty) {
-      throw ArgumentError.value(text, 'text', 'Selection text cannot be empty.');
+      throw ArgumentError.value(
+        text,
+        'text',
+        'Selection text cannot be empty.',
+      );
     }
 
     final list = await _loadFavorites();
@@ -107,11 +112,124 @@ class FavoritesService {
     await _saveFavorites(updated);
   }
 
+  Future<bool> isJournalQuoteFavorite({
+    required String journalEntryId,
+    required String quoteRef,
+  }) async {
+    final favoriteRef = journalQuoteParagraphRef(
+      journalEntryId: journalEntryId,
+      quoteRef: quoteRef,
+    );
+    return isParagraphFavorite(favoriteRef);
+  }
+
+  Future<FavoriteQuote> addFavoriteForJournalQuote({
+    required String journalEntryId,
+    required String quoteRef,
+    required String text,
+    String? note,
+  }) async {
+    final trimmedText = text.trim();
+    if (trimmedText.isEmpty) {
+      throw ArgumentError.value(text, 'text', 'Journal quote cannot be empty.');
+    }
+
+    final list = await _loadFavorites();
+    final favoriteRef = journalQuoteParagraphRef(
+      journalEntryId: journalEntryId,
+      quoteRef: quoteRef,
+    );
+    final existingIndex = list.indexWhere((f) => f.paragraphRef == favoriteRef);
+
+    if (existingIndex != -1) {
+      final existing = list[existingIndex];
+      list[existingIndex] = FavoriteQuote(
+        id: existing.id,
+        paragraphRef: existing.paragraphRef,
+        text: trimmedText,
+        note: note,
+        createdAt: existing.createdAt,
+      );
+      await _saveFavorites(list);
+      return list[existingIndex];
+    }
+
+    final now = DateTime.now();
+    final favorite = FavoriteQuote(
+      id: _createUniqueFavoriteId(now, list),
+      paragraphRef: favoriteRef,
+      text: trimmedText,
+      note: note,
+      createdAt: now,
+    );
+
+    list.add(favorite);
+    await _saveFavorites(list);
+    return favorite;
+  }
+
+  Future<void> removeFavoriteForJournalQuote({
+    required String journalEntryId,
+    required String quoteRef,
+  }) async {
+    await removeFavoriteByParagraphRef(
+      journalQuoteParagraphRef(
+        journalEntryId: journalEntryId,
+        quoteRef: quoteRef,
+      ),
+    );
+  }
+
+  Future<bool> toggleFavoriteForJournalQuote({
+    required String journalEntryId,
+    required String quoteRef,
+    required String text,
+    String? note,
+  }) async {
+    final favoriteRef = journalQuoteParagraphRef(
+      journalEntryId: journalEntryId,
+      quoteRef: quoteRef,
+    );
+    final list = await _loadFavorites();
+    final existingIndex = list.indexWhere((f) => f.paragraphRef == favoriteRef);
+
+    if (existingIndex != -1) {
+      list.removeAt(existingIndex);
+      await _saveFavorites(list);
+      return false;
+    }
+
+    final trimmedText = text.trim();
+    if (trimmedText.isEmpty) {
+      throw ArgumentError.value(text, 'text', 'Journal quote cannot be empty.');
+    }
+
+    final now = DateTime.now();
+    list.add(
+      FavoriteQuote(
+        id: _createUniqueFavoriteId(now, list),
+        paragraphRef: favoriteRef,
+        text: trimmedText,
+        note: note,
+        createdAt: now,
+      ),
+    );
+    await _saveFavorites(list);
+    return true;
+  }
+
   static String selectionParagraphRef({
     required String chapterRef,
     required String id,
   }) {
     return '$chapterRef-$_selectionRefMarker-$id';
+  }
+
+  static String journalQuoteParagraphRef({
+    required String journalEntryId,
+    required String quoteRef,
+  }) {
+    return '$quoteRef-$_journalRefMarker-$journalEntryId';
   }
 
   static bool isSelectionParagraphRef(String paragraphRef) {
