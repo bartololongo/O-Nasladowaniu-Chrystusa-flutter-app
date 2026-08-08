@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../shared/models/global_search_models.dart';
+import '../../shared/formatters/reader_reference_formatter.dart';
 import '../../shared/navigation/app_page_route.dart';
 import '../../shared/services/global_search_service.dart';
 import '../../shared/services/preferences_service.dart';
@@ -322,10 +323,10 @@ class _SearchScreenState extends State<SearchScreen> {
                   ),
                   const SizedBox(height: 6),
                   Text(result.subtitle),
-                  if ((result.chapterRef ?? result.paragraphRef) != null) ...[
+                  if ((result.paragraphRef ?? result.chapterRef) != null) ...[
                     const SizedBox(height: 8),
                     Text(
-                      'Referencja: ${result.paragraphRef ?? result.chapterRef}',
+                      'Referencja: ${ReaderReferenceFormatter.format(result.paragraphRef ?? result.chapterRef!)}',
                     ),
                   ],
                   const SizedBox(height: 16),

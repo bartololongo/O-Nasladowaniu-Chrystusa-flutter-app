@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../shared/layout/responsive_layout.dart';
+import '../../shared/formatters/reader_reference_formatter.dart';
 import '../../shared/services/favorites_service.dart';
 import '../../shared/services/preferences_service.dart';
 import '../../shared/models/reader_user_models.dart';
@@ -32,16 +33,6 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
     setState(() {
       _favoritesFuture = _service.getFavorites();
     });
-  }
-
-  String _formatRef(String paragraphRef) {
-    final parts = paragraphRef.split('-');
-    if (parts.length == 3) {
-      return 'Księga ${parts[0]}, rozdział ${parts[1]}, akapit ${parts[2]}';
-    } else if (parts.length == 2) {
-      return 'Księga ${parts[0]}, rozdział ${parts[1]}';
-    }
-    return 'Odniesienie $paragraphRef';
   }
 
   String _formatDateTime(DateTime dt) {
@@ -204,7 +195,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
               ),
               onTap: () => _openFavorite(f),
               title: Text(
-                _formatRef(f.paragraphRef),
+                ReaderReferenceFormatter.format(f.paragraphRef),
                 style: const TextStyle(fontWeight: FontWeight.w600),
               ),
               subtitle: Column(

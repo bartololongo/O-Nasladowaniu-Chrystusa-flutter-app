@@ -66,7 +66,33 @@ void main() {
       );
       expect(favoriteResults, hasLength(1));
       expect(favoriteResults.single.paragraphRef, 'I-1-2');
+      expect(favoriteResults.single.subtitle, 'Księga I, rozdział 1, akapit 2');
     });
+
+    test(
+      'search presents selection favorite without technical suffix',
+      () async {
+        final service = _createService(
+          favorites: [
+            FavoriteQuote(
+              id: 'favorite-i-1-sel',
+              paragraphRef: 'I-1-sel',
+              text: 'Pokorna iskra serca wraca do Boga.',
+              createdAt: _date,
+            ),
+          ],
+        );
+
+        final results = await service.search('iskra');
+
+        final favoriteResults = results.where(
+          (result) => result.type == GlobalSearchResultType.favorite,
+        );
+        expect(favoriteResults, hasLength(1));
+        expect(favoriteResults.single.paragraphRef, 'I-1-sel');
+        expect(favoriteResults.single.subtitle, 'Księga I, rozdział 1');
+      },
+    );
 
     test(
       'search returns journal entry with quoteRef as paragraphRef',

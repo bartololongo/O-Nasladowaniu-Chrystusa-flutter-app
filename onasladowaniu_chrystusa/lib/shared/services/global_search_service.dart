@@ -1,3 +1,4 @@
+import '../formatters/reader_reference_formatter.dart';
 import '../models/book_models.dart';
 import '../models/global_search_models.dart';
 import 'book_repository.dart';
@@ -53,7 +54,8 @@ class GlobalSearchService {
               id: 'book-chapter-${chapter.reference}',
               type: GlobalSearchResultType.bookParagraph,
               title: chapter.title,
-              subtitle: '${book.title} • ${chapter.reference}',
+              subtitle:
+                  '${book.title} • ${ReaderReferenceFormatter.format(chapter.reference)}',
               snippet: _snippet(chapterText, query),
               chapterRef: chapter.reference,
             ),
@@ -69,7 +71,8 @@ class GlobalSearchService {
               id: 'book-${paragraph.reference}',
               type: GlobalSearchResultType.bookParagraph,
               title: chapter.title,
-              subtitle: '${book.title} • ${paragraph.reference}',
+              subtitle:
+                  '${book.title} • ${ReaderReferenceFormatter.format(paragraph.reference)}',
               snippet: _snippet(paragraph.text, query),
               chapterRef: chapter.reference,
               paragraphRef: paragraph.reference,
@@ -155,7 +158,7 @@ class GlobalSearchService {
           id: 'favorite-${favorite.id}',
           type: GlobalSearchResultType.favorite,
           title: 'Ulubiony cytat',
-          subtitle: favorite.paragraphRef,
+          subtitle: ReaderReferenceFormatter.format(favorite.paragraphRef),
           snippet: _snippet(searchable, query),
           paragraphRef: favorite.paragraphRef,
         ),
