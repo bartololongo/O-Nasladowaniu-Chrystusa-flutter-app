@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
+import '../../../shared/layout/responsive_layout.dart';
 import '../../../shared/navigation/app_page_route.dart';
 import '../data/audio_track.dart';
 import '../services/app_audio_player_service.dart';
@@ -86,9 +87,15 @@ class _InlineAudioPlayerCardState extends State<InlineAudioPlayerCard>
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final isCompact = context.isCompactAndroid;
 
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+      padding: EdgeInsets.fromLTRB(
+        context.layoutValue(16, compact: 12),
+        context.layoutValue(14, compact: 8),
+        context.layoutValue(16, compact: 12),
+        context.layoutValue(16, compact: 8),
+      ),
       decoration: BoxDecoration(
         color: colorScheme.surface.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(12),
@@ -108,7 +115,7 @@ class _InlineAudioPlayerCardState extends State<InlineAudioPlayerCard>
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Icon(Icons.headphones_rounded, color: colorScheme.primary),
-                  const SizedBox(width: 10),
+                  SizedBox(width: context.layoutValue(10, compact: 8)),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -120,19 +127,30 @@ class _InlineAudioPlayerCardState extends State<InlineAudioPlayerCard>
                             fontWeight: FontWeight.w600,
                           ),
                         ),
-                        const SizedBox(height: 4),
+                        SizedBox(height: context.layoutValue(4, compact: 1)),
                         Text(
                           '${widget.track.subtitle} · Rozdział ${widget.track.chapterNumber}',
+                          maxLines: isCompact ? 1 : null,
+                          overflow: isCompact
+                              ? TextOverflow.ellipsis
+                              : TextOverflow.visible,
                           style: TextStyle(
                             color: colorScheme.onSurface.withValues(
                               alpha: 0.72,
                             ),
                           ),
                         ),
-                        const SizedBox(height: 6),
+                        SizedBox(height: context.layoutValue(6, compact: 2)),
                         Text(
                           widget.track.title,
-                          style: const TextStyle(height: 1.28),
+                          maxLines: isCompact ? 3 : null,
+                          overflow: isCompact
+                              ? TextOverflow.ellipsis
+                              : TextOverflow.visible,
+                          style: TextStyle(
+                            fontSize: isCompact ? 13.5 : null,
+                            height: isCompact ? 1.18 : 1.28,
+                          ),
                         ),
                       ],
                     ),
@@ -145,7 +163,7 @@ class _InlineAudioPlayerCardState extends State<InlineAudioPlayerCard>
                 ],
               ),
               if (_errorMessage != null) ...[
-                const SizedBox(height: 12),
+                SizedBox(height: context.layoutValue(12, compact: 6)),
                 Text(
                   _errorMessage!,
                   style: TextStyle(
@@ -154,9 +172,9 @@ class _InlineAudioPlayerCardState extends State<InlineAudioPlayerCard>
                   ),
                 ),
               ],
-              const SizedBox(height: 14),
+              SizedBox(height: context.layoutValue(14, compact: 4)),
               _buildProgress(isCurrentTrack),
-              const SizedBox(height: 12),
+              SizedBox(height: context.layoutValue(12, compact: 6)),
               _buildControls(isCurrentTrack),
             ],
           );
@@ -186,13 +204,15 @@ class _InlineAudioPlayerCardState extends State<InlineAudioPlayerCard>
                     _audioService.seekRelative(const Duration(seconds: -10)),
                   ),
           ),
-          const SizedBox(width: 16),
+          SizedBox(width: context.layoutValue(16, compact: 12)),
           _InlineAudioPlayPauseButton(
             audioService: _audioService,
             isCurrentTrack: isCurrentTrack,
             onPlayOrResume: _playOrResume,
+            size: context.layoutValue(58, compact: 52),
+            iconSize: context.layoutValue(34, compact: 30),
           ),
-          const SizedBox(width: 16),
+          SizedBox(width: context.layoutValue(16, compact: 12)),
           _InlineAudioSeekButton(
             tooltip: 'Przewiń o 10 sekund',
             label: '+10',
@@ -246,11 +266,15 @@ class _InlineAudioPlayPauseButton extends StatelessWidget {
   final AppAudioPlayerService audioService;
   final bool isCurrentTrack;
   final Future<void> Function() onPlayOrResume;
+  final double size;
+  final double iconSize;
 
   const _InlineAudioPlayPauseButton({
     required this.audioService,
     required this.isCurrentTrack,
     required this.onPlayOrResume,
+    this.size = 58,
+    this.iconSize = 34,
   });
 
   @override
@@ -276,8 +300,8 @@ class _InlineAudioPlayPauseButton extends StatelessWidget {
         );
 
         return SizedBox(
-          width: 58,
-          height: 58,
+          width: size,
+          height: size,
           child: FilledButton(
             style: FilledButton.styleFrom(
               shape: const CircleBorder(),
@@ -305,7 +329,7 @@ class _InlineAudioPlayPauseButton extends StatelessWidget {
                     buttonState.isPlaying
                         ? Icons.pause_rounded
                         : Icons.play_arrow,
-                    size: 34,
+                    size: iconSize,
                   ),
           ),
         );
@@ -393,6 +417,8 @@ class _InlineAudioProgressSliderState
 
   @override
   Widget build(BuildContext context) {
+    final isCompact = context.isCompactAndroid;
+
     return StreamBuilder<Duration?>(
       stream: widget.audioService.durationStream,
       builder: (context, durationSnapshot) {
@@ -415,33 +441,43 @@ class _InlineAudioProgressSliderState
 
             return Column(
               children: [
-                Slider(
-                  value: position.inMilliseconds.toDouble(),
-                  max: duration.inMilliseconds > 0
-                      ? duration.inMilliseconds.toDouble()
-                      : 1,
-                  onChanged: duration == Duration.zero
-                      ? null
-                      : (value) {
-                          setState(() {
-                            _isDraggingProgress = true;
-                            _dragPosition = _durationFromSliderValue(
-                              value,
-                              duration,
-                            );
-                          });
-                        },
-                  onChangeEnd: duration == Duration.zero
-                      ? null
-                      : (value) =>
-                            unawaited(_seekToSliderValue(value, duration)),
+                SliderTheme(
+                  data: SliderTheme.of(
+                    context,
+                  ).copyWith(trackHeight: isCompact ? 3 : null),
+                  child: Slider(
+                    value: position.inMilliseconds.toDouble(),
+                    max: duration.inMilliseconds > 0
+                        ? duration.inMilliseconds.toDouble()
+                        : 1,
+                    onChanged: duration == Duration.zero
+                        ? null
+                        : (value) {
+                            setState(() {
+                              _isDraggingProgress = true;
+                              _dragPosition = _durationFromSliderValue(
+                                value,
+                                duration,
+                              );
+                            });
+                          },
+                    onChangeEnd: duration == Duration.zero
+                        ? null
+                        : (value) =>
+                              unawaited(_seekToSliderValue(value, duration)),
+                  ),
                 ),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(_formatDuration(position)),
-                    Text(_formatDuration(duration)),
-                  ],
+                Padding(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: context.layoutValue(0, compact: 4),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(_formatDuration(position)),
+                      Text(_formatDuration(duration)),
+                    ],
+                  ),
                 ),
               ],
             );

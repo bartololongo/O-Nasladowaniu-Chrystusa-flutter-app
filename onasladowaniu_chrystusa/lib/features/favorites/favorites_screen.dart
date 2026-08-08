@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../shared/layout/responsive_layout.dart';
 import '../../shared/services/favorites_service.dart';
 import '../../shared/services/preferences_service.dart';
 import '../../shared/models/reader_user_models.dart';
@@ -155,7 +156,12 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
     return RefreshIndicator(
       onRefresh: _refresh,
       child: ListView.separated(
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        padding: EdgeInsets.fromLTRB(
+          context.layoutValue(16, compact: 10),
+          0,
+          context.layoutValue(16, compact: 10),
+          context.layoutValue(16, compact: 12),
+        ),
         itemCount: favorites.length,
         separatorBuilder: (_, _) => const SizedBox(height: 8),
         itemBuilder: (context, index) {
@@ -193,6 +199,9 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
             },
             onDismissed: (_) => _deleteFavorite(f),
             child: ListTile(
+              contentPadding: EdgeInsets.symmetric(
+                horizontal: context.layoutValue(16, compact: 8),
+              ),
               onTap: () => _openFavorite(f),
               title: Text(
                 _formatRef(f.paragraphRef),

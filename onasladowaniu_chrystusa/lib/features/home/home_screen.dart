@@ -11,6 +11,7 @@ import '../../shared/services/formation_challenge_progress_service.dart';
 import '../../shared/services/formation_challenge_service.dart';
 import '../../shared/services/journal_service.dart';
 import '../../shared/models/formation_challenge_models.dart';
+import '../../shared/layout/responsive_layout.dart';
 import '../../shared/navigation/app_page_route.dart';
 import '../../shared/navigation/main_tabs.dart';
 
@@ -575,30 +576,36 @@ class _HomeScreenState extends State<HomeScreen>
 
   @override
   Widget build(BuildContext context) {
+    final isCompact = context.isCompactAndroid;
+
     return Scaffold(
       appBar: AppBar(
-        toolbarHeight: 72,
-        titleSpacing: 16,
+        toolbarHeight: context.layoutValue(72, compact: 66),
+        titleSpacing: context.layoutValue(16, compact: 10),
         title: Row(
           children: [
             Icon(
               Icons.auto_stories_outlined,
               color: Theme.of(context).colorScheme.primary,
-              size: 30,
+              size: context.layoutValue(30, compact: 24),
             ),
-            const SizedBox(width: 12),
-            const Expanded(
+            SizedBox(width: context.layoutValue(12, compact: 8)),
+            Expanded(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     'O naśladowaniu Chrystusa',
-                    maxLines: 1,
+                    maxLines: isCompact ? 2 : 1,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+                    style: TextStyle(
+                      fontSize: context.layoutValue(20, compact: 18),
+                      fontWeight: FontWeight.w700,
+                      height: isCompact ? 1.05 : null,
+                    ),
                   ),
-                  SizedBox(height: 2),
+                  if (!isCompact) const SizedBox(height: 2),
                   Text(
                     'Droga codziennej lektury i refleksji',
                     maxLines: 1,
@@ -619,25 +626,25 @@ class _HomeScreenState extends State<HomeScreen>
         ],
       ),
       body: Padding(
-        padding: const EdgeInsets.all(16.0),
+        padding: EdgeInsets.all(context.layoutValue(16, compact: 12)),
         child: ListView(
           children: [
             _buildHeader(context),
-            const SizedBox(height: 12),
+            SizedBox(height: context.layoutValue(12, compact: 8)),
             _buildStartIntro(context),
-            const SizedBox(height: 20),
+            SizedBox(height: context.layoutValue(20, compact: 14)),
             _buildSectionTitle(context, 'Na teraz'),
-            const SizedBox(height: 8),
+            SizedBox(height: context.layoutValue(8, compact: 6)),
             _buildContinueReadingCard(context),
-            const SizedBox(height: 12),
+            SizedBox(height: context.layoutValue(12, compact: 8)),
             _buildContinueListeningCard(context),
-            const SizedBox(height: 12),
+            SizedBox(height: context.layoutValue(12, compact: 8)),
             _buildDailyMeditationCard(context),
-            const SizedBox(height: 20),
+            SizedBox(height: context.layoutValue(20, compact: 14)),
             _buildSectionTitle(context, 'Dodatkowe skróty'),
-            const SizedBox(height: 8),
+            SizedBox(height: context.layoutValue(8, compact: 6)),
             _buildRandomQuoteCard(context),
-            const SizedBox(height: 12),
+            SizedBox(height: context.layoutValue(12, compact: 8)),
             _buildSupportCard(context),
           ],
         ),
@@ -673,9 +680,12 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   Widget _buildHeader(BuildContext context) {
-    return const Text(
+    return Text(
       'Witaj!',
-      style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+      style: TextStyle(
+        fontSize: context.layoutValue(24, compact: 22),
+        fontWeight: FontWeight.bold,
+      ),
     );
   }
 
@@ -740,12 +750,21 @@ class _HomeScreenState extends State<HomeScreen>
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: colorScheme.primary.withValues(alpha: 0.3)),
         ),
-        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+        padding: context.compactInsets(
+          vertical: 12,
+          horizontal: 16,
+          compactVertical: 10,
+          compactHorizontal: 12,
+        ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Icon(Icons.play_circle_fill, size: 32, color: colorScheme.primary),
-            const SizedBox(width: 16),
+            Icon(
+              Icons.play_circle_fill,
+              size: context.layoutValue(32, compact: 28),
+              color: colorScheme.primary,
+            ),
+            SizedBox(width: context.layoutValue(16, compact: 10)),
             Expanded(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -785,16 +804,21 @@ class _HomeScreenState extends State<HomeScreen>
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: colorScheme.primary.withValues(alpha: 0.3)),
         ),
-        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+        padding: context.compactInsets(
+          vertical: 12,
+          horizontal: 16,
+          compactVertical: 10,
+          compactHorizontal: 12,
+        ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             Icon(
               Icons.headphones_rounded,
-              size: 32,
+              size: context.layoutValue(32, compact: 28),
               color: colorScheme.primary,
             ),
-            const SizedBox(width: 16),
+            SizedBox(width: context.layoutValue(16, compact: 10)),
             Expanded(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -839,16 +863,21 @@ class _HomeScreenState extends State<HomeScreen>
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: colorScheme.primary.withValues(alpha: 0.3)),
         ),
-        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+        padding: context.compactInsets(
+          vertical: 12,
+          horizontal: 16,
+          compactVertical: 10,
+          compactHorizontal: 12,
+        ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             Icon(
               Icons.self_improvement_rounded,
-              size: 32,
+              size: context.layoutValue(32, compact: 28),
               color: colorScheme.primary,
             ),
-            const SizedBox(width: 16),
+            SizedBox(width: context.layoutValue(16, compact: 10)),
             Expanded(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -891,16 +920,21 @@ class _HomeScreenState extends State<HomeScreen>
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: colorScheme.primary.withValues(alpha: 0.3)),
         ),
-        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+        padding: context.compactInsets(
+          vertical: 12,
+          horizontal: 16,
+          compactVertical: 10,
+          compactHorizontal: 12,
+        ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             Icon(
               Icons.auto_stories_outlined,
-              size: 32,
+              size: context.layoutValue(32, compact: 28),
               color: colorScheme.primary,
             ),
-            const SizedBox(width: 16),
+            SizedBox(width: context.layoutValue(16, compact: 10)),
             Expanded(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -942,23 +976,32 @@ class _HomeScreenState extends State<HomeScreen>
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: colorScheme.primary.withValues(alpha: 0.3)),
         ),
-        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+        padding: context.compactInsets(
+          vertical: 12,
+          horizontal: 16,
+          compactVertical: 10,
+          compactHorizontal: 12,
+        ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Icon(Icons.auto_awesome, size: 32, color: colorScheme.primary),
-            const SizedBox(width: 16),
-            const Expanded(
+            Icon(
+              Icons.auto_awesome,
+              size: context.layoutValue(32, compact: 28),
+              color: colorScheme.primary,
+            ),
+            SizedBox(width: context.layoutValue(16, compact: 10)),
+            Expanded(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
+                  const Text(
                     'Losuj cytat',
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
                   ),
-                  SizedBox(height: 4),
-                  Text(
+                  const SizedBox(height: 4),
+                  const Text(
                     'Wyświetl losowy fragment z książki.',
                     style: TextStyle(fontSize: 14, color: Colors.white70),
                   ),
@@ -988,12 +1031,21 @@ class _HomeScreenState extends State<HomeScreen>
               color: colorScheme.primary.withValues(alpha: 0.25),
             ),
           ),
-          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+          padding: context.compactInsets(
+            vertical: 12,
+            horizontal: 16,
+            compactVertical: 10,
+            compactHorizontal: 12,
+          ),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Icon(Icons.coffee, size: 32, color: colorScheme.primary),
-              const SizedBox(width: 16),
+              Icon(
+                Icons.coffee,
+                size: context.layoutValue(32, compact: 28),
+                color: colorScheme.primary,
+              ),
+              SizedBox(width: context.layoutValue(16, compact: 10)),
               Expanded(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,

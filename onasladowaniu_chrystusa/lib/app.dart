@@ -14,6 +14,7 @@ import 'features/search/search_screen.dart';
 import 'shared/navigation/app_page_route.dart';
 import 'shared/navigation/main_tabs.dart';
 import 'shared/navigation/navigation_guard_service.dart';
+import 'shared/layout/responsive_layout.dart';
 import 'shared/services/app_update_service.dart';
 import 'shared/services/content_update_service.dart';
 import 'shared/services/formation_notification_service.dart';
@@ -557,6 +558,9 @@ class _RootScreenState extends State<_RootScreen> with WidgetsBindingObserver {
         currentIndex: _selectedIndex,
         onTap: _onTabSelected,
         type: BottomNavigationBarType.fixed,
+        selectedFontSize: context.layoutValue(14, compact: 11),
+        unselectedFontSize: context.layoutValue(12, compact: 11),
+        iconSize: context.layoutValue(24, compact: 22),
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Start'),
           BottomNavigationBarItem(icon: Icon(Icons.route), label: 'Droga'),

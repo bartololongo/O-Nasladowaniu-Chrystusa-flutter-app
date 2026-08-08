@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import '../../shared/layout/responsive_layout.dart';
 import '../../shared/models/book_models.dart';
 import '../../shared/navigation/app_page_route.dart';
 import '../../shared/services/book_repository.dart';
@@ -1049,23 +1050,34 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
   PreferredSizeWidget _buildReaderHeader(bool hasAudioForCurrentChapter) {
     final colorScheme = Theme.of(context).colorScheme;
+    final isCompact = context.isCompactAndroid;
 
     return AppBar(
+      leadingWidth: isCompact ? 44 : null,
       leading: IconButton(
         onPressed: () => Navigator.of(context).maybePop(),
         icon: const Icon(Icons.arrow_back),
         tooltip: 'Wstecz',
+        iconSize: isCompact ? 22 : 24,
+        padding: EdgeInsets.zero,
       ),
       titleSpacing: 0,
       title: Row(
         children: [
-          Icon(Icons.menu_book_rounded, size: 28, color: colorScheme.primary),
-          const SizedBox(width: 12),
-          const Flexible(
+          if (!isCompact) ...[
+            Icon(Icons.menu_book_rounded, size: 28, color: colorScheme.primary),
+            const SizedBox(width: 12),
+          ],
+          Flexible(
             child: Text(
               'Czytanie',
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
+              overflow: isCompact
+                  ? TextOverflow.visible
+                  : TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: context.layoutValue(22, compact: 19),
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ),
         ],
@@ -1092,7 +1104,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
           tooltip: 'Wybierz księgę i rozdział',
           onPressed: _showChapterPicker,
         ),
-        const SizedBox(width: 4),
+        SizedBox(width: context.layoutValue(4, compact: 0)),
       ],
     );
   }
@@ -1102,18 +1114,25 @@ class _ReaderScreenState extends State<ReaderScreen> {
     required String tooltip,
     required VoidCallback onPressed,
   }) {
+    final isCompact = context.isCompactAndroid;
+
     return IconButton(
-      icon: Icon(icon),
+      icon: Icon(icon, size: isCompact ? 22 : 24),
       tooltip: tooltip,
       onPressed: onPressed,
-      constraints: const BoxConstraints(minWidth: 40, minHeight: 48),
-      padding: const EdgeInsets.symmetric(horizontal: 8),
+      constraints: BoxConstraints(minWidth: isCompact ? 34 : 40, minHeight: 48),
+      padding: EdgeInsets.symmetric(horizontal: isCompact ? 5 : 8),
     );
   }
 
   Widget _buildControls() {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: context.compactInsets(
+        horizontal: 12,
+        vertical: 8,
+        compactHorizontal: 8,
+        compactVertical: 6,
+      ),
       child: Row(
         children: [
           IconButton(
@@ -1150,7 +1169,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
             icon: const Icon(Icons.add),
             tooltip: 'Większa czcionka',
           ),
-          const SizedBox(width: 8),
+          SizedBox(width: context.layoutValue(8, compact: 4)),
           IconButton(
             onPressed: () {
               setState(() {
@@ -1186,7 +1205,12 @@ class _ReaderScreenState extends State<ReaderScreen> {
         widget.onOpenSearchResults != null;
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 0, 8, 8),
+      padding: EdgeInsets.fromLTRB(
+        context.layoutValue(12, compact: 8),
+        0,
+        context.layoutValue(8, compact: 6),
+        context.layoutValue(8, compact: 6),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -1207,7 +1231,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
                   ),
                 ),
               ),
-              const SizedBox(width: 4),
+              SizedBox(width: context.layoutValue(4, compact: 2)),
               IconButton(
                 tooltip: 'Poprzednie trafienie',
                 icon: const Icon(Icons.keyboard_arrow_up_rounded),
@@ -1258,7 +1282,12 @@ class _ReaderScreenState extends State<ReaderScreen> {
     }
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+      padding: EdgeInsets.fromLTRB(
+        context.layoutValue(16, compact: 12),
+        context.layoutValue(12, compact: 8),
+        context.layoutValue(16, compact: 12),
+        context.layoutValue(4, compact: 2),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1269,7 +1298,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
               fontWeight: FontWeight.bold,
             ),
           ),
-          const SizedBox(height: 4),
+          SizedBox(height: context.layoutValue(4, compact: 3)),
           Text(
             subtitle,
             style: TextStyle(
@@ -1286,7 +1315,12 @@ class _ReaderScreenState extends State<ReaderScreen> {
     final colorScheme = Theme.of(context).colorScheme;
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      padding: context.compactInsets(
+        horizontal: 16,
+        vertical: 4,
+        compactHorizontal: 10,
+        compactVertical: 2,
+      ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
@@ -1325,7 +1359,12 @@ class _ReaderScreenState extends State<ReaderScreen> {
             },
             child: SingleChildScrollView(
               controller: _scrollController,
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+              padding: EdgeInsets.fromLTRB(
+                context.layoutValue(16, compact: 12),
+                0,
+                context.layoutValue(16, compact: 12),
+                context.layoutValue(24, compact: 16),
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [

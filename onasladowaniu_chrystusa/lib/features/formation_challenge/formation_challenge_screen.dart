@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../shared/models/formation_challenge_models.dart';
+import '../../shared/layout/responsive_layout.dart';
 import '../../shared/services/formation_challenge_progress_service.dart';
 import '../../shared/services/formation_challenge_service.dart';
 import '../../shared/services/journal_service.dart';
@@ -297,23 +298,23 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
 
     return Center(
       child: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
+        padding: EdgeInsets.all(context.layoutValue(24, compact: 16)),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Icon(
               Icons.auto_stories_outlined,
-              size: 56,
+              size: context.layoutValue(56, compact: 48),
               color: colorScheme.primary,
             ),
-            const SizedBox(height: 20),
+            SizedBox(height: context.layoutValue(20, compact: 14)),
             const Text(
               'Codzienna medytacja\nz «O naśladowaniu Chrystusa»',
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
             ),
-            const SizedBox(height: 12),
+            SizedBox(height: context.layoutValue(12, compact: 8)),
             Text(
               'Każdy dzień prowadzi przez jeden rozdział książki.',
               textAlign: TextAlign.center,
@@ -323,7 +324,7 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
                 color: colorScheme.onSurface,
               ),
             ),
-            const SizedBox(height: 24),
+            SizedBox(height: context.layoutValue(24, compact: 16)),
             ElevatedButton.icon(
               onPressed: _startChallenge,
               icon: const Icon(Icons.play_arrow),
@@ -360,7 +361,12 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+          padding: EdgeInsets.fromLTRB(
+            context.layoutValue(20, compact: 14),
+            context.layoutValue(12, compact: 8),
+            context.layoutValue(20, compact: 14),
+            0,
+          ),
           child: Row(
             children: [
               ChoiceChip(
@@ -374,7 +380,7 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
                   });
                 },
               ),
-              const SizedBox(width: 8),
+              SizedBox(width: context.layoutValue(8, compact: 6)),
               ChoiceChip(
                 label: const Text('Dni'),
                 selected: _selectedTab == _FormationChallengeTab.days,
@@ -385,7 +391,7 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
                   });
                 },
               ),
-              const SizedBox(width: 8),
+              SizedBox(width: context.layoutValue(8, compact: 6)),
               ChoiceChip(
                 label: const Text('Statystyki'),
                 selected: _selectedTab == _FormationChallengeTab.stats,
@@ -417,7 +423,12 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
           SafeArea(
             top: false,
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+              padding: EdgeInsets.fromLTRB(
+                context.layoutValue(16, compact: 12),
+                0,
+                context.layoutValue(16, compact: 12),
+                context.layoutValue(12, compact: 8),
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 mainAxisSize: MainAxisSize.min,
@@ -433,7 +444,7 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
                           : 'Edytuj refleksję',
                     ),
                   ),
-                  const SizedBox(height: 8),
+                  SizedBox(height: context.layoutValue(8, compact: 6)),
                   OutlinedButton.icon(
                     onPressed: () => _showDayActionsSheet(
                       activeDay,
@@ -462,18 +473,23 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
     final audioTrack = _audioTrackForDay(day);
 
     return ListView(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+      padding: EdgeInsets.fromLTRB(
+        context.layoutValue(20, compact: 14),
+        context.layoutValue(16, compact: 10),
+        context.layoutValue(20, compact: 14),
+        context.layoutValue(24, compact: 16),
+      ),
       children: [
         Text(
           'Dzień ${day.dayNumber} z $totalDays',
           style: Theme.of(context).textTheme.titleMedium,
         ),
-        const SizedBox(height: 4),
+        SizedBox(height: context.layoutValue(4, compact: 3)),
         Text(
           _formatChapterReference(day.chapterReference),
           style: Theme.of(context).textTheme.bodyMedium,
         ),
-        const SizedBox(height: 12),
+        SizedBox(height: context.layoutValue(12, compact: 8)),
         Text(
           day.chapterTitle,
           style: const TextStyle(
@@ -502,12 +518,12 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
             ),
           ),
         ],
-        const SizedBox(height: 20),
+        SizedBox(height: context.layoutValue(20, compact: 14)),
         _buildMeditationSection(context, day, totalDays, audioTrack),
-        const SizedBox(height: 22),
+        SizedBox(height: context.layoutValue(22, compact: 16)),
         Text(day.text, style: const TextStyle(fontSize: 17, height: 1.55)),
         if (reflection != null) ...[
-          const SizedBox(height: 24),
+          SizedBox(height: context.layoutValue(24, compact: 16)),
           Text(
             'Moja refleksja',
             style: TextStyle(
@@ -516,7 +532,7 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
               color: Theme.of(context).colorScheme.primary,
             ),
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: context.layoutValue(8, compact: 6)),
           Text(reflection.text, style: const TextStyle(height: 1.45)),
         ],
       ],
@@ -535,7 +551,12 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
         : 'Księga ${track.bookNumber} · Rozdział ${track.chapterNumber}';
 
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+      padding: EdgeInsets.fromLTRB(
+        context.layoutValue(16, compact: 12),
+        context.layoutValue(14, compact: 10),
+        context.layoutValue(16, compact: 12),
+        context.layoutValue(16, compact: 12),
+      ),
       decoration: BoxDecoration(
         color: colorScheme.surface.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(12),
@@ -545,8 +566,8 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Container(
-            width: 46,
-            height: 46,
+            width: context.layoutValue(46, compact: 40),
+            height: context.layoutValue(46, compact: 40),
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               color: colorScheme.primary.withValues(alpha: 0.14),
@@ -556,7 +577,7 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
               color: colorScheme.primary,
             ),
           ),
-          const SizedBox(width: 14),
+          SizedBox(width: context.layoutValue(14, compact: 10)),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -572,7 +593,7 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
                     color: colorScheme.onSurface.withValues(alpha: 0.72),
                   ),
                 ),
-                const SizedBox(height: 12),
+                SizedBox(height: context.layoutValue(12, compact: 8)),
                 FilledButton.icon(
                   onPressed: () => unawaited(_openMeditation(day, totalDays)),
                   icon: const Icon(Icons.self_improvement_rounded),
@@ -663,7 +684,12 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
     _FormationChallengeViewState state,
   ) {
     return ListView(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+      padding: EdgeInsets.fromLTRB(
+        context.layoutValue(20, compact: 14),
+        context.layoutValue(16, compact: 10),
+        context.layoutValue(20, compact: 14),
+        context.layoutValue(24, compact: 16),
+      ),
       children: [
         _buildProgressSection(
           context,
@@ -690,7 +716,12 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
     }
 
     return ListView.separated(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+      padding: EdgeInsets.fromLTRB(
+        context.layoutValue(16, compact: 12),
+        context.layoutValue(12, compact: 8),
+        context.layoutValue(16, compact: 12),
+        context.layoutValue(24, compact: 16),
+      ),
       itemCount: days.length,
       separatorBuilder: (context, index) => const SizedBox(height: 4),
       itemBuilder: (context, index) {

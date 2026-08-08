@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../shared/layout/responsive_layout.dart';
 import '../../shared/services/bookmarks_service.dart';
 import '../../shared/services/preferences_service.dart';
 import '../../shared/models/reader_user_models.dart';
@@ -145,7 +146,12 @@ class _BookmarksScreenState extends State<BookmarksScreen> {
     return RefreshIndicator(
       onRefresh: _refresh,
       child: ListView.separated(
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        padding: EdgeInsets.fromLTRB(
+          context.layoutValue(16, compact: 10),
+          0,
+          context.layoutValue(16, compact: 10),
+          context.layoutValue(16, compact: 12),
+        ),
         itemCount: bookmarks.length,
         separatorBuilder: (_, _) => const SizedBox(height: 8),
         itemBuilder: (context, index) {
@@ -183,6 +189,9 @@ class _BookmarksScreenState extends State<BookmarksScreen> {
             },
             onDismissed: (_) => _deleteBookmark(b),
             child: ListTile(
+              contentPadding: EdgeInsets.symmetric(
+                horizontal: context.layoutValue(16, compact: 8),
+              ),
               onTap: () => _openBookmark(b),
               title: Text(_formatRef(b.chapterRef)),
               subtitle: Text('Dodano: ${_formatDateTime(b.createdAt)}'),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../shared/layout/responsive_layout.dart';
 import '../../shared/services/formation_challenge_progress_service.dart';
 import '../../shared/services/formation_meditation_settings_service.dart';
 import '../../shared/services/formation_notification_service.dart';
@@ -721,241 +722,259 @@ class _SettingsScreenState extends State<SettingsScreen> {
               onBack: widget.onBack,
             ),
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Column(
-                children: [
-                  // TODO: Przywrócić, gdy dodamy osobny ekran ustawień czytnika.
-                  // const ListTile(
-                  //   leading: Icon(Icons.text_fields),
-                  //   title: Text('Czcionka czytania'),
-                  //   subtitle: Text('Ustawienia rozmiaru i stylu czcionki'),
-                  // ),
-                  // const Divider(),
-                  ListTile(
-                    leading: const Icon(Icons.cloud_download_outlined),
-                    title: const Text('Kopia danych (eksport/import)'),
-                    subtitle: const Text('Zapisz lub przywróć dane aplikacji'),
-                    onTap: () {
-                      Navigator.of(context).push(
-                        AppPageRoute.fade(
-                          settings: const RouteSettings(name: '/backup'),
-                          builder: (_) => const BackupScreen(),
-                        ),
-                      );
-                    },
-                  ),
-                  ListTile(
-                    leading: const Icon(Icons.headphones_rounded),
-                    title: const Text('Wyczyść postęp słuchania'),
-                    subtitle: const Text(
-                      'Rozdziały audio będą odtwarzane od początku.',
+              padding: EdgeInsets.symmetric(
+                horizontal: context.layoutValue(16, compact: 10),
+              ),
+              child: ListTileTheme.merge(
+                contentPadding: EdgeInsets.symmetric(
+                  horizontal: context.layoutValue(16, compact: 8),
+                ),
+                horizontalTitleGap: context.layoutValue(16, compact: 10),
+                minLeadingWidth: context.layoutValue(40, compact: 30),
+                visualDensity: context.isCompactAndroid
+                    ? const VisualDensity(horizontal: -1, vertical: -1)
+                    : VisualDensity.standard,
+                child: Column(
+                  children: [
+                    // TODO: Przywrócić, gdy dodamy osobny ekran ustawień czytnika.
+                    // const ListTile(
+                    //   leading: Icon(Icons.text_fields),
+                    //   title: Text('Czcionka czytania'),
+                    //   subtitle: Text('Ustawienia rozmiaru i stylu czcionki'),
+                    // ),
+                    // const Divider(),
+                    ListTile(
+                      leading: const Icon(Icons.cloud_download_outlined),
+                      title: const Text('Kopia danych (eksport/import)'),
+                      subtitle: const Text(
+                        'Zapisz lub przywróć dane aplikacji',
+                      ),
+                      onTap: () {
+                        Navigator.of(context).push(
+                          AppPageRoute.fade(
+                            settings: const RouteSettings(name: '/backup'),
+                            builder: (_) => const BackupScreen(),
+                          ),
+                        );
+                      },
                     ),
-                    onTap: _clearAudioPlaybackProgress,
-                  ),
-                  ListTile(
-                    leading: const Icon(Icons.download_done_rounded),
-                    title: const Text('Nagrania offline'),
-                    subtitle: const Text(
-                      'Zarządzaj pobranymi rozdziałami audio.',
+                    ListTile(
+                      leading: const Icon(Icons.headphones_rounded),
+                      title: const Text('Wyczyść postęp słuchania'),
+                      subtitle: const Text(
+                        'Rozdziały audio będą odtwarzane od początku.',
+                      ),
+                      onTap: _clearAudioPlaybackProgress,
                     ),
-                    onTap: () {
-                      Navigator.of(context).push(
-                        AppPageRoute.fade(
-                          settings: const RouteSettings(name: '/offline-audio'),
-                          builder: (_) => const OfflineAudioScreen(),
-                        ),
-                      );
-                    },
-                  ),
-                  FutureBuilder<bool>(
-                    future: _keepScreenOnInPlayerFuture,
-                    builder: (context, snapshot) {
-                      final enabled = snapshot.data ?? false;
+                    ListTile(
+                      leading: const Icon(Icons.download_done_rounded),
+                      title: const Text('Nagrania offline'),
+                      subtitle: const Text(
+                        'Zarządzaj pobranymi rozdziałami audio.',
+                      ),
+                      onTap: () {
+                        Navigator.of(context).push(
+                          AppPageRoute.fade(
+                            settings: const RouteSettings(
+                              name: '/offline-audio',
+                            ),
+                            builder: (_) => const OfflineAudioScreen(),
+                          ),
+                        );
+                      },
+                    ),
+                    FutureBuilder<bool>(
+                      future: _keepScreenOnInPlayerFuture,
+                      builder: (context, snapshot) {
+                        final enabled = snapshot.data ?? false;
 
-                      return SwitchListTile(
-                        value: enabled,
-                        onChanged: _setKeepScreenOnInPlayer,
-                        secondary: const Icon(Icons.screen_lock_portrait),
-                        title: const Text('Ekran stale włączony w odtwarzaczu'),
-                        subtitle: const Text(
-                          'Zapobiega wygaszaniu ekranu podczas korzystania '
-                          'z pełnego odtwarzacza audio.',
-                        ),
-                      );
-                    },
-                  ),
-                  const Divider(),
-                  _buildContentSettingsSection(context),
-                  const Divider(),
-                  _buildFormationSettingsSection(context),
-                  const Divider(),
-                  ListTile(
-                    leading: const Icon(Icons.info_outline),
-                    title: const Text('O aplikacji'),
-                    subtitle: const Text('Informacje, autor, licencja'),
-                    onTap: () {
-                      showModalBottomSheet(
-                        context: context,
-                        isScrollControlled: false,
-                        builder: (sheetContext) {
-                          final colorScheme = Theme.of(
-                            sheetContext,
-                          ).colorScheme;
+                        return SwitchListTile(
+                          value: enabled,
+                          onChanged: _setKeepScreenOnInPlayer,
+                          secondary: const Icon(Icons.screen_lock_portrait),
+                          title: const Text(
+                            'Ekran stale włączony w odtwarzaczu',
+                          ),
+                          subtitle: const Text(
+                            'Zapobiega wygaszaniu ekranu podczas korzystania '
+                            'z pełnego odtwarzacza audio.',
+                          ),
+                        );
+                      },
+                    ),
+                    const Divider(),
+                    _buildContentSettingsSection(context),
+                    const Divider(),
+                    _buildFormationSettingsSection(context),
+                    const Divider(),
+                    ListTile(
+                      leading: const Icon(Icons.info_outline),
+                      title: const Text('O aplikacji'),
+                      subtitle: const Text('Informacje, autor, licencja'),
+                      onTap: () {
+                        showModalBottomSheet(
+                          context: context,
+                          isScrollControlled: false,
+                          builder: (sheetContext) {
+                            final colorScheme = Theme.of(
+                              sheetContext,
+                            ).colorScheme;
 
-                          return SafeArea(
-                            child: Padding(
-                              padding: const EdgeInsets.fromLTRB(
-                                16,
-                                16,
-                                16,
-                                24,
-                              ),
-                              child: SingleChildScrollView(
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.stretch,
-                                  children: [
-                                    Row(
-                                      children: [
-                                        Icon(
-                                          Icons.menu_book,
-                                          size: 32,
-                                          color: colorScheme.primary,
-                                        ),
-                                        const SizedBox(width: 12),
-                                        const Expanded(
-                                          child: Text(
-                                            'O naśladowaniu Chrystusa',
-                                            style: TextStyle(
-                                              fontSize: 18,
-                                              fontWeight: FontWeight.w600,
+                            return SafeArea(
+                              child: Padding(
+                                padding: const EdgeInsets.fromLTRB(
+                                  16,
+                                  16,
+                                  16,
+                                  24,
+                                ),
+                                child: SingleChildScrollView(
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.stretch,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          Icon(
+                                            Icons.menu_book,
+                                            size: 32,
+                                            color: colorScheme.primary,
+                                          ),
+                                          const SizedBox(width: 12),
+                                          const Expanded(
+                                            child: Text(
+                                              'O naśladowaniu Chrystusa',
+                                              style: TextStyle(
+                                                fontSize: 18,
+                                                fontWeight: FontWeight.w600,
+                                              ),
                                             ),
                                           ),
-                                        ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 8),
-                                    Text(
-                                      'Wersja 2.1.0',
-                                      style: TextStyle(
-                                        fontSize: 13,
-                                        color: colorScheme.onSurface.withValues(
-                                          alpha: 0.7,
-                                        ),
+                                        ],
                                       ),
-                                    ),
-                                    const SizedBox(height: 16),
-                                    const Text(
-                                      'Przejdź przez „O\u00A0naśladowaniu Chrystusa” dzień po dniu '
-                                      'w\u00A0Drodze naśladowania. Otrzymasz fragment dnia, medytację, '
-                                      'miejsce na refleksję, postęp i\u00A0przypomnienia. Aplikacja zawiera '
-                                      'też audiobook, czytnik, zakładki, ulubione cytaty oraz wyszukiwanie.',
-                                      style: TextStyle(
-                                        fontSize: 14,
-                                        height: 1.4,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 12),
-                                    Text(
-                                      'Autor: Bartłomiej Kozak vel Bartolo Longo',
-                                      style: TextStyle(
-                                        fontSize: 13,
-                                        color: colorScheme.onSurface.withValues(
-                                          alpha: 0.8,
+                                      const SizedBox(height: 8),
+                                      Text(
+                                        'Wersja 2.1.0',
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          color: colorScheme.onSurface
+                                              .withValues(alpha: 0.7),
                                         ),
                                       ),
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      'Nagrania audio czyta: Marcin Nowakowski',
-                                      style: TextStyle(
-                                        fontSize: 13,
-                                        color: colorScheme.onSurface.withValues(
-                                          alpha: 0.8,
+                                      const SizedBox(height: 16),
+                                      const Text(
+                                        'Przejdź przez „O\u00A0naśladowaniu Chrystusa” dzień po dniu '
+                                        'w\u00A0Drodze naśladowania. Otrzymasz fragment dnia, medytację, '
+                                        'miejsce na refleksję, postęp i\u00A0przypomnienia. Aplikacja zawiera '
+                                        'też audiobook, czytnik, zakładki, ulubione cytaty oraz wyszukiwanie.',
+                                        style: TextStyle(
+                                          fontSize: 14,
+                                          height: 1.4,
                                         ),
                                       ),
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      'Tekst książki: domena publiczna / zgodnie z prawami autorskimi zastosowanego '
-                                      'tłumaczenia.',
-                                      style: TextStyle(
-                                        fontSize: 11,
-                                        height: 1.3,
-                                        color: colorScheme.onSurface.withValues(
-                                          alpha: 0.6,
+                                      const SizedBox(height: 12),
+                                      Text(
+                                        'Autor: Bartłomiej Kozak vel Bartolo Longo',
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          color: colorScheme.onSurface
+                                              .withValues(alpha: 0.8),
                                         ),
                                       ),
-                                    ),
-                                    const SizedBox(height: 16),
-                                    const Text(
-                                      'Jeśli aplikacja jest dla Ciebie pomocna i chcesz wesprzeć '
-                                      'jej rozwój, możesz postawić mi „wirtualną kawę”. 😊',
-                                      style: TextStyle(
-                                        fontSize: 13,
-                                        height: 1.4,
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        'Nagrania audio czyta: Marcin Nowakowski',
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          color: colorScheme.onSurface
+                                              .withValues(alpha: 0.8),
+                                        ),
                                       ),
-                                    ),
-                                    const SizedBox(height: 16),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        'Tekst książki: domena publiczna / zgodnie z prawami autorskimi zastosowanego '
+                                        'tłumaczenia.',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          height: 1.3,
+                                          color: colorScheme.onSurface
+                                              .withValues(alpha: 0.6),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 16),
+                                      const Text(
+                                        'Jeśli aplikacja jest dla Ciebie pomocna i chcesz wesprzeć '
+                                        'jej rozwój, możesz postawić mi „wirtualną kawę”. 😊',
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          height: 1.4,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 16),
 
-                                    // Dwa główne przyciski
-                                    Wrap(
-                                      spacing: 8,
-                                      runSpacing: 8,
-                                      children: [
-                                        ElevatedButton.icon(
-                                          onPressed: () => _launchUrl(
-                                            context,
-                                            _projectUrl,
-                                            failMessage:
-                                                'Nie udało się otworzyć strony projektu.',
+                                      // Dwa główne przyciski
+                                      Wrap(
+                                        spacing: 8,
+                                        runSpacing: 8,
+                                        children: [
+                                          ElevatedButton.icon(
+                                            onPressed: () => _launchUrl(
+                                              context,
+                                              _projectUrl,
+                                              failMessage:
+                                                  'Nie udało się otworzyć strony projektu.',
+                                            ),
+                                            icon: const Icon(
+                                              Icons.info_outline,
+                                            ),
+                                            label: const Text('O projekcie'),
                                           ),
-                                          icon: const Icon(Icons.info_outline),
-                                          label: const Text('O projekcie'),
-                                        ),
-                                        ElevatedButton.icon(
-                                          onPressed: () => _launchUrl(
-                                            context,
-                                            _supportUrl,
-                                            failMessage:
-                                                'Nie udało się otworzyć strony wsparcia.',
+                                          ElevatedButton.icon(
+                                            onPressed: () => _launchUrl(
+                                              context,
+                                              _supportUrl,
+                                              failMessage:
+                                                  'Nie udało się otworzyć strony wsparcia.',
+                                            ),
+                                            icon: const Icon(Icons.coffee),
+                                            label: const Text(
+                                              'Wesprzyj projekt',
+                                            ),
                                           ),
-                                          icon: const Icon(Icons.coffee),
-                                          label: const Text('Wesprzyj projekt'),
-                                        ),
-                                        OutlinedButton.icon(
+                                          OutlinedButton.icon(
+                                            onPressed: () =>
+                                                _showWhatsNewSheet(context),
+                                            icon: const Icon(
+                                              Icons.new_releases_outlined,
+                                            ),
+                                            label: const Text('Co nowego'),
+                                          ),
+                                        ],
+                                      ),
+
+                                      const SizedBox(height: 8),
+
+                                      // Zamknij na samym dole
+                                      Align(
+                                        alignment: Alignment.centerRight,
+                                        child: TextButton(
                                           onPressed: () =>
-                                              _showWhatsNewSheet(context),
-                                          icon: const Icon(
-                                            Icons.new_releases_outlined,
-                                          ),
-                                          label: const Text('Co nowego'),
+                                              Navigator.of(sheetContext).pop(),
+                                          child: const Text('Zamknij'),
                                         ),
-                                      ],
-                                    ),
-
-                                    const SizedBox(height: 8),
-
-                                    // Zamknij na samym dole
-                                    Align(
-                                      alignment: Alignment.centerRight,
-                                      child: TextButton(
-                                        onPressed: () =>
-                                            Navigator.of(sheetContext).pop(),
-                                        child: const Text('Zamknij'),
                                       ),
-                                    ),
-                                  ],
+                                    ],
+                                  ),
                                 ),
                               ),
-                            ),
-                          );
-                        },
-                      );
-                    },
-                  ),
-                ],
+                            );
+                          },
+                        );
+                      },
+                    ),
+                  ],
+                ),
               ),
             ),
           ],

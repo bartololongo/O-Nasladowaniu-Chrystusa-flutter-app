@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import '../../shared/layout/responsive_layout.dart';
 import '../../shared/navigation/app_page_route.dart';
 import '../../shared/widgets/section_header.dart';
 import '../audio/data/audio_track.dart';
@@ -165,7 +166,12 @@ class _ReadingHubScreenState extends State<ReadingHubScreen> {
             ),
             Expanded(
               child: ListView(
-                padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+                padding: EdgeInsets.fromLTRB(
+                  context.layoutValue(16, compact: 12),
+                  context.layoutValue(4, compact: 2),
+                  context.layoutValue(16, compact: 12),
+                  context.layoutValue(24, compact: 16),
+                ),
                 children: [
                   _ReadingHubTile(
                     icon: Icons.play_circle_fill,
@@ -174,7 +180,7 @@ class _ReadingHubScreenState extends State<ReadingHubScreen> {
                     isPrimary: true,
                     onTap: () => _openReader(context),
                   ),
-                  const SizedBox(height: 12),
+                  SizedBox(height: context.layoutValue(12, compact: 8)),
                   _ReadingHubTile(
                     icon: Icons.headphones_rounded,
                     title: _audioTileData.title,
@@ -184,16 +190,16 @@ class _ReadingHubScreenState extends State<ReadingHubScreen> {
                         ? null
                         : () => unawaited(_openAudioPlayer()),
                   ),
-                  const SizedBox(height: 20),
+                  SizedBox(height: context.layoutValue(20, compact: 14)),
                   const _ReadingHubSectionTitle('Zapisane miejsca'),
-                  const SizedBox(height: 8),
+                  SizedBox(height: context.layoutValue(8, compact: 6)),
                   _ReadingHubTile(
                     icon: Icons.format_quote,
                     title: 'Ulubione',
                     subtitle: 'Fragmenty, do których chcesz wracać.',
                     onTap: () => _openFavorites(context),
                   ),
-                  const SizedBox(height: 12),
+                  SizedBox(height: context.layoutValue(12, compact: 8)),
                   _ReadingHubTile(
                     icon: Icons.bookmark_border,
                     title: 'Zakładki',
@@ -245,13 +251,19 @@ class _ReadingHubTile extends StatelessWidget {
           ),
         ),
         padding: EdgeInsets.symmetric(
-          vertical: isPrimary ? 16 : 12,
-          horizontal: 16,
+          vertical: isPrimary
+              ? context.layoutValue(16, compact: 12)
+              : context.layoutValue(12, compact: 10),
+          horizontal: context.layoutValue(16, compact: 12),
         ),
         child: Row(
           children: [
-            Icon(icon, size: 32, color: colorScheme.primary),
-            const SizedBox(width: 16),
+            Icon(
+              icon,
+              size: context.layoutValue(32, compact: 28),
+              color: colorScheme.primary,
+            ),
+            SizedBox(width: context.layoutValue(16, compact: 10)),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,

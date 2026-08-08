@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
+import '../../../shared/layout/responsive_layout.dart';
 import '../../../shared/models/book_models.dart';
 import '../../../shared/services/book_repository.dart';
 import '../data/audio_catalog.dart';
@@ -262,6 +263,8 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final compactVertical =
+        context.isCompactAndroid && MediaQuery.sizeOf(context).height <= 760;
 
     return Scaffold(
       body: SafeArea(
@@ -271,10 +274,15 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
             _buildHeader(context),
             Expanded(
               child: ListView(
-                padding: const EdgeInsets.fromLTRB(20, 4, 20, 22),
+                padding: EdgeInsets.fromLTRB(
+                  context.layoutValue(20, compact: 14),
+                  compactVertical ? 0 : 4,
+                  context.layoutValue(20, compact: 14),
+                  context.layoutValue(22, compact: 14),
+                ),
                 children: [
                   _buildCoverBlock(context),
-                  const SizedBox(height: 20),
+                  SizedBox(height: compactVertical ? 10 : 20),
                   Text(
                     _track.subtitle,
                     textAlign: TextAlign.center,
@@ -283,7 +291,7 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
                       fontWeight: FontWeight.w600,
                     ),
                   ),
-                  const SizedBox(height: 8),
+                  SizedBox(height: compactVertical ? 4 : 8),
                   Text(
                     'Rozdział ${_track.chapterNumber}',
                     textAlign: TextAlign.center,
@@ -291,7 +299,7 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
                       color: colorScheme.onSurface.withValues(alpha: 0.72),
                     ),
                   ),
-                  const SizedBox(height: 12),
+                  SizedBox(height: compactVertical ? 6 : 12),
                   Text(
                     _track.title,
                     textAlign: TextAlign.center,
@@ -304,17 +312,17 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
                       height: 1.25,
                     ),
                   ),
-                  const SizedBox(height: 20),
+                  SizedBox(height: compactVertical ? 10 : 20),
                   if (_errorMessage != null) ...[
                     _buildErrorMessage(context),
-                    const SizedBox(height: 16),
+                    SizedBox(height: compactVertical ? 8 : 16),
                   ],
                   _buildProgressActions(context),
-                  const SizedBox(height: 8),
+                  SizedBox(height: compactVertical ? 4 : 8),
                   _buildProgress(context),
-                  const SizedBox(height: 2),
+                  SizedBox(height: compactVertical ? 0 : 2),
                   _buildControls(context),
-                  const SizedBox(height: 28),
+                  SizedBox(height: compactVertical ? 12 : 28),
                   _buildAutoAdvanceToggle(context),
                 ],
               ),
@@ -329,7 +337,12 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
     final colorScheme = Theme.of(context).colorScheme;
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(8, 12, 12, 8),
+      padding: EdgeInsets.fromLTRB(
+        context.layoutValue(8, compact: 4),
+        context.layoutValue(12, compact: 8),
+        context.layoutValue(12, compact: 8),
+        context.layoutValue(8, compact: 4),
+      ),
       child: Row(
         children: [
           IconButton(
@@ -337,13 +350,20 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
             icon: const Icon(Icons.arrow_back),
             tooltip: 'Wstecz',
           ),
-          const SizedBox(width: 4),
-          Icon(Icons.headphones_rounded, size: 28, color: colorScheme.primary),
-          const SizedBox(width: 12),
-          const Expanded(
+          SizedBox(width: context.layoutValue(4, compact: 2)),
+          Icon(
+            Icons.headphones_rounded,
+            size: context.layoutValue(28, compact: 24),
+            color: colorScheme.primary,
+          ),
+          SizedBox(width: context.layoutValue(12, compact: 8)),
+          Expanded(
             child: Text(
               'Nagranie lektorskie',
-              style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
+              style: TextStyle(
+                fontSize: context.layoutValue(22, compact: 20),
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ),
           IconButton(
@@ -532,7 +552,10 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
     return Center(
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final artworkSize = constraints.maxWidth.clamp(0.0, 240.0);
+          final viewportHeight = MediaQuery.sizeOf(context).height;
+          final maxArtworkSize =
+              context.isCompactAndroid && viewportHeight <= 760 ? 176.0 : 240.0;
+          final artworkSize = constraints.maxWidth.clamp(0.0, maxArtworkSize);
 
           return Container(
             width: artworkSize,
@@ -598,27 +621,27 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             _buildPlaybackSpeedButton(context),
-            const SizedBox(width: 8),
+            SizedBox(width: context.layoutValue(8, compact: 6)),
             _AudioSeekButton(
               tooltip: 'Cofnij o 10 sekund',
               label: '-10',
-              size: 42,
+              size: context.layoutValue(42, compact: 38),
               fontSize: 13,
               onPressed: () => unawaited(
                 _audioService.seekRelative(const Duration(seconds: -10)),
               ),
             ),
-            const SizedBox(width: 8),
+            SizedBox(width: context.layoutValue(8, compact: 6)),
             _AudioSeekButton(
               tooltip: 'Przewiń o 10 sekund',
               label: '+10',
-              size: 42,
+              size: context.layoutValue(42, compact: 38),
               fontSize: 13,
               onPressed: () => unawaited(
                 _audioService.seekRelative(const Duration(seconds: 10)),
               ),
             ),
-            const SizedBox(width: 8),
+            SizedBox(width: context.layoutValue(8, compact: 6)),
             _buildDownloadButton(context),
           ],
         ),
@@ -632,10 +655,11 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
     return RepaintBoundary(
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final isCompact = constraints.maxWidth < 310;
+          final isCompact =
+              context.isCompactAndroid || constraints.maxWidth < 310;
           final transportSize = isCompact ? 64.0 : 76.0;
           final playSize = isCompact ? 72.0 : 76.0;
-          final spacing = isCompact ? 24.0 : 42.0;
+          final spacing = isCompact ? 22.0 : 42.0;
 
           return Row(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -689,7 +713,12 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
     final colorScheme = Theme.of(context).colorScheme;
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      padding: context.compactInsets(
+        horizontal: 14,
+        vertical: 10,
+        compactHorizontal: 10,
+        compactVertical: 8,
+      ),
       decoration: BoxDecoration(
         color: colorScheme.surface.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(14),
@@ -703,7 +732,7 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
                 ? colorScheme.primary
                 : colorScheme.onSurface.withValues(alpha: 0.68),
           ),
-          const SizedBox(width: 10),
+          SizedBox(width: context.layoutValue(10, compact: 8)),
           Expanded(
             child: Text(
               'Autoodtwarzanie kolejnych rozdziałów',
@@ -740,7 +769,12 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
             label: Text(_formatPlaybackSpeed(speed)),
             style: FilledButton.styleFrom(
               foregroundColor: colorScheme.primary,
-              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+              padding: context.compactInsets(
+                horizontal: 18,
+                vertical: 12,
+                compactHorizontal: 14,
+                compactVertical: 10,
+              ),
               textStyle: const TextStyle(fontWeight: FontWeight.w700),
             ),
           );
@@ -1459,7 +1493,9 @@ class _AudioSeekButton extends StatelessWidget {
         child: FilledButton.tonal(
           style: FilledButton.styleFrom(
             foregroundColor: colorScheme.primary,
-            padding: const EdgeInsets.symmetric(horizontal: 14),
+            padding: EdgeInsets.symmetric(
+              horizontal: context.layoutValue(14, compact: 10),
+            ),
             shape: const StadiumBorder(),
             textStyle: TextStyle(
               fontSize: fontSize,

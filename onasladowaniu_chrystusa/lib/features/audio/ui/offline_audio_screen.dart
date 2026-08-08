@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../shared/layout/responsive_layout.dart';
 import '../../../shared/navigation/navigation_guard_service.dart';
 import '../../../shared/services/book_repository.dart';
 import '../../../shared/widgets/section_header.dart';
@@ -697,6 +698,7 @@ class _DownloadedTrackTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final isCompact = context.isCompactAndroid;
     final downloadedMeta = downloadedAtLabel == null
         ? sizeLabel
         : '$sizeLabel · Pobrano: $downloadedAtLabel';
@@ -712,23 +714,124 @@ class _DownloadedTrackTile extends StatelessWidget {
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: colorScheme.outline.withValues(alpha: 0.12)),
       ),
-      child: ListTile(
-        leading: Icon(Icons.audio_file_rounded, color: colorScheme.primary),
-        title: Text(info.track.title),
-        subtitle: Text(subtitleParts.join('\n')),
-        isThreeLine: true,
-        trailing: IconButton(
-          tooltip: 'Usuń pobrane nagranie',
-          onPressed: isDeleting ? null : onDelete,
-          icon: isDeleting
-              ? const SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Icon(Icons.delete_outline_rounded),
-        ),
-      ),
+      child: isCompact
+          ? Padding(
+              padding: const EdgeInsets.fromLTRB(10, 8, 6, 8),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.audio_file_rounded,
+                    size: 22,
+                    color: colorScheme.primary,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          info.track.title,
+                          maxLines: 4,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.bodyLarge,
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          '${info.track.subtitle} · Rozdział ${info.track.chapterNumber}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                color: colorScheme.onSurface.withValues(
+                                  alpha: 0.72,
+                                ),
+                              ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          downloadedMeta,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                color: colorScheme.onSurface.withValues(
+                                  alpha: 0.68,
+                                ),
+                              ),
+                        ),
+                        if (isCurrentTrack) ...[
+                          const SizedBox(height: 4),
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 3,
+                              ),
+                              decoration: BoxDecoration(
+                                color: colorScheme.primary.withValues(
+                                  alpha: 0.14,
+                                ),
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                              child: Text(
+                                'Teraz odtwarzane',
+                                maxLines: 1,
+                                overflow: TextOverflow.visible,
+                                style: Theme.of(context).textTheme.labelSmall
+                                    ?.copyWith(
+                                      color: colorScheme.primary,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  SizedBox(
+                    width: 44,
+                    height: 44,
+                    child: IconButton(
+                      tooltip: 'Usuń pobrane nagranie',
+                      onPressed: isDeleting ? null : onDelete,
+                      padding: EdgeInsets.zero,
+                      icon: isDeleting
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.delete_outline_rounded),
+                    ),
+                  ),
+                ],
+              ),
+            )
+          : ListTile(
+              leading: Icon(
+                Icons.audio_file_rounded,
+                color: colorScheme.primary,
+              ),
+              title: Text(info.track.title),
+              subtitle: Text(subtitleParts.join('\n')),
+              isThreeLine: true,
+              trailing: IconButton(
+                tooltip: 'Usuń pobrane nagranie',
+                onPressed: isDeleting ? null : onDelete,
+                icon: isDeleting
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.delete_outline_rounded),
+              ),
+            ),
     );
   }
 }
