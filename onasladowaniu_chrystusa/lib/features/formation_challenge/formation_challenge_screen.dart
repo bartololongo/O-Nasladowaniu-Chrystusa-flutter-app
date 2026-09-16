@@ -481,7 +481,7 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
       ),
       children: [
         Text(
-          'Dzień ${day.dayNumber} z $totalDays',
+          'Dzień ${day.dayNumber} ze $totalDays',
           style: Theme.of(context).textTheme.titleMedium,
         ),
         SizedBox(height: context.layoutValue(4, compact: 3)),
@@ -874,7 +874,7 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Text(
-                    'Dzień ${day.dayNumber} z $totalDays',
+                    'Dzień ${day.dayNumber} ze $totalDays',
                     style: Theme.of(sheetContext).textTheme.titleMedium,
                   ),
                   const SizedBox(height: 4),

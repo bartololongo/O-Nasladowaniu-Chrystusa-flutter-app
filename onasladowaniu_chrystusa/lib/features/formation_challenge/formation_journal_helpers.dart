@@ -8,7 +8,7 @@ import '../journal/journal_screen.dart';
 String buildFormationJournalPrefill(FormationChallengeDay day, int totalDays) {
   final buffer = StringBuffer()
     ..writeln('Droga naśladowania')
-    ..writeln('Dzień ${day.dayNumber} z $totalDays')
+    ..writeln('Dzień ${day.dayNumber} ze $totalDays')
     ..writeln(day.bookTitle)
     ..writeln('${day.chapterTitle} (${day.chapterReference})')
     ..writeln()
@@ -58,7 +58,7 @@ Future<JournalEntry?> _findExistingFormationJournalEntry({
   required int totalDays,
 }) async {
   final entries = await JournalService().getEntries();
-  final dayMarker = 'Dzień ${day.dayNumber} z $totalDays';
+  final dayMarker = 'Dzień ${day.dayNumber} ze $totalDays';
   final fallbackDayMarker = 'Dzień ${day.dayNumber} z';
 
   final matchingEntries = entries.where((entry) {

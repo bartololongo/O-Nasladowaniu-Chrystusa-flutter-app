@@ -29,7 +29,7 @@
         android:textColor="@android:color/white"
         android:textSize="20sp"
         android:textStyle="bold"
-        tools:text="Dzień 12 z 114" />
+        tools:text="Dzień 12 ze 114" />
 
     <ProgressBar
         android:id="@+id/formation_widget_progress"

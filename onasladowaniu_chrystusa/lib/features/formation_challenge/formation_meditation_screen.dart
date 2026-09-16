@@ -263,7 +263,7 @@ class _FormationMeditationScreenState extends State<FormationMeditationScreen> {
           children: [
             SectionHeader(
               title: 'Medytacja',
-              subtitle: 'Dzień ${widget.day.dayNumber} z ${widget.totalDays}',
+              subtitle: 'Dzień ${widget.day.dayNumber} ze ${widget.totalDays}',
               icon: Icons.self_improvement,
               showBackButton: true,
               onBack: _returnToChallenge,

@@ -117,7 +117,7 @@ struct FormationWidgetView: View {
   private var dayText: String {
     family == .systemSmall
       ? "\(entry.dayNumber) / \(entry.totalDays)"
-      : "Dzień \(entry.dayNumber) z \(entry.totalDays)"
+      : "Dzień \(entry.dayNumber) ze \(entry.totalDays)"
   }
 
   private var messageText: String {

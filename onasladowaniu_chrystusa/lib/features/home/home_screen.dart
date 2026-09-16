@@ -192,7 +192,7 @@ class _HomeScreenState extends State<HomeScreen>
       return 'Najpierw rozpocznij Drogę naśladowania.';
     }
 
-    return 'Dzień ${day.dayNumber} z $totalDays';
+    return 'Dzień ${day.dayNumber} ze $totalDays';
   }
 
   Future<void> _openDailyMeditationQuick() async {
