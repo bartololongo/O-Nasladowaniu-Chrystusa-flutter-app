@@ -505,7 +505,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             ),
                             const SizedBox(height: 2),
                             Text(
-                              'Wersja 2.1.0',
+                              'Wersja 2.2.0',
                               style: TextStyle(
                                 fontSize: 12,
                                 color: colorScheme.onSurface.withValues(
@@ -520,19 +520,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                   const SizedBox(height: 16),
                   const Text(
-                    'Z przyjemnością oddaję w Państwa ręce wiele nowości',
+                    'Z przyjemnością oddaję w Państwa ręce nowy build aplikacji.',
                     style: TextStyle(fontSize: 14, height: 1.4),
                   ),
                   const SizedBox(height: 18),
                   const _WhatsNewItem(
                     title: 'Najważniejsze zmiany',
                     description:
-                        '• Nowy dolny pasek: Start, Droga, Książka, Dziennik i Ustawienia\n'
-                        '• Ustawienia zostały przeniesione na dolny pasek nawigacyjny\n'
-                        '• Dodano powiadomienie o dostępnej aktualizacji\n'
-                        '• Wprowadzono ekran Książka łączący poprzednie ekrany - Czytanie i Słuchanie\n'
-                        '• Ujednolicono nagłówek w czytniku z innymi ekranami\n'
-                        '• Poprawiono błąd dotyczący przewijania nagrania do początku\n',
+                        '• Audiobook - naprawiono problem z przewijaniem +/-10s\n'
+                        '• Wprowadzono drobne poprawki w interfejsie\n',
                   ),
                   const SizedBox(height: 8),
                   Align(
@@ -855,7 +851,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                       ),
                                       const SizedBox(height: 8),
                                       Text(
-                                        'Wersja 2.1.0',
+                                        'Wersja 2.2.0',
                                         style: TextStyle(
                                           fontSize: 13,
                                           color: colorScheme.onSurface
