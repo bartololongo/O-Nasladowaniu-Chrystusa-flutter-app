@@ -12,6 +12,20 @@ import '../data/audio_track.dart';
 import '../services/app_audio_player_service.dart';
 import '../services/audio_download_service.dart';
 
+@visibleForTesting
+bool shouldSyncAudioProgressAnchor({
+  required Duration playerPosition,
+  required Duration displayPosition,
+  required bool isPlaying,
+  required bool forceNextPositionSync,
+}) {
+  if (forceNextPositionSync) return true;
+  if (!isPlaying) return true;
+  if (playerPosition >= displayPosition) return true;
+
+  return displayPosition - playerPosition >= _backwardSeekSyncThreshold;
+}
+
 class AudioPlayerScreen extends StatefulWidget {
   final AudioTrack track;
 
@@ -1162,10 +1176,12 @@ class _AudioProgressSliderState extends State<_AudioProgressSlider>
     required Duration displayPosition,
     required bool isPlaying,
   }) {
-    if (_forceNextPositionSync) return true;
-    if (!isPlaying) return true;
-    if (playerPosition >= displayPosition) return true;
-    return false;
+    return shouldSyncAudioProgressAnchor(
+      playerPosition: playerPosition,
+      displayPosition: displayPosition,
+      isPlaying: isPlaying,
+      forceNextPositionSync: _forceNextPositionSync,
+    );
   }
 
   void _resetAnchor(
@@ -1343,6 +1359,8 @@ class _AudioProgressSliderState extends State<_AudioProgressSlider>
 
   static const Duration _displayTickInterval = Duration(milliseconds: 250);
 }
+
+const Duration _backwardSeekSyncThreshold = Duration(milliseconds: 700);
 
 class _AudioPlayPauseButton extends StatelessWidget {
   final double size;

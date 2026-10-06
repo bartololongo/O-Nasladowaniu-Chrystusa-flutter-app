@@ -314,7 +314,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     Row(
                       children: [
                         Icon(
-                          Icons.self_improvement,
+                          Icons.menu_book_outlined,
                           size: 32,
                           color: colorScheme.primary,
                         ),
@@ -560,7 +560,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         if (snapshot.connectionState == ConnectionState.waiting &&
             state == null) {
           return const ListTile(
-            leading: Icon(Icons.self_improvement),
+            leading: Icon(Icons.menu_book_outlined),
             title: Text('Droga naśladowania'),
             subtitle: Text('Ładowanie ustawień...'),
           );
@@ -568,7 +568,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
         if (snapshot.hasError || state == null) {
           return ListTile(
-            leading: const Icon(Icons.self_improvement),
+            leading: const Icon(Icons.menu_book_outlined),
             title: const Text('Droga naśladowania'),
             subtitle: const Text('Nie udało się wczytać ustawień'),
             trailing: IconButton(

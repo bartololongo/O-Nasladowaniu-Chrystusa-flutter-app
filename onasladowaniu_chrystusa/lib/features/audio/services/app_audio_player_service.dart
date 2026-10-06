@@ -13,7 +13,9 @@ import '../data/audio_track.dart';
 import 'audio_download_service.dart';
 
 class AppAudioPlayerService {
-  AppAudioPlayerService._();
+  AppAudioPlayerService._() {
+    _playerPositionSubscription;
+  }
 
   static final AppAudioPlayerService instance = AppAudioPlayerService._();
 
@@ -24,13 +26,22 @@ class AppAudioPlayerService {
       StreamController<AudioTrack?>.broadcast();
   final StreamController<double> _playbackSpeedController =
       StreamController<double>.broadcast();
+  final StreamController<Duration> _positionController =
+      StreamController<Duration>.broadcast();
 
   AudioTrack? _currentTrack;
   StreamSubscription<Duration>? _positionSubscription;
+  late final StreamSubscription<Duration> _playerPositionSubscription = _player
+      .positionStream
+      .listen(_syncPositionFromPlayer);
   Timer? _saveTimer;
   Future<void>? _audioSessionConfiguration;
   Future<void>? _playbackSpeedInitialization;
+  Future<void> _seekQueue = Future<void>.value();
   double _playbackSpeed = defaultPlaybackSpeed;
+  Duration _currentPosition = Duration.zero;
+  Duration? _optimisticSeekPosition;
+  DateTime? _optimisticSeekStartedAt;
 
   AudioTrack? get currentTrack => _currentTrack;
 
@@ -40,13 +51,13 @@ class AppAudioPlayerService {
 
   Stream<double> get playbackSpeedStream => _playbackSpeedController.stream;
 
-  Duration get currentPosition => _player.position;
+  Duration get currentPosition => _optimisticSeekPosition ?? _currentPosition;
 
   Duration? get duration => _player.duration;
 
   bool get isPlaying => _player.playing;
 
-  Stream<Duration> get positionStream => _player.positionStream;
+  Stream<Duration> get positionStream => _positionController.stream;
 
   Stream<Duration?> get durationStream => _player.durationStream;
 
@@ -149,20 +160,17 @@ class AppAudioPlayerService {
     }
   }
 
-  Future<void> seek(Duration position) async {
-    await _player.seek(position);
-    await _saveCurrentPosition();
+  Future<void> seek(Duration position) {
+    return _queueSeek(() async {
+      await _seekToPosition(_clampPosition(position, _player.duration));
+    });
   }
 
-  Future<void> seekRelative(Duration offset) async {
-    final duration = _player.duration;
-    final currentPosition = _player.position;
-    var target = currentPosition + offset;
-
-    if (target < Duration.zero) target = Duration.zero;
-    if (duration != null && target > duration) target = duration;
-
-    await seek(target);
+  Future<void> seekRelative(Duration offset) {
+    return _queueSeek(() async {
+      final target = _clampPosition(currentPosition + offset, _player.duration);
+      await _seekToPosition(target);
+    });
   }
 
   Future<void> stop() async {
@@ -202,8 +210,62 @@ class AppAudioPlayerService {
     await _restoreSavedPosition(track);
   }
 
+  Future<void> _queueSeek(Future<void> Function() seekAction) {
+    final operation = _seekQueue.catchError((_) {}).then((_) => seekAction());
+    _seekQueue = operation;
+    return operation;
+  }
+
+  Future<void> _seekToPosition(Duration position) async {
+    _setOptimisticPosition(position);
+    await _player.seek(position);
+    await _saveCurrentPosition();
+  }
+
+  void _setOptimisticPosition(Duration position) {
+    final clampedPosition = _clampPosition(position, _player.duration);
+    _optimisticSeekPosition = clampedPosition;
+    _optimisticSeekStartedAt = DateTime.now();
+    _emitPosition(clampedPosition);
+  }
+
+  void _syncPositionFromPlayer(Duration position) {
+    final optimisticPosition = _optimisticSeekPosition;
+    final optimisticSeekStartedAt = _optimisticSeekStartedAt;
+
+    if (optimisticPosition != null && optimisticSeekStartedAt != null) {
+      final difference = (position - optimisticPosition).abs();
+      final isFreshSeek =
+          DateTime.now().difference(optimisticSeekStartedAt) <
+          _optimisticSeekStaleWindow;
+
+      if (difference > _positionSyncTolerance && isFreshSeek) {
+        return;
+      }
+
+      _optimisticSeekPosition = null;
+      _optimisticSeekStartedAt = null;
+    }
+
+    _emitPosition(position);
+  }
+
+  void _emitPosition(Duration position) {
+    final clampedPosition = _clampPosition(position, _player.duration);
+    _currentPosition = clampedPosition;
+    if (!_positionController.isClosed) {
+      _positionController.add(clampedPosition);
+    }
+  }
+
+  Duration _clampPosition(Duration position, Duration? duration) {
+    if (position < Duration.zero) return Duration.zero;
+    if (duration != null && position > duration) return duration;
+    return position;
+  }
+
   void _startPositionPersistence() {
-    _positionSubscription ??= _player.positionStream.listen((_) {
+    _positionSubscription ??= positionStream.listen((_) {
       _saveTimer ??= Timer(const Duration(seconds: 5), () {
         _saveTimer = null;
         unawaited(_saveCurrentPosition());
@@ -316,19 +378,19 @@ class AppAudioPlayerService {
     final savedPosition = await _getSavedPosition(track);
     final duration = _player.duration;
     if (_isRestorablePosition(savedPosition, duration)) {
-      await _player.seek(savedPosition);
+      await _seekToPosition(savedPosition);
     }
   }
 
   Future<void> _restoreSavedPositionIfPlayerIsAtStart(AudioTrack track) async {
     final savedPosition = await _getSavedPosition(track);
     final duration = _player.duration;
-    final currentPosition = _player.position;
+    final currentPosition = this.currentPosition;
 
     if (currentPosition >= const Duration(seconds: 5)) return;
     if (!_isRestorablePosition(savedPosition, duration)) return;
 
-    await _player.seek(savedPosition);
+    await _seekToPosition(savedPosition);
   }
 
   Future<void> _saveCurrentPosition() async {
@@ -338,7 +400,7 @@ class AppAudioPlayerService {
     final preferences = await SharedPreferences.getInstance();
     await preferences.setInt(
       _positionKey(track.id),
-      _player.position.inMilliseconds,
+      currentPosition.inMilliseconds,
     );
     await _saveLastTrack(track);
   }
@@ -376,6 +438,10 @@ class AppAudioPlayerService {
   static const String _playbackSpeedKey = 'audio.playback.speed';
   static const String _lockScreenArtworkAssetPath =
       'assets/audio/lockscreen_artwork.png';
+  static const Duration _optimisticSeekStaleWindow = Duration(
+    milliseconds: 700,
+  );
+  static const Duration _positionSyncTolerance = Duration(milliseconds: 700);
   static const double defaultPlaybackSpeed = 1.0;
   static const List<double> availablePlaybackSpeeds = [
     0.75,

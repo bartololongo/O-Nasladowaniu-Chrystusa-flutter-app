@@ -873,7 +873,7 @@ class _HomeScreenState extends State<HomeScreen>
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             Icon(
-              Icons.self_improvement_rounded,
+              Icons.menu_book_rounded,
               size: context.layoutValue(32, compact: 28),
               color: colorScheme.primary,
             ),
@@ -986,7 +986,7 @@ class _HomeScreenState extends State<HomeScreen>
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             Icon(
-              Icons.auto_awesome,
+              Icons.shuffle,
               size: context.layoutValue(32, compact: 28),
               color: colorScheme.primary,
             ),

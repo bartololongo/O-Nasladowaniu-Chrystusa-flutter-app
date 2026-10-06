@@ -572,10 +572,7 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
               shape: BoxShape.circle,
               color: colorScheme.primary.withValues(alpha: 0.14),
             ),
-            child: Icon(
-              Icons.self_improvement_rounded,
-              color: colorScheme.primary,
-            ),
+            child: Icon(Icons.menu_book_rounded, color: colorScheme.primary),
           ),
           SizedBox(width: context.layoutValue(14, compact: 10)),
           Expanded(
@@ -596,7 +593,7 @@ class _FormationChallengeScreenState extends State<FormationChallengeScreen> {
                 SizedBox(height: context.layoutValue(12, compact: 8)),
                 FilledButton.icon(
                   onPressed: () => unawaited(_openMeditation(day, totalDays)),
-                  icon: const Icon(Icons.self_improvement_rounded),
+                  icon: const Icon(Icons.menu_book_rounded),
                   label: const Text('Rozpocznij medytację'),
                 ),
               ],
